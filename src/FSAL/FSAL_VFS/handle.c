@@ -20,9 +20,10 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301 USA
  *
- * ------------- 
+ * -------------
  */
 
 /* handle.c
@@ -46,9 +47,21 @@
 #include "fsal_convert.h"
 #include "FSAL/fsal_commonlib.h"
 #include "vfs_methods.h"
+#include "extent.h"
 
 /* helpers
  */
+
+/* init_maps
+ * initialize file mapping structures
+ */
+static inline void
+init_file_maps(struct vfs_fsal_obj_handle *hdl)
+{
+    hdl->maps.flags = VFS_FILE_MAP_NONE;
+    opr_rbtree_init(&hdl->maps.t, vfs_fsal_mapping_cmpf);
+    pthread_mutex_init(&hdl->maps.mtx, NULL);
+}
 
 /* alloc_handle
  * allocate and fill in a handle
@@ -113,9 +126,11 @@ static struct vfs_fsal_obj_handle *alloc_handle(struct file_handle *fh,
 	st = posix2fsal_attributes(stat, &hdl->obj_handle.attributes);
 	if(FSAL_IS_ERROR(st))
 		goto spcerr;
+        init_file_maps(hdl);
 	if(!fsal_obj_handle_init(&hdl->obj_handle,
 				 exp_hdl->fsal->obj_ops,
 				 exp_hdl,
+
 	                         posix2fsal_type(stat->st_mode)))
                 return hdl;
 
@@ -1423,6 +1438,8 @@ void vfs_handle_ops_init(struct fsal_obj_ops *ops)
 	ops->status = vfs_status;
 	ops->read = vfs_read;
 	ops->write = vfs_write;
+	ops->uio_rdwr = vfs_uio_rdwr,
+	ops->uio_rele = vfs_uio_rele,
 	ops->commit = vfs_commit;
 	ops->lock_op = vfs_lock_op;
 	ops->close = vfs_close;

@@ -114,6 +114,7 @@ int nfs4_op_close(struct nfs_argop4 *op,
         }
 
         open_owner = state_found->state_powner;
+        inc_state_owner_ref(open_owner);
 
         pthread_mutex_lock(&open_owner->so_mutex);
 
@@ -124,6 +125,7 @@ int nfs4_op_close(struct nfs_argop4 *op,
                         /* Response is all setup for us and LogDebug
                            told what was wrong */
                         pthread_mutex_unlock(&open_owner->so_mutex);
+                        dec_state_owner_ref(open_owner);
                         return res_CLOSE4->status;
                 }
         }

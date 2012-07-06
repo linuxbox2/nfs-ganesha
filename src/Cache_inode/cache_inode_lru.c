@@ -780,14 +780,20 @@ lru_thread(void *arg __attribute__((unused)))
                                */
                               pthread_rwlock_wrlock(&entry->content_lock);
 
+                              /* Do a "weak" LRU cleanup (for VFS, removes
+                               * unused mappings) */
+                              (void) entry->obj_handle->ops->lru_cleanup(
+                                  entry->obj_handle,
+                                  FSAL_CLEANUP_LRU_WEAK);
+
                               /* Acquire the entry mutex.  If the entry
                                  is condemned, removed, pinned, or in
                                  L2, we have no interest in it. Also
                                  decrement the refcount (since we just
                                  incremented it.) */
-
                               pthread_mutex_lock(&lru->mtx);
                               atomic_dec_int64_t(&lru->refcount);
+
                               if ((lru->flags & LRU_ENTRY_CONDEMNED) ||
                                   (lru->flags & LRU_ENTRY_PINNED) ||
                                   (lru->flags & LRU_ENTRY_L2) ||
@@ -822,6 +828,11 @@ lru_thread(void *arg __attribute__((unused)))
                                      ++closed;
                               }
                               pthread_rwlock_unlock(&entry->content_lock);
+
+                              /* Do the L1L2 LRU transition cleanup */
+                              (void) entry->obj_handle->ops->lru_cleanup(
+                                  entry->obj_handle,
+                                  FSAL_CLEANUP_LRU_L1L2);
 
                               /* Move the entry to L2 whatever the
                                  result of examining it.*/

@@ -11,6 +11,8 @@ libfsalvfs_la_SOURCES = fsal_convert.c   \
 			handle.c	 \
 			file.c		 \
 			xattrs.c         \
+			extent.c         \
+			extent.h         \
 	                ../../include/fsal.h                     \
                         ../../include/fsal_types.h	         \
 	                ../../include/err_fsal.h	         \

@@ -20,9 +20,10 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301 USA
  *
- * ------------- 
+ * -------------
  */
 
 /* file.c
@@ -40,9 +41,12 @@
 #include "fsal_convert.h"
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/mman.h>
 #include "FSAL/fsal_commonlib.h"
 #include "vfs_methods.h"
 #include "FSAL/FSAL_VFS/fsal_handle_syscalls.h"
+#include "gsh_intrinsic.h"
+#include "extent.h"
 
 /** vfs_open
  * called with appropriate locks taken at the cache inode level
@@ -72,7 +76,7 @@ fsal_status_t vfs_open(struct fsal_obj_handle *obj_hdl,
 	myself->u.file.openflags = openflags;
 
 out:
-	return fsalstat(fsal_error, retval);	
+	return fsalstat(fsal_error, retval);
 }
 
 /* vfs_status
@@ -88,7 +92,6 @@ fsal_openflags_t vfs_status(struct fsal_obj_handle *obj_hdl)
 }
 
 /* vfs_read
- * concurrency (locks) is managed in cache_inode_*
  */
 
 fsal_status_t vfs_read(struct fsal_obj_handle *obj_hdl,
@@ -120,7 +123,7 @@ fsal_status_t vfs_read(struct fsal_obj_handle *obj_hdl,
         *end_of_file = nb_read == 0 ? TRUE : FALSE;
         *read_amount = nb_read;
 out:
-	return fsalstat(fsal_error, retval);	
+	return fsalstat(fsal_error, retval);
 }
 
 /* vfs_write
@@ -155,7 +158,174 @@ fsal_status_t vfs_write(struct fsal_obj_handle *obj_hdl,
 	}
 	*write_amount = nb_written;
 out:
-	return fsalstat(fsal_error, retval);	
+	return fsalstat(fsal_error, retval);
+}
+
+/* vfs_uio_rdwr
+ */
+
+fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
+                           struct gsh_uio *uio)
+{
+    struct vfs_fsal_obj_handle *hdl;
+    fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
+    struct opr_rbtree_node *node;
+    struct mapping map_k, *map;
+    struct gsh_iovec *iov;
+    uint64_t base, end;
+    uint32_t l_adj, r_adj = 0;
+    int retval = 0;
+    int ix = 0;
+
+    hdl = container_of(obj_hdl, struct vfs_fsal_obj_handle, obj_handle);
+
+    assert((hdl->u.file.fd >= 0) &&
+           (hdl->u.file.openflags != FSAL_O_CLOSED));
+
+    /* on entry, uio_offset indicates logical read or write offset */
+    base = uio->uio_offset;
+
+    /* end is computed from uio_resid (now a size_t) */
+    switch (uio->uio_rw) {
+    case GSH_UIO_READ:
+        /* XXX assert(up-to-date) */
+        end = MIN((uio->uio_offset + uio->uio_resid),
+                  (hdl->obj_handle.attributes.filesize));
+        break;
+    case GSH_UIO_WRITE:
+        end = uio->uio_offset + uio->uio_resid;
+        retval = ftruncate(hdl->u.file.fd, end);
+        break;
+    default:
+        /* error */
+        goto out;
+        break;
+    }
+
+    /* the following calculation actually uses just the end position,
+     * considering the base of the first extent */
+    uio->uio_iovcnt = vfs_extents_in_range(base, (end-vfs_extent_of(base)));
+
+    uio->uio_iov = (struct gsh_iovec *)
+        gsh_calloc(uio->uio_iovcnt, sizeof(struct gsh_iovec));
+
+    /* will adjust */
+    uio->uio_resid = uio->uio_iovcnt * VFS_MAP_SIZE;
+
+    do {
+        map_k.off = vfs_extent_of(base);
+        pthread_mutex_lock(&hdl->maps.mtx);
+        node = opr_rbtree_lookup(&hdl->maps.t, &map_k.node_k);
+        if (unlikely(node)) {
+            map = opr_containerof(node, struct mapping, node_k);
+            pthread_spin_lock(&map->sp);
+            pthread_mutex_unlock(&hdl->maps.mtx);
+            ++(map->refcnt);
+        } else {
+            /* new mapping */
+            map = pool_alloc(extent_pool, NULL);
+            pthread_spin_init(&map->sp, PTHREAD_PROCESS_PRIVATE);
+            pthread_spin_lock(&map->sp);
+            opr_rbtree_insert(&hdl->maps.t, &map->node_k);
+            pthread_mutex_unlock(&hdl->maps.mtx);
+            map->refcnt = 2 /* sentinel + 1 */;
+            map->off = map_k.off;
+            map->len = VFS_MAP_SIZE;
+            map->addr = mmap(NULL, VFS_MAP_SIZE, VFS_MAP_PROT, VFS_MAP_FLAGS,
+                             hdl->u.file.fd, map->off);
+            assert(map->addr != (void *) MAP_FAILED);
+        }
+        pthread_spin_unlock(&map->sp);
+
+        iov = &(uio->uio_iov[ix]);
+
+        /* left adjust 1st iovec */
+        if (ix == 0) {
+            l_adj = base % VFS_MAP_SIZE;
+            uio->uio_resid -= l_adj;
+        } else {
+            if (l_adj)
+                l_adj = 0;
+        }
+
+        /* right adjust last iovec */
+        if (ix == (uio->uio_iovcnt-1)) {
+            r_adj = VFS_MAP_SIZE - (end % VFS_MAP_SIZE);
+            uio->uio_resid -= r_adj;
+        }
+
+        iov->iov_base = map->addr + l_adj;
+        iov->iov_len = VFS_MAP_SIZE - l_adj - r_adj;
+        iov->iov_map = map;
+
+#if UIO_RDWR_TRACE
+        if(isDebug(COMPONENT_FSAL))
+            LogFullDebug(COMPONENT_FSAL,
+                         "ix=%d "
+                         "uio_iovcnt=%d uio_offset=%"PRIu64 " "
+                         "uio_resid=%"PRIu64
+                         " %s flags=%d "
+                         "iov_base=%p iov_len=%"PRIu64 " iov_map=%p",
+                         ix,
+                         uio->uio_iovcnt, uio->uio_offset, uio->uio_resid,
+                         (uio->uio_rw == GSH_UIO_READ) ?
+                         "UIO_READ" : "UIO_WRITE",
+                         uio->uio_flags,
+                         iov->iov_base, iov->iov_len, iov->iov_map);
+#endif
+        /* advance iov */
+        ++ix;
+    } while ((base = vfs_extent_next(map->off)) <  end);
+
+out:
+    return fsalstat(fsal_error, retval);
+}
+
+#include "extent_inline.h"
+
+/* vfs_uio_rele
+ */
+
+fsal_status_t vfs_uio_rele(struct fsal_obj_handle *obj_hdl,
+                           struct gsh_uio *uio)
+{
+    struct vfs_fsal_obj_handle *hdl;
+    fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
+    struct mapping *map;
+    struct gsh_iovec *iov;
+    int retval = 0;
+    int ix;
+
+    hdl = container_of(obj_hdl, struct vfs_fsal_obj_handle, obj_handle);
+    for (ix = 0; ix < uio->uio_iovcnt; ++ix)  {
+        iov = &uio->uio_iov[ix];
+        map = iov->iov_map;
+        pthread_spin_lock(&map->sp);
+        /* decref */
+        --(map->refcnt);
+        if (map->refcnt == 0 /* sentinel refcnt already released (prune) */) {
+            /* release mapping */
+            pthread_spin_unlock(&map->sp);
+            pthread_mutex_lock(&hdl->maps.mtx);
+            pthread_spin_lock(&map->sp);
+            if (map->refcnt == 0) {
+                /* not raced */
+                retval = vfs_extent_remove_mapping(hdl, map);
+                if (unlikely(retval == -1))
+                    fsal_error = ERR_FSAL_IO;
+                continue;
+            }
+            /* raced ftw */
+            pthread_spin_unlock(&map->sp);
+            pthread_mutex_unlock(&hdl->maps.mtx);
+        }
+        pthread_spin_unlock(&map->sp);
+    }
+
+    gsh_free(uio->uio_iov);
+    uio->uio_iovcnt = 0;
+
+    return fsalstat(fsal_error, retval);
 }
 
 /* vfs_commit
@@ -181,7 +351,7 @@ fsal_status_t vfs_commit(struct fsal_obj_handle *obj_hdl, /* sync */
 		retval = errno;
 		fsal_error = posix2fsal_error(retval);
 	}
-	return fsalstat(fsal_error, retval);	
+	return fsalstat(fsal_error, retval);
 }
 
 /* vfs_lock_op
@@ -295,7 +465,7 @@ fsal_status_t vfs_lock_op(struct fsal_obj_handle *obj_hdl,
 		}
 	}
 out:
-	return fsalstat(fsal_error, retval);	
+	return fsalstat(fsal_error, retval);
 }
 
 /* vfs_close
@@ -322,7 +492,7 @@ fsal_status_t vfs_close(struct fsal_obj_handle *obj_hdl)
 		myself->u.file.fd = -1;
 		myself->u.file.openflags = FSAL_O_CLOSED;
 	}
-	return fsalstat(fsal_error, retval);	
+	return fsalstat(fsal_error, retval);
 }
 
 /* vfs_lru_cleanup
@@ -332,21 +502,34 @@ fsal_status_t vfs_close(struct fsal_obj_handle *obj_hdl)
  */
 
 fsal_status_t vfs_lru_cleanup(struct fsal_obj_handle *obj_hdl,
-			      lru_actions_t requests)
+                              lru_actions_t flags)
 {
-	struct vfs_fsal_obj_handle *myself;
-	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
-	int retval = 0;
+    struct vfs_fsal_obj_handle *hdl;
+    fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
+    int retval = 0;
 
-	myself = container_of(obj_hdl, struct vfs_fsal_obj_handle, obj_handle);
-	if(obj_hdl->type == REGULAR_FILE && myself->u.file.fd >= 0) {
-		retval = close(myself->u.file.fd);
-		myself->u.file.fd = -1;
-		myself->u.file.openflags = FSAL_O_CLOSED;
-	}
-	if(retval == -1) {
-		retval = errno;
-		fsal_error = posix2fsal_error(retval);
-	}
-	return fsalstat(fsal_error, retval);	
+    if(obj_hdl->type == REGULAR_FILE) {
+        hdl = container_of(obj_hdl, struct vfs_fsal_obj_handle, obj_handle);
+        /* lru cleanup is now MQ-aware */
+        if (flags & FSAL_CLEANUP_LRU_WEAK) {
+            /* entry may be referenced, but it has been scanned by
+             * lru_thread */
+            retval = vfs_extent_prune_extents(hdl);
+        } else if (flags & FSAL_CLEANUP_LRU_L1L2) {
+            /* entry has no references */
+            retval = vfs_extent_prune_extents(hdl); /* and no extents */
+            /* XXX retval? */
+            if(hdl->u.file.fd >= 0) {
+                retval = close(hdl->u.file.fd);
+                hdl->u.file.fd = -1;
+                hdl->u.file.openflags = FSAL_O_CLOSED;
+            }
+            if(retval == -1) {
+                retval = errno;
+                fsal_error = posix2fsal_error(retval);
+            }
+        }
+    }
+    return fsalstat(fsal_error, retval);
 }
+

@@ -24,11 +24,11 @@ extern "C"
 
 #ifndef _AUTH_SYS_DEFINE_FOR_NFSv41
 #define _AUTH_SYS_DEFINE_FOR_NFSv41
-
-#include "ganesha_rpc.h"
-
   typedef struct authsys_parms authsys_parms;
 #endif                          /* _AUTH_SYS_DEFINE_FOR_NFSv41 */
+
+#include "ganesha_rpc.h"
+#include "gsh_uio.h"
 
 #define NFS4_FHSIZE 128
 #define NFS4_VERIFIER_SIZE 8
@@ -1803,13 +1803,20 @@ extern "C"
   };
   typedef struct READ4args READ4args;
 
+  enum READ4resok_style
+  {
+    READ4resok_EXTERNAL,
+    READ4resok_UIO,
+  };
+
   struct READ4resok
   {
     bool_t eof;
-    struct
-    {
-      u_int data_len;
-      char *data_val;
+    struct {
+        u_int style;
+        u_int data_len;
+        char *data_val;
+        struct gsh_uio uio;
     } data;
   };
   typedef struct READ4resok READ4resok;
@@ -2071,10 +2078,11 @@ extern "C"
     stateid4 stateid;
     offset4 offset;
     stable_how4 stable;
-    struct
-    {
-      u_int data_len;
-      char *data_val;
+    struct {
+        u_int style;
+        u_int data_len;
+        char *data_val;
+        struct gsh_uio uio;
     } data;
   };
   typedef struct WRITE4args WRITE4args;
@@ -5858,14 +5866,70 @@ static inline bool xdr_READ4args(XDR * xdrs, READ4args * objp)
   return TRUE;
 }
 
+static inline bool xdr_READ4resok_Ext(XDR * xdrs, READ4resok * objp)
+{
+    if(!inline_xdr_bool(xdrs, &objp->eof))
+        return FALSE;
+    if(!inline_xdr_bytes(xdrs, (char **)&objp->data.data_val,
+                         (u_int *) & objp->data.data_len, ~0))
+        return FALSE;
+    return TRUE;
+}
+
+static inline bool xdr_READ4resok_UIO(XDR * xdrs, READ4resok * objp)
+{
+    int ix;
+    struct gsh_iovec *iov;
+    u_int uio_resid;
+
+    switch (xdrs->x_op) {
+    case XDR_ENCODE:
+        if(!inline_xdr_bool(xdrs, &objp->eof))
+            return FALSE;
+        /* XXX inline_xdr_gsh_uio */
+        uio_resid = objp->data.uio.uio_resid;
+        if (! inline_xdr_u_int(xdrs, &uio_resid))
+            return (FALSE);
+        /* assert: sum(iov->iov_len) == uio_resid */
+        for (ix = 0; ix < objp->data.uio.uio_iovcnt; ++ix) {
+            iov = &(objp->data.uio.uio_iov[ix]);
+            if(! inline_xdr_opaque(
+                   xdrs, (caddr_t) iov->iov_base, iov->iov_len))
+                return FALSE;
+        }
+        /* end */
+        break;
+    case XDR_DECODE:
+    default:
+        return FALSE;
+    }
+    return TRUE;
+}
+
 static inline bool xdr_READ4resok(XDR * xdrs, READ4resok * objp)
 {
-  if(!inline_xdr_bool(xdrs, &objp->eof))
-    return FALSE;
-  if(!inline_xdr_bytes(xdrs, (char **)&objp->data.data_val,
-                       (u_int *) & objp->data.data_len, ~0))
-    return FALSE;
-  return TRUE;
+    switch (xdrs->x_op) {
+    case XDR_ENCODE:
+        switch (objp->data.style) {
+        case READ4resok_EXTERNAL:
+            return xdr_READ4resok_Ext(xdrs, objp);
+            break;
+        case READ4resok_UIO:
+            return xdr_READ4resok_UIO(xdrs, objp);
+            break;
+        default:
+            return FALSE;
+            break;
+        }
+        break;
+    case XDR_DECODE:
+        return xdr_READ4resok_Ext(xdrs, objp);
+        break;
+    default:
+        return FALSE;
+        break;
+    }
+    return TRUE;
 }
 
 static inline bool xdr_READ4res(XDR * xdrs, READ4res * objp)

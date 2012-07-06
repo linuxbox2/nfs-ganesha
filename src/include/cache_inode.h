@@ -49,6 +49,7 @@
 #include "avltree.h"
 #include "generic_weakref.h"
 #include "fsal.h"
+#include "gsh_uio.h"
 #include "log.h"
 #include "config_parsing.h"
 #include "nfs23.h"
@@ -737,6 +738,11 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t *entry,
                                       struct req_op_context *req_ctx,
                                       cache_inode_stability_t stable,
                                       cache_inode_status_t *status);
+
+cache_inode_status_t cache_inode_uio_rdwr(cache_entry_t *entry,
+                                          struct gsh_uio *uio,
+                                          struct req_op_context *req_ctx,
+                                          cache_inode_status_t *status);
 
 static inline cache_inode_status_t
 cache_inode_read(cache_entry_t *entry,

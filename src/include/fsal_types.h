@@ -725,4 +725,8 @@ typedef struct fsal_share_param_t
         uint32_t share_deny;
 } fsal_share_param_t;
 
+/* debloat */
+#define FSAL_CLEANUP_LRU_WEAK         0x0001
+#define FSAL_CLEANUP_LRU_L1L2         0x0002
+
 #endif                          /* _FSAL_TYPES_H */

@@ -371,6 +371,10 @@ typedef struct nfs_dupreq_stat__
   hash_stat_t htstat;
 } nfs_dupreq_stat_t;
 
+
+#define NFS_REQ_NONE               0x0000
+#define NFS_REQ_WRITE_PIPELINE     0x0001 /* TCP XDR decoder serialized */
+
 typedef struct nfs_request_data__
 {
   SVCXPRT *xprt;
@@ -380,8 +384,8 @@ typedef struct nfs_request_data__
   nfs_arg_t arg_nfs;
   nfs_res_t *res_nfs;
   const nfs_function_desc_t *pfuncdesc;
-  struct timeval time_queued; /* The time at which a request was added
-                               * to the worker thread queue. */
+  struct timeval time_queued;
+  uint32_t flags;
 } nfs_request_data_t;
 
 typedef struct wait_entry

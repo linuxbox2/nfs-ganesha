@@ -147,6 +147,8 @@
  * the 'this' argument.
  */
 
+#include "gsh_uio.h"
+
 /**
  * @brief Major Version
  *
@@ -1439,6 +1441,37 @@ struct fsal_obj_ops {
                                size_t buffer_size,
                                void *buffer,
                                size_t *wrote_amount);
+
+/**
+ * @brief Read or write data on a file uio-wise
+ *
+ * This function writes data to a file using a scatter-gather
+ * interface.
+ *
+ *
+ * @param[in]     obj_hdl   File to be written
+ * @param[inout]  uio       I/O description and buffer segments
+ *
+ * @return FSAL status.
+ */
+
+        fsal_status_t (*uio_rdwr)(struct fsal_obj_handle *obj_hdl,
+                                  struct gsh_uio *uio);
+
+/**
+ * @brief Release buffers mapped by uio_rdwr
+ *
+ * This function returns buffers given to the client of a prior
+ * uio_rdwr invocation.
+ *
+ * @param[in]     obj_hdl   File to be written
+ * @param[inout]  uio       I/O description and buffer segments
+ *
+ * @return FSAL status.
+ */
+        fsal_status_t (*uio_rele)(struct fsal_obj_handle *obj_hdl,
+                                  struct gsh_uio *uio);
+
 /**
  * @brief Commit written data
  *
@@ -1997,5 +2030,6 @@ struct fsal_ds_ops {
                 const offset4 offset,
                 const count4 count,
                 verifier4 *const writeverf);
+
 };
 #endif /* !FSAL_API__ */

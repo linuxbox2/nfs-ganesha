@@ -1,5 +1,10 @@
+#ifndef VFS_METHODS_H
+#define VFS_METHODS_H
+
 /* VFS methods for handles
  */
+
+#include "extent.h"
 
 /* private helpers from export
  */
@@ -48,6 +53,11 @@ struct vfs_fsal_obj_handle {
 			char *sock_name;
 		} sock;
 	} u;
+       struct {
+           pthread_mutex_t mtx;
+           struct opr_rbtree t;
+           uint32_t flags;
+       } maps;
 };
 
 
@@ -65,7 +75,11 @@ fsal_status_t vfs_write(struct fsal_obj_handle *obj_hdl,
                         uint64_t offset,
 			size_t buffer_size,
 			void *buffer,
-			size_t * write_amount);
+			size_t *write_amount);
+fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
+			 struct gsh_uio *uio);
+fsal_status_t vfs_uio_rele(struct fsal_obj_handle *obj_hdl,
+			 struct gsh_uio *uio);
 fsal_status_t vfs_commit(struct fsal_obj_handle *obj_hdl, /* sync */
 			 off_t offset,
 			 size_t len);
@@ -117,3 +131,5 @@ fsal_status_t vfs_remove_extattr_by_id(struct fsal_obj_handle *obj_hdl,
 				       unsigned int xattr_id);
 fsal_status_t vfs_remove_extattr_by_name(struct fsal_obj_handle *obj_hdl,
 					 const char *xattr_name);
+
+#endif /* VFS_METHODS_H */

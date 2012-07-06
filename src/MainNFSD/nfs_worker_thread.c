@@ -702,8 +702,8 @@ int nfs_rpc_get_args(nfs_request_data_t *preqnfs,
                "Before svc_getargs on socket %d, xprt=%p",
                xprt->xp_fd, xprt);
 
-  if(svc_getargs(xprt, pfuncdesc->xdr_decode_func, (caddr_t) arg_nfs) == FALSE)
-    {
+  if(svc_getargs2(xprt, pfuncdesc->xdr_decode_func,
+                  (caddr_t) arg_nfs, preqnfs) == FALSE) {
       struct svc_req *req = &preqnfs->req;
       LogMajor(COMPONENT_DISPATCH,
                "svc_getargs failed for Program %d, Version %d, "

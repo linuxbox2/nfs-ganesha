@@ -115,8 +115,8 @@ extern int __build_bug_on_failed;
  ******************************************************/
 
 /**
- *  ReturnCode :
- *  Macro for returning a fsal_status_t without trace nor stats increment.
+ *  fsalstat :
+ *  Inline for returning a fsal_status_t without trace nor stats increment.
  */
 static inline fsal_status_t
 fsalstat(fsal_errors_t major, uint32_t minor)

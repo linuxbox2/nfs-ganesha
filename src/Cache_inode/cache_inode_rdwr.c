@@ -18,7 +18,8 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301 USA
  *
  * ---------------------------------------
  */
@@ -57,6 +58,7 @@
 #include <time.h>
 #include <pthread.h>
 #include <assert.h>
+#include "gsh_uio.h"
 
 /**
  * @brief Reads/Writes through the cache layer
@@ -321,6 +323,194 @@ out:
      if (attributes_locked) {
           pthread_rwlock_unlock(&entry->attr_lock);
           attributes_locked = FALSE;
+     }
+
+     return *status;
+} /* cache_inode_rdwr */
+
+cache_inode_status_t cache_inode_uio_rdwr(cache_entry_t *entry,
+                                          struct gsh_uio *uio,
+                                          struct req_op_context *req_ctx,
+                                          cache_inode_status_t *status)
+{
+     /* Error return from FSAL calls */
+     fsal_status_t fsal_status = {0, 0};
+     struct fsal_obj_handle *obj_hdl = entry->obj_handle;
+     /* Required open mode to successfully read or write */
+     fsal_openflags_t openflags = FSAL_O_RDWR;
+     fsal_openflags_t loflags;
+     /* TRUE if we have taken the content lock on 'entry' */
+     bool_t content_locked = FALSE;
+     /* TRUE if we have taken the attribute lock on 'entry' */
+     bool_t attributes_locked = FALSE;
+     /* Stash initial offset and length */
+     size_t offset = uio->uio_offset;
+     size_t io_size = uio->uio_resid;
+     bool_t eof = FALSE;
+
+     if (uio->uio_flags & GSH_UIO_LEGACY_IO) {
+
+         size_t read_size = 0;
+         cache_inode_status_t cstatus;
+
+         cstatus = cache_inode_rdwr(entry,
+                                    (uio->uio_rw == GSH_UIO_READ) ?
+                                    CACHE_INODE_READ : CACHE_INODE_WRITE,
+                                    offset,
+                                    io_size,
+                                    &read_size,
+                                    uio->uio_iov,
+                                    &eof,
+                                    req_ctx,
+                                    (uio->uio_flags & GSH_UIO_STABLE_DATA) ?
+                                    CACHE_INODE_SAFE_WRITE_TO_FS : 0,
+                                    status);
+
+         uio->uio_resid = read_size;
+
+         if (eof)
+             uio->uio_flags |= GSH_UIO_EOF;
+         else
+             uio->uio_flags &= ~GSH_UIO_EOF;
+
+         return (cstatus);
+     }
+
+     /* IO is done only on REGULAR_FILEs */
+     if (entry->type != REGULAR_FILE) {
+          *status = CACHE_INODE_BAD_TYPE;
+          goto out;
+     }
+
+     /* Write through the FSAL.  We need a write lock only
+        if we need to open or close a file descriptor. */
+     pthread_rwlock_rdlock(&entry->content_lock);
+     content_locked = TRUE;
+     loflags = obj_hdl->ops->status(obj_hdl);
+     if (( !is_open(entry)) ||
+         (loflags && loflags != FSAL_O_RDWR && loflags != openflags)) {
+         pthread_rwlock_unlock(&entry->content_lock);
+         pthread_rwlock_wrlock(&entry->content_lock);
+         loflags = obj_hdl->ops->status(obj_hdl);
+         if (( !is_open(entry)) ||
+             (loflags && loflags != FSAL_O_RDWR &&
+              loflags != openflags)) {
+             if (cache_inode_open(entry,
+                                  openflags,
+                                  req_ctx,
+                                  (CACHE_INODE_FLAG_CONTENT_HAVE |
+                                   CACHE_INODE_FLAG_CONTENT_HOLD),
+                                  status) != CACHE_INODE_SUCCESS) {
+                 /* XXX if GSH_UIO_READ, we could try a read open */
+                 goto out;
+             }
+             uio->uio_flags |= (GSH_UIO_RDWR|GSH_UIO_OPENED);
+         }
+     }
+
+     /* Call FSAL_read or FSAL_write (handles COMMIT/sync) */
+     fsal_status = obj_hdl->ops->uio_rdwr(obj_hdl, uio);
+
+     LogFullDebug(COMPONENT_FSAL,
+                  "cache_inode_rdwr: FSAL IO operation returned "
+                  "%d, io_size=%zu, effective_size=%zu",
+                  fsal_status.major, io_size, uio->uio_resid);
+
+     if (FSAL_IS_ERROR(fsal_status)) {
+         if (fsal_status.major == ERR_FSAL_DELAY) {
+             LogEvent(COMPONENT_CACHE_INODE,
+                      "cache_inode_rdwr: FSAL_write "
+                      " returned EBUSY");
+         } else {
+             LogDebug(COMPONENT_CACHE_INODE,
+                      "cache_inode_rdwr: fsal_status.major = %d",
+                      fsal_status.major);
+         }
+
+         *status = cache_inode_error_convert(fsal_status);
+
+         if (fsal_status.major == ERR_FSAL_STALE) {
+             cache_inode_kill_entry(entry);
+             goto out;
+         }
+
+         if ((fsal_status.major != ERR_FSAL_NOT_OPENED)
+             && (obj_hdl->ops->status(obj_hdl) != FSAL_O_CLOSED)) {
+             cache_inode_status_t cstatus;
+
+             LogFullDebug(COMPONENT_CACHE_INODE,
+                          "cache_inode_rdwr: CLOSING entry %p",
+                          entry);
+             pthread_rwlock_unlock(&entry->content_lock);
+             pthread_rwlock_wrlock(&entry->content_lock);
+
+             cache_inode_close(entry,
+                               (CACHE_INODE_FLAG_REALLYCLOSE |
+                                CACHE_INODE_FLAG_CONTENT_HAVE |
+                                CACHE_INODE_FLAG_CONTENT_HOLD),
+                               &cstatus);
+
+             if (cstatus != CACHE_INODE_SUCCESS) {
+                 LogCrit(COMPONENT_CACHE_INODE_LRU,
+                         "Error closing file in cache_inode_rdwr: %d.",
+                         cstatus);
+             }
+         }
+
+         goto out;
+     } /* FSAL_IS_ERROR */
+
+     LogFullDebug(COMPONENT_CACHE_INODE,
+                  "cache_inode_rdwr: inode/direct: io_size=%zu, "
+                  "bytes_moved=%zu, offset=%"PRIu64,
+                  io_size, uio->uio_resid, offset);
+
+     /*
+      * Close is deferred to cache_inode_uio_rele, unless the FSAL
+      * indicates we can and should.
+      */
+     if ((uio->uio_flags & GSH_UIO_OPENED) &&
+         (uio->uio_flags & GSH_UIO_CLOSE)) {
+         if (cache_inode_close(entry,
+                               CACHE_INODE_FLAG_CONTENT_HAVE |
+                               CACHE_INODE_FLAG_CONTENT_HOLD,
+                               status) != CACHE_INODE_SUCCESS) {
+             LogEvent(COMPONENT_CACHE_INODE,
+                      "cache_inode_rdwr: cache_inode_close = %d",
+                      *status);
+             goto out;
+         }
+     }
+
+     if (content_locked) {
+         pthread_rwlock_unlock(&entry->content_lock);
+         content_locked = FALSE;
+     }
+
+     pthread_rwlock_wrlock(&entry->attr_lock);
+     attributes_locked = TRUE;
+     if (uio->uio_rw == GSH_UIO_WRITE) {
+         if ((*status = cache_inode_refresh_attrs(entry))
+             != CACHE_INODE_SUCCESS) {
+             goto out;
+         }
+     } else {
+         cache_inode_set_time_current(&obj_hdl->attributes.atime);
+     }
+     pthread_rwlock_unlock(&entry->attr_lock);
+     attributes_locked = FALSE;
+
+     *status = CACHE_INODE_SUCCESS;
+
+out:
+     if (content_locked) {
+         pthread_rwlock_unlock(&entry->content_lock);
+         content_locked = FALSE;
+     }
+
+     if (attributes_locked) {
+         pthread_rwlock_unlock(&entry->attr_lock);
+         attributes_locked = FALSE;
      }
 
      return *status;
