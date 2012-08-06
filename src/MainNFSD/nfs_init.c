@@ -1687,7 +1687,6 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
 void nfs_start(nfs_start_info_t * p_start_info)
 {
   struct rlimit ulimit_data;
-  int in_grace;
 
   /* store the start info so it is available for all layers */
   nfs_start_info = *p_start_info;
@@ -1794,8 +1793,6 @@ void nfs_start(nfs_start_info_t * p_start_info)
                "             NFS SERVER INITIALIZED");
       LogEvent(COMPONENT_INIT,
                "-------------------------------------------------");
-
-      in_grace = nfs_in_grace();
     }
 
   /* Wait for dispatcher to exit */
