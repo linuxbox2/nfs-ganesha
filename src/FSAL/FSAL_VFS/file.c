@@ -277,6 +277,9 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
         ++ix;
     } while ((base = vfs_extent_next(map->off)) <  end);
 
+    /* mark for release */
+    uio->uio_flags |= GSH_UIO_RELE;
+
 out:
     return fsalstat(fsal_error, retval);
 }

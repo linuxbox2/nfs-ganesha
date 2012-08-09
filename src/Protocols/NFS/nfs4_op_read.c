@@ -50,6 +50,7 @@
 #include "sal_functions.h"
 #include "nfs_proto_functions.h"
 #include "nfs_proto_tools.h"
+#include "cache_inode_lru.h"
 #include <stdlib.h>
 #include <unistd.h>
 #include "fsal_pnfs.h"
@@ -93,6 +94,10 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data,
   /* Say we are managing NFS4_OP_READ */
   resp->resop = NFS4_OP_READ;
   res_READ4.status = NFS4_OK;
+
+  /* Setup uio */
+  uio = &res_READ4.READ4res_u.resok4.data.uio;
+  uio->uio_flags &= ~GSH_UIO_RELE;
 
   /*
    * Do basic checks on a filehandle
@@ -277,10 +282,21 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t * data,
     }
 
   /* describe io */
-  uio = &res_READ4.READ4res_u.resok4.data.uio;
   uio->uio_rw = GSH_UIO_READ;
   uio->uio_flags = GSH_UIO_STABLE_DATA;
   uio->uio_offset = arg_READ4.offset;
+
+  /* take a forward ref on entry so it's definitely around when we free
+   * the current op */
+  if (cache_inode_lru_ref(entry, LRU_FLAG_NONE) != CACHE_INODE_SUCCESS)
+    {
+        res_READ4.status = NFS4ERR_SERVERFAULT;
+        uio->uio_udata = NULL;
+        goto done;
+    }
+
+  /* and stash a pointer to it */
+  uio->uio_udata = entry;
 
   /* Do not read more than FATTR4_MAXREAD */
   /* We should check against the value we returned in getattr. This was not
@@ -371,14 +387,24 @@ done:
  * This function frees any data allocated for the result of the
  * NFS4_OP_READ operation.
  *
- * @param[in,out] resp  Results fo nfs4_op
+ * @param[in,out] resp  Results for nfs4_op
  *
  */
 void nfs4_op_read_Free(READ4res *resp)
 {
+    struct gsh_uio *uio = &resp->READ4res_u.resok4.data.uio;
+    /* release buffers if requested */
+    if (uio->uio_udata) {
+        cache_entry_t *entry = (cache_entry_t *) uio->uio_udata;
+        if (uio->uio_flags & GSH_UIO_RELE)
+            entry->obj_handle->ops->uio_rele(entry->obj_handle, uio);
+        /* release the extra ref */
+        cache_inode_lru_unref(entry, LRU_FLAG_NONE);
+    }
   if(resp->status == NFS4_OK)
     if(resp->READ4res_u.resok4.data.data_len != 0)
       gsh_free(resp->READ4res_u.resok4.data.data_val);
+
   return;
 } /* nfs4_op_read_Free */
 

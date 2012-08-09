@@ -58,9 +58,11 @@ enum gsh_uio_rw { GSH_UIO_READ, GSH_UIO_WRITE };
 #define GSH_UIO_CLOSE             0x0080
 #define GSH_UIO_NEEDSYNC          0x0100
 #define GSH_UIO_LEGACY_IO         0x0200 /* caller supplies a buffer */
+#define GSH_UIO_RELE              0x0400
 
 struct gsh_uio {
     struct gsh_iovec *uio_iov;
+    void *uio_udata; /* caller private data */
     int uio_iovcnt;
     off_t uio_offset;
     size_t uio_resid;
