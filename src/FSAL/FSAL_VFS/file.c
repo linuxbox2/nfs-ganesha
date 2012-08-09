@@ -228,7 +228,11 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
             pthread_spin_lock(&map->sp);
             opr_rbtree_insert(&hdl->maps.t, &map->node_k);
             pthread_mutex_unlock(&hdl->maps.mtx);
+#if 0
             map->refcnt = 2 /* sentinel + 1 */;
+#else
+            map->refcnt = 1 /* sentinel--dispose continuously! */;
+#endif
             map->off = map_k.off;
             map->len = VFS_MAP_SIZE;
             map->addr = mmap(NULL, VFS_MAP_SIZE, VFS_MAP_PROT, VFS_MAP_FLAGS,
