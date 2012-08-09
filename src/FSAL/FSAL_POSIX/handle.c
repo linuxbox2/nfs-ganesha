@@ -690,7 +690,7 @@ static fsal_status_t linkfile (struct fsal_obj_handle *obj_hdl, struct fsal_obj_
  * cache entry.
  */
 
-static fsal_status_t getattrs (struct fsal_obj_handle *obj_hdl, struct attrlist *obj_attr)
+static fsal_status_t getattrs (struct fsal_obj_handle *obj_hdl)
 {
     struct file_data *parent = NULL;
     char *path = NULL;
@@ -706,8 +706,10 @@ static fsal_status_t getattrs (struct fsal_obj_handle *obj_hdl, struct attrlist 
         retval = fstat (myself->u.file.fd, &stat);
     } else {
         parent =
-            MARSHAL_nodedb_get_first_path_from_handle (connpool, (struct handle_data *) myself->handle->f_handle,
-                                                       &path);
+            MARSHAL_nodedb_get_first_path_from_handle (
+                connpool,
+                (struct handle_data *) myself->handle->f_handle,
+                &path);
         if (!parent) {
             fsal_error = ERR_FSAL_STALE;
             retval = 0;
@@ -721,16 +723,14 @@ static fsal_status_t getattrs (struct fsal_obj_handle *obj_hdl, struct attrlist 
         goto errout;
 
     /* convert attributes */
-    obj_hdl->attributes.mask = obj_attr->mask;
     st = posix2fsal_attributes (&stat, &obj_hdl->attributes);
     if (FSAL_IS_ERROR (st)) {
-        FSAL_CLEAR_MASK (obj_attr->mask);
-        FSAL_SET_MASK (obj_attr->mask, ATTR_RDATTR_ERR);
+        FSAL_CLEAR_MASK (obj_hdl->attributes.mask);
+        FSAL_SET_MASK (obj_hdl->attributes.mask, ATTR_RDATTR_ERR);
         fsal_error = st.major;
         retval = st.minor;
         goto out;
     }
-    memcpy (obj_attr, &obj_hdl->attributes, sizeof (struct attrlist));
     goto out;
 
   errout:
