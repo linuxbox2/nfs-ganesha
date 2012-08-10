@@ -189,7 +189,7 @@ bool check_uio(struct gsh_uio *uio)
 /* vfs_uio_rdwr
  */
 
-#define UIO_RDWR_TRACE 0
+#define UIO_RDWR_TRACE 1
 
 fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
                            struct gsh_uio *uio)
@@ -337,6 +337,10 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
         /* advance iov */
         ++ix;
     } while ((base = vfs_extent_next(map->off)) <  end);
+
+    /* XXX fix */
+    if (! uio->uio_iov[(uio->uio_iovcnt-1)].iov_map)
+        uio->uio_iovcnt--;
 
     /* mark for release */
     uio->uio_flags |= GSH_UIO_RELE;
