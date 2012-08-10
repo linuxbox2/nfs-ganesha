@@ -694,25 +694,9 @@ lru_thread(void *arg __attribute__((unused)))
 
           pthread_mutex_unlock(&lru_mtx);
 
-          /* Reap file descriptors.  This is a preliminary example of
-             the L2 functionality rather than something we expect to
-             be permanent.  (It will have to adapt heavily to the new
-             FSAL API, for example.) */
-
-          if (atomic_fetch_size_t(&open_fd_count)
-              < lru_state.fds_lowat) {
-               LogDebug(COMPONENT_CACHE_INODE_LRU,
-                        "FD count is %zd and low water mark is "
-                        "%d: not reaping.",
-                        open_fd_count,
-                        lru_state.fds_lowat);
-               if (cache_inode_gc_policy.use_fd_cache &&
-                   !lru_state.caching_fds) {
-                    lru_state.caching_fds = TRUE;
-                    LogInfo(COMPONENT_CACHE_INODE_LRU,
-                            "Re-enabling FD cache.");
-               }
-          } else {
+          /* Do LRU cleanup.  Reclaims fds, calls FSAL lru_cleanup
+           * hooks.  Moves L1 entries to L2. */
+          {
                /* The count of open file descriptors before this run
                   of the reaper. */
                size_t formeropen = open_fd_count;
