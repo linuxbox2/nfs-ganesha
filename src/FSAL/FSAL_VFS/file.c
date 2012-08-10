@@ -161,6 +161,34 @@ out:
 	return fsalstat(fsal_error, retval);
 }
 
+bool check_uio(struct gsh_uio *uio)
+{
+    int ix;
+    struct gsh_iovec *iov;
+
+    for (ix = 0; ix < uio->uio_iovcnt; ++ix)  {
+        iov = &uio->uio_iov[ix];
+
+        LogDebug(COMPONENT_FSAL,
+                     "check_uio ");
+
+        LogDebug(COMPONENT_FSAL,
+                "check_uio "
+                "ix=%d "
+                "uio_iovcnt=%d uio_offset=%"PRIu64 " "
+                "uio_resid=%"PRIu64
+                " %s flags=%d "
+                "iov_base=%p iov_len=%"PRIu64 " iov_map=%p",
+                ix,
+                uio->uio_iovcnt, uio->uio_offset, uio->uio_resid,
+                (uio->uio_rw == GSH_UIO_READ) ?
+                "UIO_READ" : "UIO_WRITE",
+                uio->uio_flags,
+                iov->iov_base, iov->iov_len, iov->iov_map);
+    }
+    return (TRUE);
+}
+
 /* vfs_uio_rdwr
  */
 
@@ -283,6 +311,7 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
 
     /* mark for release */
     uio->uio_flags |= GSH_UIO_RELE;
+    check_uio(uio);
 
 out:
     return fsalstat(fsal_error, retval);
