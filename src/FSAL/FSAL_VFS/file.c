@@ -189,7 +189,7 @@ bool check_uio(struct gsh_uio *uio)
 /* vfs_uio_rdwr
  */
 
-#define UIO_RDWR_TRACE 1
+#define UIO_RDWR_TRACE 0
 
 fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
                            struct gsh_uio *uio)
@@ -242,17 +242,22 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
     }
 
 #if UIO_RDWR_TRACE
-        LogDebug(COMPONENT_FSAL,
-                 "base=%"PRIu64 " end=%"PRIu64 " attrs.fsize=%"PRIu64 " "
-                 "uio_iovcnt=%d uio_offset=%"PRIu64 " "
-                 "uio_resid=%"PRIu64
-                 " %s flags=%d ",
-                 base, end, hdl->obj_handle.attributes.filesize,
-                 uio->uio_iovcnt, uio->uio_offset, uio->uio_resid,
-                 (uio->uio_rw == GSH_UIO_READ) ?
-                 "UIO_READ" : "UIO_WRITE",
-                 uio->uio_flags);
+    LogDebug(COMPONENT_FSAL,
+             "compute end "
+             "base=%"PRIu64 " end=%"PRIu64 " attrs.fsize=%"PRIu64 " "
+             "uio_iovcnt=%d uio_offset=%"PRIu64 " "
+             "uio_resid=%"PRIu64
+             " %s flags=%d ",
+             base, end, hdl->obj_handle.attributes.filesize,
+             uio->uio_iovcnt, uio->uio_offset, uio->uio_resid,
+             (uio->uio_rw == GSH_UIO_READ) ?
+             "UIO_READ" : "UIO_WRITE",
+             uio->uio_flags);
 #endif
+    if (base >= end) {
+        uio->uio_iovcnt = 0;
+        goto out;
+    }
 
     /* the following calculation actually uses just the end position,
      * considering the base of the first extent */
@@ -316,7 +321,7 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
 
 #if UIO_RDWR_TRACE
         LogDebug(COMPONENT_FSAL,
-                 "ix=%d "
+                 "mapped segment ix=%d "
                  "l_adj=%d r_adj=%d base=%"PRIu64 " end=%"PRIu64 " "
                  "uio_iovcnt=%d uio_offset=%"PRIu64 " "
                  "uio_resid=%"PRIu64
