@@ -626,6 +626,11 @@ lru_thread(void *arg __attribute__((unused)))
      /* True if we were explicitly woke. */
      bool_t woke = FALSE;
 
+     /* a cache entry */
+     cache_entry_t *entry = NULL;
+     /* its obj_handle */
+     struct fsal_obj_handle *obj_hdl = NULL;
+
      SetNameFunction("lru_thread");
 
      while (1) {
@@ -732,8 +737,6 @@ lru_thread(void *arg __attribute__((unused)))
                          /* a cache_status */
                          cache_inode_status_t cache_status =
                              CACHE_INODE_SUCCESS;
-                         /* a cache entry */
-                         cache_entry_t *entry;
 
                          LogDebug(COMPONENT_CACHE_INODE_LRU,
                                   "Reaping up to %d entries from lane %zd",
@@ -758,17 +761,12 @@ lru_thread(void *arg __attribute__((unused)))
 
                               /* Um, we'll need this */
                               entry = container_of(lru, cache_entry_t, lru);
+                              obj_hdl = entry->obj_handle;
 
                               /* Acquire the content lock first; we may
                                * need to look at fds and close it.
                                */
                               pthread_rwlock_wrlock(&entry->content_lock);
-
-                              /* Do a "weak" LRU cleanup (for VFS, removes
-                               * unused mappings) */
-                              (void) entry->obj_handle->ops->lru_cleanup(
-                                  entry->obj_handle,
-                                  FSAL_CLEANUP_LRU_WEAK);
 
                               /* Acquire the entry mutex.  If the entry
                                  is condemned, removed, pinned, or in
@@ -776,6 +774,17 @@ lru_thread(void *arg __attribute__((unused)))
                                  decrement the refcount (since we just
                                  incremented it.) */
                               pthread_mutex_lock(&lru->mtx);
+
+                              entry = container_of(lru, cache_entry_t, lru);
+                              obj_hdl = entry->obj_handle;
+                              assert(obj_hdl);
+
+                              /* Do a "weak" LRU cleanup (for VFS, removes
+                               * unused mappings) */
+                              (void) obj_hdl->ops->lru_cleanup(
+                                  obj_hdl,
+                                  FSAL_CLEANUP_LRU_WEAK);
+
                               atomic_dec_int64_t(&lru->refcount);
 
                               if ((lru->flags & LRU_ENTRY_CONDEMNED) ||
@@ -814,8 +823,8 @@ lru_thread(void *arg __attribute__((unused)))
                               pthread_rwlock_unlock(&entry->content_lock);
 
                               /* Do the L1L2 LRU transition cleanup */
-                              (void) entry->obj_handle->ops->lru_cleanup(
-                                  entry->obj_handle,
+                              (void) obj_hdl->ops->lru_cleanup(
+                                  obj_hdl,
                                   FSAL_CLEANUP_LRU_L1L2);
 
                               /* Move the entry to L2 whatever the

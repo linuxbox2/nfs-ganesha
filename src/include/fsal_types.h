@@ -47,6 +47,7 @@ static const char *CONF_LABEL_FS_COMMON __attribute__((unused)) = "FileSystem";
 #include <sys/types.h>
 #include <sys/param.h>
 #include <dirent.h>             /* for MAXNAMLEN */
+#include <stdint.h>
 #include "config_parsing.h"
 #include "err_fsal.h"
 #include "ganesha_rpc.h"
@@ -507,12 +508,7 @@ FSAL_ACE4_MASK(fsal_accessflags_t access)
 /**
  * @todo ACE: These should probably be moved to cache_inode_lru.h
  */
-
-typedef enum {
-        LRU_CLOSE_FILES = 0x1,
-        LRU_FREE_MEMORY = 0x2
-} lru_actions_t;
-
+typedef uint32_t lru_actions_t;
 
 /** FSAL_open behavior. */
 
