@@ -170,9 +170,6 @@ bool check_uio(struct gsh_uio *uio)
         iov = &uio->uio_iov[ix];
 
         LogDebug(COMPONENT_FSAL,
-                     "check_uio ");
-
-        LogDebug(COMPONENT_FSAL,
                 "check_uio "
                 "ix=%d "
                 "uio_iovcnt=%d uio_offset=%"PRIu64 " "
@@ -209,6 +206,16 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
 
     assert((hdl->u.file.fd >= 0) &&
            (hdl->u.file.openflags != FSAL_O_CLOSED));
+
+    LogDebug(COMPONENT_FSAL,
+             "uio_rdwr enter "
+             "uio_iovcnt=%d uio_offset=%"PRIu64 " "
+             "uio_resid=%"PRIu64
+             " %s flags=%d ",
+             uio->uio_iovcnt, uio->uio_offset, uio->uio_resid,
+             (uio->uio_rw == GSH_UIO_READ) ?
+             "UIO_READ" : "UIO_WRITE",
+             uio->uio_flags);
 
     /* on entry, uio_offset indicates logical read or write offset */
     base = uio->uio_offset;
@@ -256,11 +263,7 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
             pthread_spin_lock(&map->sp);
             opr_rbtree_insert(&hdl->maps.t, &map->node_k);
             pthread_mutex_unlock(&hdl->maps.mtx);
-#if 0
             map->refcnt = 2 /* sentinel + 1 */;
-#else
-            map->refcnt = 1 /* sentinel--dispose continuously! */;
-#endif
             map->off = map_k.off;
             map->len = VFS_MAP_SIZE;
             map->addr = mmap(NULL, VFS_MAP_SIZE, VFS_MAP_PROT, VFS_MAP_FLAGS,
