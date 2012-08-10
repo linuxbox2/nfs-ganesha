@@ -189,6 +189,8 @@ bool check_uio(struct gsh_uio *uio)
 /* vfs_uio_rdwr
  */
 
+#define UIO_RDWR_TRACE 1
+
 fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
                            struct gsh_uio *uio)
 {
@@ -207,6 +209,7 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
     assert((hdl->u.file.fd >= 0) &&
            (hdl->u.file.openflags != FSAL_O_CLOSED));
 
+#if UIO_RDWR_TRACE
     LogDebug(COMPONENT_FSAL,
              "uio_rdwr enter "
              "uio_iovcnt=%d uio_offset=%"PRIu64 " "
@@ -216,6 +219,7 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
              (uio->uio_rw == GSH_UIO_READ) ?
              "UIO_READ" : "UIO_WRITE",
              uio->uio_flags);
+#endif
 
     /* on entry, uio_offset indicates logical read or write offset */
     base = uio->uio_offset;
@@ -237,6 +241,19 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
         break;
     }
 
+#if UIO_RDWR_TRACE
+        LogDebug(COMPONENT_FSAL,
+                 "base=%"PRIu64 " end=%"PRIu64 " attrs.fsize=%"PRIu64 " "
+                 "uio_iovcnt=%d uio_offset=%"PRIu64 " "
+                 "uio_resid=%"PRIu64
+                 " %s flags=%d ",
+                 base, end, hdl->obj_handle.attributes.filesize,
+                 uio->uio_iovcnt, uio->uio_offset, uio->uio_resid,
+                 (uio->uio_rw == GSH_UIO_READ) ?
+                 "UIO_READ" : "UIO_WRITE",
+                 uio->uio_flags);
+#endif
+
     /* the following calculation actually uses just the end position,
      * considering the base of the first extent */
     uio->uio_iovcnt = vfs_extents_in_range(base, (end-vfs_extent_of(base)));
@@ -256,6 +273,8 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
             pthread_spin_lock(&map->sp);
             pthread_mutex_unlock(&hdl->maps.mtx);
             ++(map->refcnt);
+            LogDebug(COMPONENT_FSAL,
+                     "reuse mapping %p ", map);
         } else {
             /* new mapping */
             map = pool_alloc(extent_pool, NULL);
@@ -269,6 +288,8 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
             map->addr = mmap(NULL, VFS_MAP_SIZE, VFS_MAP_PROT, VFS_MAP_FLAGS,
                              hdl->u.file.fd, map->off);
             assert(map->addr != (void *) MAP_FAILED);
+            LogDebug(COMPONENT_FSAL,
+                     "new mapping %p ", map);
         }
         pthread_spin_unlock(&map->sp);
 
@@ -294,19 +315,19 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
         iov->iov_map = map;
 
 #if UIO_RDWR_TRACE
-        if(isDebug(COMPONENT_FSAL))
-            LogFullDebug(COMPONENT_FSAL,
-                         "ix=%d "
-                         "uio_iovcnt=%d uio_offset=%"PRIu64 " "
-                         "uio_resid=%"PRIu64
-                         " %s flags=%d "
-                         "iov_base=%p iov_len=%"PRIu64 " iov_map=%p",
-                         ix,
-                         uio->uio_iovcnt, uio->uio_offset, uio->uio_resid,
-                         (uio->uio_rw == GSH_UIO_READ) ?
-                         "UIO_READ" : "UIO_WRITE",
-                         uio->uio_flags,
-                         iov->iov_base, iov->iov_len, iov->iov_map);
+        LogDebug(COMPONENT_FSAL,
+                 "ix=%d "
+                 "l_adj=%d r_adj=%d base=%"PRIu64 " end=%"PRIu64 " "
+                 "uio_iovcnt=%d uio_offset=%"PRIu64 " "
+                 "uio_resid=%"PRIu64
+                 " %s flags=%d "
+                 "iov_base=%p iov_len=%"PRIu64 " iov_map=%p",
+                 ix, l_adj, r_adj, base, end,
+                 uio->uio_iovcnt, uio->uio_offset, uio->uio_resid,
+                 (uio->uio_rw == GSH_UIO_READ) ?
+                 "UIO_READ" : "UIO_WRITE",
+                 uio->uio_flags,
+                 iov->iov_base, iov->iov_len, iov->iov_map);
 #endif
         /* advance iov */
         ++ix;
@@ -314,9 +335,22 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
 
     /* mark for release */
     uio->uio_flags |= GSH_UIO_RELE;
+#if UIO_RDWR_TRACE
     check_uio(uio);
+#endif
 
 out:
+    LogDebug(COMPONENT_FSAL,
+             "uio_rdwr exit fsal_error %d retval %d "
+             "uio_iovcnt=%d uio_offset=%"PRIu64 " "
+             "uio_resid=%"PRIu64
+             " %s flags=%d ",
+             fsal_error, retval,
+             uio->uio_iovcnt, uio->uio_offset, uio->uio_resid,
+             (uio->uio_rw == GSH_UIO_READ) ?
+             "UIO_READ" : "UIO_WRITE",
+             uio->uio_flags);
+
     return fsalstat(fsal_error, retval);
 }
 
