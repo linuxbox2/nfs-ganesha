@@ -77,9 +77,6 @@ int nfs_Write(nfs_arg_t *arg,
               nfs_res_t *res)
 {
         cache_entry_t *entry;
-        pre_op_attr pre_attr = {
-                .attributes_follow = false
-        };
         cache_inode_status_t cache_status = CACHE_INODE_SUCCESS;
         size_t size = 0;
         size_t written_size;
@@ -125,10 +122,6 @@ int nfs_Write(nfs_arg_t *arg,
                 /* Stale NFS FH ? */
                 goto out;
         }
-
-        nfs_SetPreOpAttr(entry,
-                         req_ctx,
-                         &pre_attr);
 
         if (nfs3_Is_Fh_Xattr(&arg->arg_write3.file)) {
                rc = nfs3_Write_Xattr(arg, export, req_ctx, req, res);
@@ -207,10 +200,10 @@ int nfs_Write(nfs_arg_t *arg,
                 res->res_write3.status = NFS3ERR_INVAL;
 
                 res->res_write3.status = nfs3_Errno(cache_status);
-                nfs_SetWccData( &pre_attr,
-                                entry,
-                                req_ctx,
-                                &res->res_write3.WRITE3res_u.resfail.file_wcc);
+                nfs_SetWccData(NULL,
+                               entry,
+                               req_ctx,
+                               &res->res_write3.WRITE3res_u.resfail.file_wcc);
 
                 rc = NFS_REQ_OK;
                 goto out;
@@ -246,7 +239,7 @@ int nfs_Write(nfs_arg_t *arg,
 			&sync);
                 if (cache_status == CACHE_INODE_SUCCESS) {
                                 /* Build Weak Cache Coherency data */
-                                nfs_SetWccData(&pre_attr,
+                                nfs_SetWccData(NULL,
                                                entry,
                                                req_ctx,
                                                &res->res_write3.WRITE3res_u
@@ -287,7 +280,7 @@ int nfs_Write(nfs_arg_t *arg,
         }
 
         res->res_write3.status = nfs3_Errno(cache_status);
-        nfs_SetWccData(&pre_attr,
+        nfs_SetWccData(NULL,
                        entry,
                        req_ctx,
                        &res->res_write3.WRITE3res_u.resfail.file_wcc);
