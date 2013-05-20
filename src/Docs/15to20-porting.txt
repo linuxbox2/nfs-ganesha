@@ -83,7 +83,7 @@ git log --pretty=format:"            %h %an %s"  15-20-port-current-top.. > more
             e6d7ec5 rong zeng Pull in fixes in tirpc for: 1) memory leak 2) lock issues causing memory currption
             6813725 Matt Benjamin Free only allocated xprt private data.
             548172c Venkateswararao Jujjuri (JV) Wakeup LRU thread only if it is sleeping Also downgrade the message from Event to Info
-            cc3af75 Venkateswararao Jujjuri (JV) Remove wcc pre-attrs form Write and Commit Replies
+ported 101cd06 cc3af75 Venkateswararao Jujjuri (JV) Remove wcc pre-attrs form Write and Commit Replies
             ec1dbc2 Allison Henderson Release change for 4.1 rev 4 Signed-off-by: Allison Henderson <achender@linux.vnet.ibm.com>
             588fb23 Hin C Lam Remove cache entry in unlink path Changed logging level
             0c0ec4e Lance Russell Correct passing a null when file has no ACLs
@@ -128,31 +128,30 @@ git log --pretty=format:"            %h %an %s"  15-20-port-current-top.. > more
             43846a5 Allison Henderson Initial ganesha modifications for support of Protectier FSAL.
             531efd4 Allison Henderson Initial new source code drop for support of Protectier FSAL.
             8f8d89d rong zeng Remove svc_destroy in recent svc_sendreply fix, which would cause assertion in rearm code.
-            33fe9d0 Srikrishan Malik Fix deadlock due to lock ordering. Release content lock before calling cache_inode_rdwr.
+matt pass            33fe9d0 Srikrishan Malik Fix deadlock due to lock ordering. Release content lock before calling cache_inode_rdwr.
             6bc0588 rong zeng Fix hardcoded NFS4ERR_ACCESS return code in nfs4_op_open/nfs41_op_open.
-            11a1419 lancerus Test for AIX sendreply error
+matt pulled e2a0661 11a1419 lancerus Test for AIX sendreply error
             6a850a0 Venkateswararao Jujjuri (JV) Need content lock in write mode for open/close
-            75eae98 Srikrishan Malik Populate post_op_attr with updated attributes after commit.
+matt ported dbff52e 75eae98 Srikrishan Malik Populate post_op_attr with updated attributes after commit.
             0db829f Venkateswararao Jujjuri (JV) Disable additional logging for the Production code.
             1721dc2 rong zeng Fix delimeter issue in ip_match, and a counter issue in check_for_id. Also adding server (local) IP to client id structure, so that nfs_release_v4_client could properly match.
-            3efa361 suhrud changed Use_Getattr_Directory_Invalidation to 0
-
-rong        fb8a853 rong zeng Integrate tirpc changes for mspac support.
-            44105aa Jeremy Bongio Add new file from libtirpc os_epoll.h to spec file.
-            e5989aa Jeremy Bongio Bump TI-RPC Version.
-            4efa266 Matt Benjamin Always assign req_cnt in gsh_xprt_unref.
-            cbe145b Matt Benjamin Fix misordered arguments in debug print.
-            229baa9 Matt Benjamin Cleanup nfs_rpc_outstanding_reqs_est.
-            eb687ee Matt Benjamin Remove superceded XPRT_PRIVATE_FLAG_DESTROYED and support.
-            c089d0b Matt Benjamin Pass CMAKE_C_FLAGS to TI-RPC submake.  Bump TI-RPC Version.
-            14d3093 Matt Benjamin Fix refcnt underrun.
-            a764678 Matt Benjamin Release xprt->xp_lock before re-arming.
-            43a463e Matt Benjamin Restore missing clear DECODING flag in gsh_xprt_unref.
-            09ff6bc Matt Benjamin Track duplex-9 SVCXPRT refcounting change.
-            4d6d5f8 Matt Benjamin Stallq claims xprt ref.
-            00169f0 Matt Benjamin Bounded decode.
-            3607b5b Matt Benjamin Return guard ref on stall.
-            082bc92 Matt Benjamin Cond stall, unstall fixes.
+matt pulled 2cb649e 3efa361 suhrud changed Use_Getattr_Directory_Invalidation to 0
+rong  matt   fb8a853 rong zeng Integrate tirpc changes for mspac support.
+matt pulled c8a146c 44105aa Jeremy Bongio Add new file from libtirpc os_epoll.h to spec file.
+matt        e5989aa Jeremy Bongio Bump TI-RPC Version.
+matt        4efa266 Matt Benjamin Always assign req_cnt in gsh_xprt_unref.
+matt        cbe145b Matt Benjamin Fix misordered arguments in debug print.
+matt        229baa9 Matt Benjamin Cleanup nfs_rpc_outstanding_reqs_est.
+matt        eb687ee Matt Benjamin Remove superceded XPRT_PRIVATE_FLAG_DESTROYED and support.
+matt        c089d0b Matt Benjamin Pass CMAKE_C_FLAGS to TI-RPC submake.  Bump TI-RPC Version.
+matt        14d3093 Matt Benjamin Fix refcnt underrun.
+matt        a764678 Matt Benjamin Release xprt->xp_lock before re-arming.
+matt        43a463e Matt Benjamin Restore missing clear DECODING flag in gsh_xprt_unref.
+matt        09ff6bc Matt Benjamin Track duplex-9 SVCXPRT refcounting change.
+matt        4d6d5f8 Matt Benjamin Stallq claims xprt ref.
+matt        00169f0 Matt Benjamin Bounded decode.
+matt        3607b5b Matt Benjamin Return guard ref on stall.
+matt        082bc92 Matt Benjamin Cond stall, unstall fixes.
             b8d00d0 Max Matveev PROXY FSAL - deal with new libtirpc
             87e667f Max Matveev PROXY FSAL - fix close_by_fileid argument mismatch
             eff438c Max Matveev NFS - fix scope problems when NFS4_ACL is off
@@ -271,42 +270,42 @@ Done        e87e2406 Frank S. Filz Be verbose about what is happening to core li
 ??       ?? 2ccaf4d7 Frank S. Filz Cleanup fsal_export_context_t before freeing exportlist_t
 Done        c627bbea Frank S. Filz Simple fix for NFS v4 CLOSE replay
 
-            7e232a5b Matt Benjamin Use correct exit on retires, nfs_dupreq_finish.
-            e25f4f1f Matt Benjamin Free req->rq_msg in all cases.
-            5c9d8ac3 Matt Benjamin Pass RPC func to nfs_dupreq_rele, use free_function.
-            b6c7cef1 Matt Benjamin Normalize locking around DRC request tailq.
+matt        7e232a5b Matt Benjamin Use correct exit on retires, nfs_dupreq_finish.
+matt        e25f4f1f Matt Benjamin Free req->rq_msg in all cases.
+matt        5c9d8ac3 Matt Benjamin Pass RPC func to nfs_dupreq_rele, use free_function.
+matt        b6c7cef1 Matt Benjamin Normalize locking around DRC request tailq.
             cbea573f Matt Benjamin Lock DRC partition when removing in nfs_duprec_finish.
-            721ffe5b Matt Benjamin Don't forget to initialize gss_max_gc in svc_param.
-            5aeb862d Matt Benjamin Fix sockaddr_cmpf function comment.
-            b3380414 Matt Benjamin Fix lock order violation.
-            2332eb91 Matt Benjamin Initialize svc_params.gss_ctx_max_idle_gen.
-            c0a1eb16 Matt Benjamin Define a standard cmpf, replaces cmp_sockaddr in DRC.
-            bc9210d0 Matt Benjamin DRC lifecycle fixes.
-            45394ff1 Matt Benjamin Lookahead fixes.
+matt        721ffe5b Matt Benjamin Don't forget to initialize gss_max_gc in svc_param.
+matt        5aeb862d Matt Benjamin Fix sockaddr_cmpf function comment.
+matt        b3380414 Matt Benjamin Fix lock order violation.
+matt        2332eb91 Matt Benjamin Initialize svc_params.gss_ctx_max_idle_gen.
+matt        c0a1eb16 Matt Benjamin Define a standard cmpf, replaces cmp_sockaddr in DRC.
+matt        bc9210d0 Matt Benjamin DRC lifecycle fixes.
+matt        45394ff1 Matt Benjamin Lookahead fixes.
             7b60bbb6 Venkateswararao Jujjuri (JV) Few more bug fixes.
             1a98db22 Venkateswararao Jujjuri (JV) Compilation/buind and few minor fixes.
             7cdacf15 Adam C. Emerson Fix trivial warning in fridgethr_freeze
             20d9f2e2 Adam C. Emerson Remove reference to LRU/Makefile from configure.ac
-            68419753 Matt Benjamin Remove unused gc_thrid.
-            9bbad4b2 Matt Benjamin Parse DRC config parameters.
-            147aabc6 Matt Benjamin Update config_samples (DRC).
-            cf404ef4 Matt Benjamin In nfs_start, local in_grace is unused (marked).
-            86443f29 Matt Benjamin Remove unused current_xid, gc_in_progress, nfs_req_timer_stop when _USE_QUEUE_TIMER set.
+matt        68419753 Matt Benjamin Remove unused gc_thrid.
+matt        9bbad4b2 Matt Benjamin Parse DRC config parameters.
+matt        147aabc6 Matt Benjamin Update config_samples (DRC).
+matt        cf404ef4 Matt Benjamin In nfs_start, local in_grace is unused (marked).
+matt        86443f29 Matt Benjamin Remove unused current_xid, gc_in_progress, nfs_req_timer_stop when _USE_QUEUE_TIMER set.
             0708599c Rong zeng Compile fixes (stat_exporter_thread).
-            65b6bd3f Matt Benjamin Remove LRU_List (1.5.x).
-            a4e17b24 Matt Benjamin Streamlined and Per-Connection DRCs (1.5.x)
-            c7e0ad49 Matt Benjamin     Track bi-directional TI-RPC changes.
-            ceb243f1 Matt Benjamin Track TI-RPC xp_getargs and xp_auth changes.
-            4a4c4865 Matt Benjamin Use req->rq_aut, not deprecated xprt->xp_auth in export checks.
-            e7450b6e Matt Benjamin Track bi-directional TI-RPC changes.
-            56fe50b0 Matt Benjamin Use compiler bool.
-            6ae3b265 Matt Benjamin Merge branch 'ibm_next' of https://github.com/jvrao/nfs-ganesha into ibm_next-20121107
-            42b1df02 Matt Benjamin Millisecond timeout fixes.
-            3951fe17 Matt Benjamin Track minimal verf change.
+matt        65b6bd3f Matt Benjamin Remove LRU_List (1.5.x).
+matt        a4e17b24 Matt Benjamin Streamlined and Per-Connection DRCs (1.5.x)
+matt        c7e0ad49 Matt Benjamin     Track bi-directional TI-RPC changes.
+matt        ceb243f1 Matt Benjamin Track TI-RPC xp_getargs and xp_auth changes.
+matt        4a4c4865 Matt Benjamin Use req->rq_aut, not deprecated xprt->xp_auth in export checks.
+matt        e7450b6e Matt Benjamin Track bi-directional TI-RPC changes.
+matt        56fe50b0 Matt Benjamin Use compiler bool.
+   t        6ae3b265 Matt Benjamin Merge branch 'ibm_next' of https://github.com/jvrao/nfs-ganesha into ibm_next-20121107
+matt        42b1df02 Matt Benjamin Millisecond timeout fixes.
+matt        3951fe17 Matt Benjamin Track minimal verf change.
 Ported on pre-2.0-dev_19            67598ecc Venkateswararao Jujjuri (JV) No need to disable the fd cache if it is already disabled.
-            5ab52db7 Matt Benjamin Set dispatch parameters in the correct place.
-            400e21ea Matt Benjamin Unstall the stallq.
-            190ef41e Matt Benjamin Millisecond timeout fixes.
+matt        5ab52db7 Matt Benjamin Set dispatch parameters in the correct place.
+matt        400e21ea Matt Benjamin Unstall the stallq.
+matt        190ef41e Matt Benjamin Millisecond timeout fixes.
 Ported on pre-2.0-dev_19            2623379f Venkateswararao Jujjuri (JV) Add proper return code for commit failures.
 
 Done        e042bbe6 Frank S. Filz Reorganize stateid.other so clientid4 is part of it
@@ -315,9 +314,9 @@ ffilz       ef86d80a Frank S. Filz Differentiate between NFS4ERR_STALE_CLIENTID 
 ffilz       note     also pick up 970b58d4
 
 Ported on pre-2.0-dev_19            631d3df3 Venkateswararao Jujjuri (JV) Fix cache_inode_lock_trust_attrs to take the configured grace_period_attr into account. Also fix a small Log message typo.
-            cb6fbc01 Matt Benjamin Set dispatch parameters in the correct place.
-            6fba9ea8 Matt Benjamin Unstall the stallq.
-            2697fff5 Matt Benjamin Millisecond timeout fixes.
+matt        cb6fbc01 Matt Benjamin Set dispatch parameters in the correct place.
+matt        6fba9ea8 Matt Benjamin Unstall the stallq.
+matt        2697fff5 Matt Benjamin Millisecond timeout fixes.
 Ported on pre-2.0-dev_19            354c0ac4 Venkateswararao Jujjuri (JV) Part of FTDC enhancements: - Main error logging is done by Return() macro. - In addition, posix2fsal_error logs when there is 1-to-many mapping. - All additional messages are at the LogInfo level. - Additional logging is added for debug purposes; added TODO to   remove these additional logs before making it a production level code.
 pre-2.0-dev_19            49506e6f Jeremy Bongio Fix some error codes so they aren't ignored/retried.
 Ported on pre-2.0-dev_19            ec344630 Jeremy Bongio Fix memory leak in debug_info functions.
@@ -357,38 +356,39 @@ ffilz       2bbed166 Frank S. Filz Minor log clean up
             b0ae29ee Venkateswararao Jujjuri (JV) Compilation fixes.
             3d70dc8c Venkateswararao Jujjuri (JV) Make sure that the new dispatcher takes TCB state into consideration.
             9433109b Jim Lieb Remove setting stack size for fridge threads
-            31319318 Matt Benjamin Test for SyncDone states at top of pthread_cond_wait, in two places.
-            ab1f9bff Matt Benjamin Bump TI-RPC version.
-            e2d04eaf Matt Benjamin Bump TI-RPC version.
-            89eb87b3 Matt Benjamin Missed in merge.
-            9bbc9945 Adam C. Emerson Use atomics in query_est
-            af653081 Matt Benjamin But not stalled.
-            8abbce8f Matt Benjamin Rearm in special cases.
-            c0316014 Matt Benjamin Oops.  Append to both request queues with glist_splice_tail.
-            e48fe594 Adam C. Emerson Bump TI-RPC version.
-            8941b5a6 Matt Benjamin Add unit test for glist_splice_tail.
-            e21ebfb9 Matt Benjamin Clear xp_u1 in xprt destructor callout.
-            0bfed0b2 Matt Benjamin Initialize svc_params.warnx.
-            f9c69661 Matt Benjamin Split slot spinlock.  Bump TI-RPC version.
-            7768236f Matt Benjamin Normalize delays in dispatcher hot path, to 5ms.
+matt        31319318 Matt Benjamin Test for SyncDone states at top of pthread_cond_wait, in two places.
+matt        ab1f9bff Matt Benjamin Bump TI-RPC version.
+matt        e2d04eaf Matt Benjamin Bump TI-RPC version.
+matt        89eb87b3 Matt Benjamin Missed in merge.
+matt        9bbc9945 Adam C. Emerson Use atomics in query_est
+matt        af653081 Matt Benjamin But not stalled.
+matt        8abbce8f Matt Benjamin Rearm in special cases.
+matt        c0316014 Matt Benjamin Oops.  Append to both request queues with glist_splice_tail.
+matt        e48fe594 Adam C. Emerson Bump TI-RPC version.
+matt        8941b5a6 Matt Benjamin Add unit test for glist_splice_tail.
+matt        e21ebfb9 Matt Benjamin Clear xp_u1 in xprt destructor callout.
+matt        0bfed0b2 Matt Benjamin Initialize svc_params.warnx.
+matt        f9c69661 Matt Benjamin Split slot spinlock.  Bump TI-RPC version.
+matt        7768236f Matt Benjamin Normalize delays in dispatcher hot path, to 5ms.
             929abc71 Adam C. Emerson Fix MNT fallthrough
             a468698d Venkateswararao Jujjuri (JV) Patch to make this compile.
-            af3fbc30 Matt Benjamin Incremental dispatcher cleanup with some testing artifacts (e.g., #if sections, inlcuding simplified dispatcher queue for perf. baseline).
-            347587aa Matt Benjamin Incremental dispatch.
-            c526da6e Matt Benjamin Swot handoff flag logic.
-            35a1596a Matt Benjamin Restore wait logic in fridgethr.
-            eea8876b Matt Benjamin Simplify queue locking some more.
-            38572ea4 Matt Benjamin Simplify out REQ_Q_MOUNT slot.
-            3130b27a Matt Benjamin Fix wakeup check at SyncDone.
-            25c03b35 Matt Benjamin Aiee!  Dont leak sp.
-            38f49797 Matt Benjamin Invert dispatch cleanups and fixes 1.
-            e397c4d8 Matt Benjamin Inverted dispatch model prototype.
-            0db5c36f Matt Benjamin Track tirpc xp_getargs change, deadlock hotfix attempt.
-            574e65c0 Matt Benjamin Lookahead 1.
-            da05a223 Matt Benjamin Add glist_splice_tail.
-            7d5e828c Matt Benjamin Restore updated thread fridge.
-            17780694 Matt Benjamin Remove the fridge 1.5.
-            2f852bf2 Matt Benjamin Look for Linux xattrs in sys.
+matt        af3fbc30 Matt Benjamin Incremental dispatcher cleanup with some testing artifacts (e.g., #if sections, inlcuding simplified dispatcher queue for perf. baseline).
+
+matt        347587aa Matt Benjamin Incremental dispatch.
+matt        c526da6e Matt Benjamin Swot handoff flag logic.
+matt        35a1596a Matt Benjamin Restore wait logic in fridgethr.
+matt        eea8876b Matt Benjamin Simplify queue locking some more.
+matt        38572ea4 Matt Benjamin Simplify out REQ_Q_MOUNT slot.
+matt        3130b27a Matt Benjamin Fix wakeup check at SyncDone.
+matt        25c03b35 Matt Benjamin Aiee!  Dont leak sp.
+matt        38f49797 Matt Benjamin Invert dispatch cleanups and fixes 1.
+matt        e397c4d8 Matt Benjamin Inverted dispatch model prototype.
+matt        0db5c36f Matt Benjamin Track tirpc xp_getargs change, deadlock hotfix attempt.
+matt        574e65c0 Matt Benjamin Lookahead 1.
+matt        da05a223 Matt Benjamin Add glist_splice_tail.
+matt        7d5e828c Matt Benjamin Restore updated thread fridge.
+matt        17780694 Matt Benjamin Remove the fridge 1.5.
+matt        2f852bf2 Matt Benjamin Look for Linux xattrs in sys.
             f5ad530b Venkateswararao Jujjuri (JV) We don't need to send GARBAGE_ARGS on failure; let the client retry. Per Matt we need to revisit this.
 rong        5c5abbfb rong zeng adding traces to capture unexpected error in GPFS posix2fsal_error.
 
