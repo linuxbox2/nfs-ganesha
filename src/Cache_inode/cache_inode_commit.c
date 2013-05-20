@@ -18,7 +18,8 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301 USA
  *
  * ---------------------------------------
  */
@@ -141,6 +142,16 @@ out:
      if (content_locked) {
           PTHREAD_RWLOCK_unlock(&entry->content_lock);
      }
+
+     /* Update attibutes (for now) */
+     PTHREAD_RWLOCK_wrlock(&entry->attr_lock);
+     if ((cstatus = cache_inode_refresh_attrs(entry, req_ctx)) != 
+         CACHE_INODE_SUCCESS) {
+         LogMajor(COMPONENT_CACHE_INODE, 
+                  "cache_inode_commit: cache_inode_refresh_attrs = %d", 
+                  cstatus);
+     }
+     PTHREAD_RWLOCK_unlock(&entry->attr_lock);
 
      return status;
 }

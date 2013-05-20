@@ -18,7 +18,8 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301 USA
  *
  * ---------------------------------------
  */
@@ -106,9 +107,7 @@ nfs3_Commit(nfs_arg_t *arg,
                 goto out;
         }
 
-        nfs_SetPreOpAttr(entry,
-                         req_ctx,
-                         &pre_attr);
+        nfs_SetPreOpAttr(entry, req_ctx, &pre_attr);
 
         cache_status = cache_inode_commit(entry,
 					  arg->arg_commit3.offset,
