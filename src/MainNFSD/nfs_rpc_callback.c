@@ -313,7 +313,6 @@ static inline int32_t nfs_clid_connected_socket(nfs_client_id_t *clientid,
 
 	switch (clientid->cid_cb.v40.cb_addr.ss.ss_family) {
 	case AF_INET:
-		sin = (struct sockaddr_in *) &clientid->cid_cb.v40.cb_addr.ss;
 		switch (clientid->cid_cb.v40.cb_addr.nc) {
 		case _NC_TCP:
 			nfd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -328,7 +327,17 @@ static inline int32_t nfs_clid_connected_socket(nfs_client_id_t *clientid,
 			goto out;
 			break;
 		}
-
+		sin = (struct sockaddr_in *)
+			&clientid->cid_cb.v40.cb_local_addr.ss;
+		code = bind(nfd, (struct sockaddr *) sin,
+			    sizeof(struct sockaddr_in));
+		if (code == -1) {
+			LogWarn(COMPONENT_NFS_CB,
+				"bind fail errno %d",
+				 errno);
+			goto out;
+		}
+		sin = (struct sockaddr_in *) &clientid->cid_cb.v40.cb_addr.ss;
 		code = connect(nfd, (struct sockaddr *) sin,
 			       sizeof(struct sockaddr_in));
 		if (code == -1) {
@@ -340,8 +349,6 @@ static inline int32_t nfs_clid_connected_socket(nfs_client_id_t *clientid,
 		*fd = nfd;
 		break;
 	case AF_INET6:
-		sin6 = (struct sockaddr_in6 *) &clientid->cid_cb
-			.v40.cb_addr.ss;
 		switch (clientid->cid_cb.v40.cb_addr.nc) {
 		case _NC_TCP6:
 			nfd = socket(PF_INET6, SOCK_STREAM, IPPROTO_TCP);
@@ -356,6 +363,17 @@ static inline int32_t nfs_clid_connected_socket(nfs_client_id_t *clientid,
 			goto out;
 			break;
 		}
+		sin6 = (struct sockaddr_in6 *) &clientid->cid_cb
+			.v40.cb_local_addr.ss;
+		code = bind(nfd, (struct sockaddr *) sin6,
+			    sizeof(struct sockaddr_in6));
+		if (code == -1) {
+			LogWarn(COMPONENT_NFS_CB,
+				 "bind fail errno %d", errno);
+			goto out;
+		}
+		sin6 = (struct sockaddr_in6 *) &clientid->cid_cb
+			.v40.cb_addr.ss;
 		code = connect(nfd, (struct sockaddr *) sin6,
 			       sizeof(struct sockaddr_in6));
 		if (code == -1) {

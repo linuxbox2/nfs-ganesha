@@ -533,6 +533,8 @@ struct nfs_client_id_t {
 			struct rpc_call_channel cb_chan;
 			/** Decoded address */
 			gsh_addr_t cb_addr;
+			/** Preferred local address */
+			gsh_addr_t cb_local_addr; /* in this form, must default to 0 */
 			/** Callback identifier */
 			uint32_t cb_callback_ident;
 			/** Universal address */
