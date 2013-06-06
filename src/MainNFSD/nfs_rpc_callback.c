@@ -566,11 +566,12 @@ int nfs_rpc_create_chan_v40(nfs_client_id_t *clientid,
 	switch (proto) {
 	case IPPROTO_TCP:
 		raddr.maxlen = raddr.len = sizeof(struct sockaddr_in);
-		chan->clnt = clnt_vc_create(fd,
+		chan->clnt = clnt_vc_create2(fd,
 					    &raddr,
 					    clientid->cid_cb.v40.cb_program,
 					    1 /* Errata ID: 2291 */,
-					    0, 0);
+					    0, 0,
+					    CLNT_CREATE_FLAG_NONE);
 		break;
 	case IPPROTO_UDP:
 		raddr.maxlen = raddr.len = sizeof(struct sockaddr_in6);
@@ -578,7 +579,7 @@ int nfs_rpc_create_chan_v40(nfs_client_id_t *clientid,
 					    &raddr,
 					    clientid->cid_cb.v40.cb_program,
 					    1 /* Errata ID: 2291 */,
-					    0, 0);
+                                            0, 0);
 		break;
 	default:
 		break;
