@@ -810,7 +810,6 @@ lru_run(struct fridgethr_context *ctx)
 		     * glist and (in particular) glistn */
 		    glist_for_each_safe(qlane->iter.glist, qlane->iter.glistn,
 					&q->q) {
-			    uint32_t refcnt;
 			    struct lru_q *q;
 
 			    /* check per-lane work */
@@ -854,13 +853,10 @@ lru_run(struct fridgethr_context *ctx)
 			     * to L2. */
 			    QLOCK(qlane);
 
-			    /* Yes, we must recheck this. */
-			    refcnt = atomic_fetch_int32_t(&entry->lru.refcnt);
-
 			    /* Since we dropped the lane mutex, recheck
-			     * that the entry hasn't moved or been recycled. */
+			     * that the entry hasn't moved or been ref'd. */
 			    if (unlikely((lru->qid != LRU_ENTRY_L1) ||
-					 (refcnt == 1))) {
+					 (glist_null(&lru->q)))) {
 				    cache_inode_lru_unref(entry, LRU_UNREF_QLOCKED); /* return lru */
 				    workdone++; /* but count it */
 				    /* qlane LOCKED, lru refcnt is restored */
