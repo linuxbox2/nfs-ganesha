@@ -123,6 +123,7 @@ struct lru_q_lane
 	pthread_mutex_t mtx;
 	/* LRU thread scan position */
 	struct {
+		bool active;
 		struct glist_head *glist;
 		struct glist_head *glistn;
 	} iter;
@@ -217,8 +218,10 @@ static const uint32_t FD_FALLBACK_LIMIT = 0x400;
 	do { \
 		if ((lru)->qid == LRU_ENTRY_L1) { \
 			struct lru_q_lane *qlane = &LRU[(lru)->lane]; \
-			qlane->iter.glist = (lru)->q.prev; \
-			qlane->iter.glistn = (lru)->q.next; \
+			if (qlane->iter.active) { \
+				qlane->iter.glist = (lru)->q.prev;    \
+				qlane->iter.glistn = (lru)->q.next;   \
+			} \
 		} \
 		glist_del(&(lru)->q); \
 		--((q)->size); \
@@ -259,6 +262,9 @@ lru_init_queues(void)
 
         /* one mutex per lane */
         pthread_mutex_init(&qlane->mtx, NULL);
+
+	/* init iterator */
+	qlane->iter.active = false;
 
         /* init lane queues */
         lru_init_queue(&LRU[ix].L1, LRU_ENTRY_L1);
@@ -797,87 +803,84 @@ lru_run(struct fridgethr_context *ctx)
 				 workpass, closed, totalclosed);
 
 		    QLOCK(qlane);
-		    while ((workdone < lru_state.per_lane_work) &&
-			   (! glist_empty(&q->q))) {
-			    /* XXX while for_each_safe per se is NOT mt-safe, it is
-			     * made so by the convention that any competing thread
-			     * which would invalidate the iteration also adjusts
-			     * glistn */
-			    glist_for_each_safe(qlane->iter.glist,
-						qlane->iter.glistn,
-						&q->q) {
-				    uint32_t refcnt;
-				    struct lru_q *q;
+		    qlane->iter.active = true; /* ACTIVE */
+		    /* While for_each_safe per se is NOT MT-safe, the iteration
+		     * can be made so by the convention that any competing
+		     * thread which would invalidate the iteration also adjusts
+		     * glist and (in particular) glistn */
+		    glist_for_each_safe(qlane->iter.glist, qlane->iter.glistn,
+					&q->q) {
+			    uint32_t refcnt;
+			    struct lru_q *q;
 
-				    /* recheck per-lane work */
-				    if (workdone >= lru_state.per_lane_work) {
-					    break;
+			    /* check per-lane work */
+			    if (workdone >= lru_state.per_lane_work) 
+				    goto next_lane;
+
+			    /* QLOCKED */
+			    GET_LRU(lru, qlane->iter.glist);
+
+			    /* Need the entry */
+			    entry = container_of(lru, cache_entry_t, lru);
+
+			    /* Drop the lane lock while performing
+			     * (slow) operations on entry */
+			    QUNLOCK(qlane);
+
+			    /* Acquire the content lock first; we may
+			     * need to look at fds and close it. */
+			    pthread_rwlock_wrlock(&entry->content_lock);
+			    if (is_open(entry)) {
+				    cache_status =
+					    cache_inode_close(
+						    entry,
+						    CACHE_INODE_FLAG_REALLYCLOSE |
+						    CACHE_INODE_FLAG_NOT_PINNED |
+						    CACHE_INODE_FLAG_CONTENT_HAVE |
+						    CACHE_INODE_FLAG_CONTENT_HOLD);
+				    if (cache_status != CACHE_INODE_SUCCESS) {
+					    LogCrit(COMPONENT_CACHE_INODE_LRU,
+						    "Error closing file in "
+						    "LRU thread.");
+				    } else {
+					    ++totalclosed;
+					    ++closed;
 				    }
+			    }
+			    pthread_rwlock_unlock(&entry->content_lock);
 
-				    /* QLOCKED */
-				    GET_LRU(lru, qlane->iter.glist);
+			    /* We did the (slow) cache entry ops
+			     * unlocked, recheck lru before moving it
+			     * to L2. */
+			    QLOCK(qlane);
 
-				    /* Need the entry */
-				    entry = container_of(lru, cache_entry_t, lru);
+			    /* Yes, we must recheck this. */
+			    refcnt = atomic_fetch_int32_t(&entry->lru.refcnt);
 
-				    /* Drop the lane lock while performing
-				     * (slow) operations on entry */
-				    QUNLOCK(qlane);
+			    /* Since we dropped the lane mutex, recheck
+			     * that the entry hasn't moved or been recycled. */
+			    if (unlikely((lru->qid != LRU_ENTRY_L1) ||
+					 (refcnt == 1))) {
+				    cache_inode_lru_unref(entry, LRU_UNREF_QLOCKED); /* return lru */
+				    workdone++; /* but count it */
+				    /* qlane LOCKED, lru refcnt is restored */
+				    continue;
+			    }
 
-				    /* Acquire the content lock first; we may
-				     * need to look at fds and close it. */
-				    pthread_rwlock_wrlock(&entry->content_lock);
-				    if (is_open(entry)) {
-					    cache_status =
-						    cache_inode_close(
-							    entry,
-							    CACHE_INODE_FLAG_REALLYCLOSE |
-							    CACHE_INODE_FLAG_NOT_PINNED |
-							    CACHE_INODE_FLAG_CONTENT_HAVE |
-							    CACHE_INODE_FLAG_CONTENT_HOLD);
-					    if (cache_status != CACHE_INODE_SUCCESS) {
-						    LogCrit(COMPONENT_CACHE_INODE_LRU,
-							    "Error closing file in "
-							    "LRU thread.");
-					    } else {
-						    ++totalclosed;
-						    ++closed;
-					    }
-				    }
-				    pthread_rwlock_unlock(&entry->content_lock);
+			    /* Move entry to MRU of L2 */
+			    q = &qlane->L1;
+			    LRU_DQ_SAFE(lru, q);
+			    lru->qid = LRU_ENTRY_L2;
+			    q = &qlane->L2;
+			    glist_add(&q->q, &lru->q);
+			    ++(q->size);
 
-				    /* We did the (slow) cache entry ops
-				     * unlocked, recheck lru before moving it
-				     * to L2. */
-				    QLOCK(qlane);
+			    cache_inode_lru_unref(entry, LRU_UNREF_QLOCKED); /* return lru */
+			    ++workdone;
+		    } /* for_each_safe lru */
 
-				    /* Yes, we must recheck this. */
-				    refcnt = atomic_fetch_int32_t(&entry->lru.refcnt);
-
-				    /* Safely decrement refcnt. */
-				    cache_inode_lru_unref(entry, LRU_UNREF_QLOCKED);
-
-				    /* Since we dropped the lane mutex, recheck
-				     * that the entry hasn't moved or been recycled. */
-				    if (unlikely((lru->qid != LRU_ENTRY_L1) ||
-						 (refcnt == 1))) {
-					    workdone++; /* but count it */
-					    /* qlane LOCKED, lru refcnt is restored */
-					    continue;
-				    }
-
-				    /* Move entry to MRU of L2 */
-				    q = &qlane->L1;
-				    LRU_DQ_SAFE(lru, q);
-				    lru->qid = LRU_ENTRY_L2;
-				    q = &qlane->L2;
-				    glist_add(&q->q, &lru->q);
-				    ++(q->size);
-
-				    ++workdone;
-			    } /* for_each_safe lru */
-		    } /* while (workdone < per-lane work) */
-
+	       next_lane:
+		    qlane->iter.active = false; /* !ACTIVE */
 		    QUNLOCK(qlane);
 		    LogDebug(COMPONENT_CACHE_INODE_LRU,
 			     "Actually processed %zd entries on lane %zd "
