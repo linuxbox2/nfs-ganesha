@@ -764,7 +764,7 @@ static fattr_xdr_result decode_acl(XDR *xdr, struct xdr_attrs_args *args)
 	char buffer[MAXNAMLEN + 1];
 	char *buffp = buffer;
 	utf8string utf8buffer;
-	int who = 0; /* not ASE_SPECIAL anything */
+	int who; /* not ASE_SPECIAL anything */
 
 	acldata.naces = 0;
 
@@ -791,10 +791,11 @@ static fattr_xdr_result decode_acl(XDR *xdr, struct xdr_attrs_args *args)
 			goto baderr;
 		if(! inline_xdr_string(xdr, &buffp, MAXNAMLEN))
 			goto baderr;
+		who = 0;
 		for (i = 0; i < FSAL_ACE_SPECIAL_EVERYONE; i++) {
 			if(strncmp(buffer,
 				   whostr_2_type_map[i].string,
-				   strlen(buffer)) == 0) {
+				   MAXNAMLEN + 1) == 0) {
 				who = whostr_2_type_map[i].type;
 				break;
 			}
