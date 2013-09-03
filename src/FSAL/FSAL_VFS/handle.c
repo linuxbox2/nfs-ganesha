@@ -1014,6 +1014,16 @@ out:
 	return fsalstat(fsal_error, retval);	
 }
 
+/**
+ * This FSAL can only set these attributes.
+ */
+
+static const attrmask_t settable_attributes = (
+	ATTR_MODE	| ATTR_SIZE	|
+	ATTR_OWNER	| ATTR_GROUP	|
+	ATTR_ATIME	| ATTR_ATIME_SERVER		|
+	ATTR_MTIME	| ATTR_MTIME_SERVER		);
+
 /*
  * NOTE: this is done under protection of the attributes rwlock in the cache entry.
  */
@@ -1028,6 +1038,10 @@ static fsal_status_t setattrs(struct fsal_obj_handle *obj_hdl,
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 	int retval = 0;
 	int open_flags = O_RDONLY;
+
+	if (attrs->mask & ~settable_attributes) {
+		return fsalstat(ERR_FSAL_INVAL, 0);
+	}
 
 	/* apply umask, if mode attribute is to be changed */
 	if(FSAL_TEST_MASK(attrs->mask, ATTR_MODE)) {
