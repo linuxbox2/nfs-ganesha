@@ -1126,8 +1126,12 @@ static fsal_status_t setattrs(struct fsal_obj_handle *obj_hdl,
 	if(FSAL_TEST_MASK(attrs->mask, ATTR_ATIME | ATTR_MTIME | ATTR_ATIME_SERVER | ATTR_MTIME_SERVER)) {
 		struct timespec timebuf[2];
 
-                if( obj_hdl->type == SYMBOLIC_LINK )
+                if( obj_hdl->type == SYMBOLIC_LINK ) {
+			LogCrit(COMPONENT_FSAL,
+				"VFS: setattr won't set time on symlink");
+			fsal_error = ERR_FSAL_FAULT;
                         goto out; /* Setting time on a symbolic link is illegal */
+		}
 		/* Atime */
 		if (FSAL_TEST_MASK(attrs->mask, ATTR_ATIME_SERVER))
 		{
