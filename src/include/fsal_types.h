@@ -252,6 +252,13 @@ typedef uint32_t fsal_aceperm_t;
 #define FSAL_ACE_SPECIAL_OWNER              1
 #define FSAL_ACE_SPECIAL_GROUP              2
 #define FSAL_ACE_SPECIAL_EVERYONE           3
+#define FSAL_ACE_SPECIAL_INTERACTIVE        4
+#define FSAL_ACE_SPECIAL_NETWORK            5
+#define FSAL_ACE_SPECIAL_DIALUP             6
+#define FSAL_ACE_SPECIAL_BATCH              7
+#define FSAL_ACE_SPECIAL_ANONYMOUS          8
+#define FSAL_ACE_SPECIAL_AUTHENTICATED      9
+#define FSAL_ACE_SPECIAL_SERVICE            10
 
 typedef struct fsal_ace__
 {

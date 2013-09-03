@@ -83,7 +83,45 @@ static struct {
     .stringlen = sizeof("EVERYONE@") - 1,
     .type      = FSAL_ACE_SPECIAL_EVERYONE,
   },
+  {
+    .string    = "INTERACTIVE@",
+    .stringlen = sizeof("INTERACTIVE@") - 1,
+    .type      = FSAL_ACE_SPECIAL_INTERACTIVE,
+  },
+  {
+    .string    = "NETWORK@",
+    .stringlen = sizeof("NETWORK@") - 1,
+    .type      = FSAL_ACE_SPECIAL_NETWORK,
+  },
+  {
+    .string    = "DIALUP@",
+    .stringlen = sizeof("DIALUP@") - 1,
+    .type      = FSAL_ACE_SPECIAL_DIALUP,
+  },
+  {
+    .string    = "BATCH@",
+    .stringlen = sizeof("BATCH@") - 1,
+    .type      = FSAL_ACE_SPECIAL_BATCH,
+  },
+  {
+    .string    = "ANONYMOUS@",
+    .stringlen = sizeof("ANONYMOUS@") - 1,
+    .type      = FSAL_ACE_SPECIAL_ANONYMOUS,
+  },
+  {
+    .string    = "AUTHENTICATED@",
+    .stringlen = sizeof("AUTHENTICATED@") - 1,
+    .type      = FSAL_ACE_SPECIAL_AUTHENTICATED,
+  },
+  {
+    .string    = "SERVICE@",
+    .stringlen = sizeof("SERVICE@") - 1,
+    .type      = FSAL_ACE_SPECIAL_SERVICE,
+  },
 };
+
+#define N(x)	(sizeof x/sizeof *x)
+#define N_SPECIALS N(whostr_2_type_map)
 
 /*
  * String representations of NFS protocol operations.
@@ -731,7 +769,7 @@ static fattr_xdr_result encode_acl(XDR *xdr, struct xdr_attrs_args *args)
 				}
 			} else {
 				if(IS_FSAL_ACE_SPECIAL_ID(*pace)) {
-					for (i = 0; i < FSAL_ACE_SPECIAL_EVERYONE; i++) {
+					for (i = 0; i < N_SPECIALS; i++) {
 						if (whostr_2_type_map[i].type == pace->who.uid) {
 							name = whostr_2_type_map[i].string;
 							break;
@@ -792,7 +830,7 @@ static fattr_xdr_result decode_acl(XDR *xdr, struct xdr_attrs_args *args)
 		if(! inline_xdr_string(xdr, &buffp, MAXNAMLEN))
 			goto baderr;
 		who = 0;
-		for (i = 0; i < FSAL_ACE_SPECIAL_EVERYONE; i++) {
+		for (i = 0; i < N_SPECIALS; i++) {
 			if(strncmp(buffer,
 				   whostr_2_type_map[i].string,
 				   MAXNAMLEN + 1) == 0) {
