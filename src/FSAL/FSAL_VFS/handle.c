@@ -31,6 +31,7 @@
  */
 
 #include "config.h"
+#define VFS_ACL 1	/* XXX */
 
 #include "fsal.h"
 #include "fsal_handle_syscalls.h"
@@ -43,6 +44,14 @@
 #include "FSAL/fsal_commonlib.h"
 #include "vfs_methods.h"
 #include <os/subr.h>
+
+/* XXX move me */
+#ifdef VFS_ACL
+#include <attr/xattr.h>
+#include "nfs4_acls.h"
+static int vfs_retrieve_acl(int, struct stat *, fsal_acl_t **);
+static int vfs_store_acl(int, fsal_acl_t *);
+#endif
 
 /* helpers
  */
@@ -984,6 +993,16 @@ static fsal_status_t getattrs(struct fsal_obj_handle *obj_hdl,
 	myself = container_of(obj_hdl, struct vfs_fsal_obj_handle, obj_handle);
 	fd = vfs_fsal_open_and_stat(myself, &stat, O_RDONLY, &fsal_error);
 	if(fd >= 0) {
+#ifdef VFS_ACL
+		retval = vfs_retrieve_acl(fd, &stat, &obj_hdl->attributes.acl);
+		if (retval < 0) {
+			FSAL_CLEAR_MASK(obj_hdl->attributes.mask);
+			FSAL_SET_MASK(obj_hdl->attributes.mask,
+				      ATTR_RDATTR_ERR);
+			fsal_error = posix2fsal_error(retval);
+			goto out;
+		}
+#endif
 	   	if(obj_hdl->type != REGULAR_FILE || myself->u.file.fd < 0)
 			close(fd);
 		st = posix2fsal_attributes(&stat, &obj_hdl->attributes);
@@ -993,6 +1012,10 @@ static fsal_status_t getattrs(struct fsal_obj_handle *obj_hdl,
 				      ATTR_RDATTR_ERR);
 			fsal_error = st.major;  retval = st.minor;
 		}
+#ifdef VFS_ACL
+		FSAL_SET_MASK(obj_hdl->attributes.mask,
+			      ATTR_ACL);
+#endif
 	} else {
 		if(obj_hdl->type == SYMBOLIC_LINK && fd == -ERR_FSAL_PERM) {
 			/* You cannot open_by_handle (XFS on linux) a symlink and it
@@ -1021,6 +1044,9 @@ out:
 static const attrmask_t settable_attributes = (
 	ATTR_MODE	| ATTR_SIZE	|
 	ATTR_OWNER	| ATTR_GROUP	|
+#ifdef VFS_ACL
+	ATTR_ACL	|
+#endif
 	ATTR_ATIME	| ATTR_ATIME_SERVER		|
 	ATTR_MTIME	| ATTR_MTIME_SERVER		);
 
@@ -1180,6 +1206,23 @@ static fsal_status_t setattrs(struct fsal_obj_handle *obj_hdl,
 			goto fileerr;
 		}
 	}
+
+#ifdef VFS_ACL
+	/**  ACL  **/
+	if(FSAL_TEST_MASK(attrs->mask, ATTR_ACL)) {
+		if (!attrs->acl) {
+			LogCrit(COMPONENT_FSAL,
+				"VFS: setattr acl is NULL");
+			retval = 0;
+			fsal_error = ERR_FSAL_FAULT;
+			goto out;
+		}
+		retval = vfs_store_acl(fd, attrs->acl);
+		if(retval != 0) {
+			goto fileerr;
+		}
+	}
+#endif
 	goto out;
 
 fileerr:
@@ -1535,3 +1578,182 @@ errout:
 	return fsalstat(fsal_error, retval);	
 }
 
+/* XXX move me */
+#ifdef VFS_ACL
+#define VFS_ACL_4_NFS4 "user.saved_nfs4_acl"
+struct vfs_saved_acl {
+	uint32_t type, perm, flag, iflag;
+	int32_t uid;
+};
+
+static fsal_aceperm_t vfs_compute_perm(int mode, int isdir)
+{
+	fsal_aceperm_t perm = 0;
+	if (mode & 1) {
+		perm |= (FSAL_ACE_PERM_EXECUTE
+			| FSAL_ACE_PERM_READ_NAMED_ATTR);
+	}
+	if (mode & 2) {
+		perm |= (FSAL_ACE_PERM_WRITE_DATA | ACE4_APPEND_DATA
+			| FSAL_ACE_PERM_WRITE_NAMED_ATTR | FSAL_ACE_PERM_WRITE_ATTR
+			| FSAL_ACE_PERM_WRITE_ACL
+			| FSAL_ACE_PERM_READ_ACL
+			| FSAL_ACE_PERM_WRITE_OWNER);
+		if (isdir)
+			perm |= FSAL_ACE_PERM_DELETE_CHILD;
+	}
+	if (mode & 4) {
+		perm |= (FSAL_ACE_PERM_READ_DATA
+			| FSAL_ACE_PERM_READ_NAMED_ATTR
+			| FSAL_ACE_PERM_READ_ATTR
+			| FSAL_ACE_PERM_READ_ACL
+			| FSAL_ACE_PERM_SYNCHRONIZE);
+	}
+	return perm;
+}
+
+static int vfs_default_ace(fsal_ace_t *ace,
+	fsal_acetype_t type,
+	int perm,
+	uid_t who)
+{
+	ace->type = type;
+	ace->perm = perm;
+	ace->flag = 0;
+	ace->iflag = FSAL_ACE_IFLAG_SPECIAL_ID;
+	ace->who.uid = who;
+	return 0;
+}
+
+static int vfs_default_acl(int fd,
+	struct stat *stat,
+	fsal_acl_t **acl)
+{
+	int owner, group, other, resid;
+	int isdir;
+	fsal_acl_data_t acldata[1];
+	fsal_acl_status_t status;
+	int i;
+
+	isdir = !!((stat->st_mode&S_IFMT) == S_IFDIR);
+	other = vfs_compute_perm(stat->st_mode&7, isdir);
+	group = vfs_compute_perm((stat->st_mode >> 3) & 7, isdir);
+	owner = vfs_compute_perm((stat->st_mode >> 6) & 7, isdir);
+	acldata->naces = 0;
+	if (owner & ~(group&other)) {
+		++acldata->naces;
+	}
+	if ((group|other) & ~owner)
+		++acldata->naces;
+	if (group & ~other) {
+		++acldata->naces;
+	}
+	if (other & ~group)
+		++acldata->naces;
+	if (other) {
+		++acldata->naces;
+	}
+	acldata->aces = (fsal_ace_t*) nfs4_ace_alloc(acldata->naces);
+	if (!acldata->aces) {
+		return -1;
+	}
+	i = 0;
+	if (owner & ~(group&other)) {
+		vfs_default_ace(&acldata->aces[i++],
+			FSAL_ACE_TYPE_ALLOW, owner, FSAL_ACE_SPECIAL_OWNER);
+	}
+	if ((resid = (group|other) & ~owner)) {
+		vfs_default_ace(&acldata->aces[i++],
+			FSAL_ACE_TYPE_DENY, resid, FSAL_ACE_SPECIAL_OWNER);
+	}
+	if (group & ~other) {
+		vfs_default_ace(&acldata->aces[i++],
+			FSAL_ACE_TYPE_ALLOW, group, FSAL_ACE_SPECIAL_GROUP);
+	}
+	if ((resid = other & ~group)) {
+		vfs_default_ace(&acldata->aces[i++],
+			FSAL_ACE_TYPE_DENY, resid, FSAL_ACE_SPECIAL_GROUP);
+	}
+	if (other) {
+		vfs_default_ace(&acldata->aces[i++],
+			FSAL_ACE_TYPE_ALLOW, other, FSAL_ACE_SPECIAL_EVERYONE);
+	}
+	if (i != acldata->naces) {
+		if (i > acldata->naces) {
+			char oops[]="vfs_default_acl: oops\n";
+			write(2, oops, sizeof oops-1);
+			LogCrit(COMPONENT_FSAL, "vfs_default_acl overrun!");
+			abort();
+		}
+		LogCrit(COMPONENT_FSAL, "vfs_default_acl underrun!");
+		return -1;
+	}
+	*acl = nfs4_acl_new_entry(acldata, &status);
+	return *acl ? 0 : -1;
+}
+
+static int vfs_retrieve_acl(int fd, struct stat *statp, fsal_acl_t **acl)
+{
+	struct vfs_saved_acl *buf;
+	size_t s;
+	int i;
+	fsal_acl_data_t acldata[1];
+	fsal_acl_status_t status;
+
+	for (s = 0, buf = NULL;;) {
+		s = fgetxattr(fd, VFS_ACL_4_NFS4, buf, s);
+		if (s == (size_t)-1) {
+			if (errno != ENOATTR) {
+				return -1;
+			}
+			return vfs_default_acl(fd, statp, acl);
+		}
+		if (buf) break;
+		buf = malloc(s);
+		if (!buf) {
+			return -1;
+		}
+	}
+	acldata->naces = s / sizeof *buf;
+	acldata->aces = (fsal_ace_t*) nfs4_ace_alloc(acldata->naces);
+	if (!acldata->aces) {
+		return -1;
+	}
+	for (i = 0; i < acldata->naces; ++i) {
+// XXX fix endianisms
+		acldata->aces[i].type = buf[i].type;
+		acldata->aces[i].perm = buf[i].perm;
+		acldata->aces[i].flag = buf[i].flag;
+		acldata->aces[i].iflag = buf[i].iflag;
+		acldata->aces[i].who.uid = buf[i].uid;
+//union!	acldata->aces[i].who.gid = buf[i].gid;
+	}
+	*acl = nfs4_acl_new_entry(acldata, &status);
+	if (!*acl) {
+		return -1;
+	}
+	return 0;
+}
+
+static int vfs_store_acl(int fd, fsal_acl_t *acl)
+{
+	struct vfs_saved_acl *buf;
+	size_t s = acl->naces * sizeof *buf;
+	int r, i;
+
+	buf = malloc(s);
+	if (!buf) return -1;
+	for (i = 0; i < acl->naces; ++i) {
+// XXX fix endianisms
+		buf[i].type = GET_FSAL_ACE_TYPE(acl->aces[i]);
+		buf[i].perm = GET_FSAL_ACE_PERM(acl->aces[i]);
+		buf[i].flag = GET_FSAL_ACE_FLAG(acl->aces[i]);
+		buf[i].iflag = GET_FSAL_ACE_IFLAG(acl->aces[i]);
+		buf[i].uid = GET_FSAL_ACE_USER(acl->aces[i]);
+//union!	buf[i].gid = GET_FSAL_ACE_GROUP(acl->aces[i]);
+	}
+	r = fsetxattr(fd, VFS_ACL_4_NFS4, buf, s, 0);
+	free(buf);
+	return r;
+}
+#endif
