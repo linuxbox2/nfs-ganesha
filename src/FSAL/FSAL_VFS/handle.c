@@ -1589,11 +1589,11 @@ struct vfs_saved_acl {
 static fsal_aceperm_t vfs_compute_perm(int mode, int isdir)
 {
 	fsal_aceperm_t perm = 0;
-	if (mode & 1) {
+	if (mode & S_IXOTH) {
 		perm |= (FSAL_ACE_PERM_EXECUTE
 			| FSAL_ACE_PERM_READ_NAMED_ATTR);
 	}
-	if (mode & 2) {
+	if (mode & S_IWOTH) {
 		perm |= (FSAL_ACE_PERM_WRITE_DATA | ACE4_APPEND_DATA
 			| FSAL_ACE_PERM_WRITE_NAMED_ATTR | FSAL_ACE_PERM_WRITE_ATTR
 			| FSAL_ACE_PERM_WRITE_ACL
@@ -1602,7 +1602,7 @@ static fsal_aceperm_t vfs_compute_perm(int mode, int isdir)
 		if (isdir)
 			perm |= FSAL_ACE_PERM_DELETE_CHILD;
 	}
-	if (mode & 4) {
+	if (mode & S_IROTH) {
 		perm |= (FSAL_ACE_PERM_READ_DATA
 			| FSAL_ACE_PERM_READ_NAMED_ATTR
 			| FSAL_ACE_PERM_READ_ATTR
@@ -1625,6 +1625,14 @@ static int vfs_default_ace(fsal_ace_t *ace,
 	return 0;
 }
 
+#ifndef S_IRWXO
+#define S_IRWXO (S_IXOTH|S_IWOTH|S_IROTH)
+#endif
+#ifndef S_G2O_shift
+#define S_G2O_shift 3
+#define S_U2O_shift 6
+#endif
+
 static int vfs_default_acl(int fd,
 	struct stat *stat,
 	fsal_acl_t **acl)
@@ -1636,9 +1644,9 @@ static int vfs_default_acl(int fd,
 	int i;
 
 	isdir = !!((stat->st_mode&S_IFMT) == S_IFDIR);
-	other = vfs_compute_perm(stat->st_mode&7, isdir);
-	group = vfs_compute_perm((stat->st_mode >> 3) & 7, isdir);
-	owner = vfs_compute_perm((stat->st_mode >> 6) & 7, isdir);
+	other = vfs_compute_perm(stat->st_mode&S_IRWXO, isdir);
+	group = vfs_compute_perm((stat->st_mode >> S_G2O_shift) & S_IRWXO, isdir);
+	owner = vfs_compute_perm((stat->st_mode >> S_U2O_shift) & S_IRWXO, isdir);
 	acldata->naces = 0;
 	if (owner & ~(group&other)) {
 		++acldata->naces;
