@@ -831,9 +831,7 @@ static fattr_xdr_result decode_acl(XDR *xdr, struct xdr_attrs_args *args)
 			goto baderr;
 		who = 0;
 		for (i = 0; i < N_SPECIALS; i++) {
-			if(strncmp(buffer,
-				   whostr_2_type_map[i].string,
-				   MAXNAMLEN + 1) == 0) {
+			if(strcmp(buffer, whostr_2_type_map[i].string) == 0) {
 				who = whostr_2_type_map[i].type;
 				break;
 			}
