@@ -1587,6 +1587,17 @@ struct vfs_saved_acl {
 	int32_t uid;
 };
 
+/**
+ * @brief helper function to map unix bits to permissions
+ *
+ * Returns Ace permission bits that correspond to Unix mode bits.
+ * Directories receive slightly different bits that files.
+ *
+ * @param[in] mode unix mode bit slice - rwx
+ * @param[in] isdir True if a directory
+ * @return fsal_aceperm_t permission mask
+ */
+
 static fsal_aceperm_t vfs_compute_perm(int mode, int isdir)
 {
 	fsal_aceperm_t perm = 0;
@@ -1613,6 +1624,16 @@ static fsal_aceperm_t vfs_compute_perm(int mode, int isdir)
 	return perm;
 }
 
+/**
+ * @brief helper function to fill in one ACE.
+ *
+ * @param[in] ace Element that is to be filled in
+ * @param[in] type Ace type (allow or deny)
+ * @param[in] perm Ace permission bits
+ * @param[in] who Ace who (owner,group,everyone)
+ * @return always returns 0
+ */
+
 static int vfs_default_ace(fsal_ace_t *ace,
 	fsal_acetype_t type,
 	int perm,
@@ -1634,10 +1655,23 @@ static int vfs_default_ace(fsal_ace_t *ace,
 #define S_U2O_shift 6
 #endif
 
+/**
+ * @brief Construct a synthetic acl from Unix mode bits
+ *
+ * The algorithm should be similar to that of RFC 5661 6.4.1.1.
+ * Unfortunately that algorithm isn't very complete.
+ *
+ * @param[in] fd The file descriptor of the file to receive the acl
+ * @param[in] statp The file status of the file
+ * @param[out] acl Receive the acl that was constructed
+ * @return -1 on error (no memory?), else 0
+ */
+
 static int vfs_default_acl(int fd,
 	struct stat *stat,
 	fsal_acl_t **acl)
 {
+// XXX get rid of "fd" as a parameter.  It is not used.
 	int owner, group, other, resid;
 	int isdir;
 	fsal_acl_data_t acldata[1];
@@ -1701,6 +1735,18 @@ static int vfs_default_acl(int fd,
 	return *acl ? 0 : -1;
 }
 
+/**
+ * @brief Retrieve an acl from an attribute of the VFS file
+ *
+ * If there is no acl associated with the file one is synthesized
+ * from the unix mode bits.
+ *
+ * @param[in] fd The file descriptor of the target file
+ * @param[in] statp The file status of the file
+ * @param[out] acl The acl that was retrieved
+ * @return -1 on error, else 0
+ */
+
 static int vfs_retrieve_acl(int fd, struct stat *statp, fsal_acl_t **acl)
 {
 	struct vfs_saved_acl *buf;
@@ -1743,6 +1789,14 @@ static int vfs_retrieve_acl(int fd, struct stat *statp, fsal_acl_t **acl)
 	}
 	return 0;
 }
+
+/**
+ * @brief Store an acl as an attribute of the VFS file
+ *
+ * @param[in] fd The file descriptor of the file to receive the acl
+ * @param[in] acl The acl which is to be stored
+ * @return -1 on error, else 0
+ */
 
 static int vfs_store_acl(int fd, fsal_acl_t *acl)
 {
