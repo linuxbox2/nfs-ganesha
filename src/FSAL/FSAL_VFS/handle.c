@@ -26,8 +26,9 @@
  * ------------- 
  */
 
-/* handle.c
- * VFS object (file|dir) handle object
+/**
+ * @file  FSAL_VFS/handle.c
+ * @brief VFS-FSAL object (file|dir) handle object
  */
 
 #include "config.h"
