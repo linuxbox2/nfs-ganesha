@@ -32,7 +32,7 @@
  */
 
 #include "config.h"
-#define VFS_ACL 1	/* XXX */
+#define VFS_ACL 1	//! XXX configurable?  runtime option??
 
 #include "fsal.h"
 #include "fsal_handle_syscalls.h"
@@ -46,10 +46,10 @@
 #include "vfs_methods.h"
 #include <os/subr.h>
 
-/* XXX move me */
 #ifdef VFS_ACL
 #include <attr/xattr.h>
 #include "nfs4_acls.h"
+/* XXX if sep file for vfs_retrieve_acl|vfs_store|acl: need header file */
 static int vfs_retrieve_acl(int, struct stat *, fsal_acl_t **);
 static int vfs_store_acl(int, fsal_acl_t *);
 #endif
@@ -1579,19 +1579,21 @@ errout:
 	return fsalstat(fsal_error, retval);	
 }
 
-/* XXX move me */
+/* XXX consider moving me */
 #ifdef VFS_ACL
 
-/*
- *	Vfs acls are stored in a special attribute
- *	VFS_ACL_4_NFS (user.saved_nfs4_acl)
- *	the acls are xdr encoded, using something like this:
+/**
+ *	@page vfs-acl-storage How VFS acls are stored in the filesystem
  *
- *	struct ace {
- *		int type, perm, flag, iflag, uid;
- *	};
- *	const MAXACL = 256;
- *	typedef ac acl<MAXACL>;
+ *	Vfs acls are stored in a special attribute
+ *	VFS_ACL_4_NFS (user.saved_nfs4_acl).
+ *	The acls are xdr encoded, using something like this XDR grammar:
+ *
+ *		struct ace {
+ *			int type, perm, flag, iflag, uid;
+ *		};
+ *		const MAXACL = 256;
+ *		typedef ac acl<MAXACL>;
  *
  *	This will result in a buffer filled with big-endian numbers.
  *	the first number will be the number of elements, followed
@@ -1601,7 +1603,7 @@ errout:
  *	with gid which is the same size.  We store them all as signed
  *	ints since the wire representation is the same.  There is no
  *	need to store uid|gid as an explicit union since
- *	flag & FSAL_ACE_FLAG_GROUP_ID already indicates that.
+ *	`flag & FSAL_ACE_FLAG_GROUP_ID` already indicates that.
  *
  *	We actually pass "-1" not 256 for maxlen - basically, "as many
  *	elements as will fit".  Linux itself imposes a definite limit
@@ -1610,6 +1612,9 @@ errout:
  *	4096 bytes, or probably just under 204 elements, depending on if
  *	there *	are already other named attributes present.  Whatever the
  *	limit is, the kernel will tell us if we exceeded that at fsetxattr time.
+ *
+ *	@todo consider moving VFS acl storage logic into a separate file.
+ *	@todo VFS acls should be configurable, probably also a runtime option.
  */
 
 #define VFS_ACL_4_NFS4 "user.saved_nfs4_acl"	/// vfs acls saved here
@@ -1621,7 +1626,7 @@ errout:
  *
  * @param[in] xdrs Xdr stream
  * @param[in] ace the acl element
- * @return false if encode/decode failed
+ * @return `FALSE` if encode/decode failed, else `TRUE`
  */
 
 bool_t xdr_ace(XDR *xdrs, fsal_ace_t *ace)
@@ -1668,7 +1673,7 @@ bool_t xdr_ace(XDR *xdrs, fsal_ace_t *ace)
  *
  * @param[in] xdrs Xdr stream
  * @param[in] acl the acl
- * @return false if encode/decode failed
+ * @return `FALSE` if encode/decode failed, else `TRUE`
  */
 
 bool_t xdr_acl(XDR *xdrs, fsal_acl_t *acl)
