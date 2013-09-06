@@ -1581,11 +1581,175 @@ errout:
 
 /* XXX move me */
 #ifdef VFS_ACL
-#define VFS_ACL_4_NFS4 "user.saved_nfs4_acl"
-struct vfs_saved_acl {
-	uint32_t type, perm, flag, iflag;
-	int32_t uid;
-};
+
+/*
+ *	Vfs acls are stored in a special attribute
+ *	VFS_ACL_4_NFS (user.saved_nfs4_acl)
+ *	the acls are xdr encoded, using something like this:
+ *
+ *	struct ace {
+ *		int type, perm, flag, iflag, uid;
+ *	};
+ *	const MAXACL = 256;
+ *	typedef ac acl<MAXACL>;
+ *
+ *	This will result in a buffer filled with big-endian numbers.
+ *	the first number will be the number of elements, followed
+ *	by 5 big-endian numbers per element {type,perm,flag,iflag,uid}.
+ *
+ *	type,perm,flag,iflag should be unsigned; uid is in a union
+ *	with gid which is the same size.  We store them all as signed
+ *	ints since the wire representation is the same.  There is no
+ *	need to store uid|gid as an explicit union since
+ *	flag & FSAL_ACE_FLAG_GROUP_ID already indicates that.
+ *
+ *	We actually pass "-1" not 256 for maxlen - basically, "as many
+ *	elements as will fit".  Linux itself imposes a definite limit
+ *	on the size of a named attribute, and the filesystem probably
+ *	imposes a smaller limit.  For ext3|4, the limit is around
+ *	4096 bytes, or probably just under 204 elements, depending on if
+ *	there *	are already other named attributes present.  Whatever the
+ *	limit is, the kernel will tell us if we exceeded that at fsetxattr time.
+ */
+
+#define VFS_ACL_4_NFS4 "user.saved_nfs4_acl"	/// vfs acls saved here
+#define na2len(na)	(4+20*(na))	/// .naces -> bufferlen
+#define len2na(len)	((len-4)/20U)	/// bufferlen -> .naces
+
+/**
+ * @brief convert fsal_ace_t from/to xdr.
+ *
+ * @param[in] xdrs Xdr stream
+ * @param[in] ace the acl element
+ * @return false if encode/decode failed
+ */
+
+bool_t xdr_ace(XDR *xdrs, fsal_ace_t *ace)
+{
+	int t;
+	if (xdrs->x_op != XDR_DECODE)
+		t = ace->type;
+	if (!xdr_int(xdrs, &t))
+		return FALSE;
+	if (xdrs->x_op == XDR_DECODE)
+		ace->type = t;
+	if (xdrs->x_op != XDR_DECODE)
+		t = ace->perm;
+	if (!xdr_int(xdrs, &t))
+		return FALSE;
+	if (xdrs->x_op == XDR_DECODE)
+		ace->perm = t;
+	if (xdrs->x_op != XDR_DECODE)
+		t = ace->flag;
+	if (!xdr_int(xdrs, &t))
+		return FALSE;
+	if (xdrs->x_op == XDR_DECODE)
+		ace->flag = t;
+	if (xdrs->x_op != XDR_DECODE)
+		t = ace->iflag;
+	if (!xdr_int(xdrs, &t))
+		return FALSE;
+	if (xdrs->x_op == XDR_DECODE)
+		ace->iflag = t;
+	if (xdrs->x_op != XDR_DECODE)
+		t = ace->who.uid;
+	if (!xdr_int(xdrs, &t))
+		return FALSE;
+	if (xdrs->x_op == XDR_DECODE)
+		ace->who.uid = t;
+	return TRUE;
+}
+
+/**
+ * @brief convert fsal_acl_t to xdr.
+ *
+ * Converting from xdr not recommended; fsal_acl_t also
+ * contains a lock and reference count that should not be serialized.
+ *
+ * @param[in] xdrs Xdr stream
+ * @param[in] acl the acl
+ * @return false if encode/decode failed
+ */
+
+bool_t xdr_acl(XDR *xdrs, fsal_acl_t *acl)
+{
+	bool_t r;
+	u_int len;
+	if (xdrs->x_op != XDR_DECODE)
+		len = acl->naces;
+	r = xdr_array(xdrs, (char **) &acl->aces, &len, -1,
+		sizeof *acl->aces, (xdrproc_t) xdr_ace);
+	if (xdrs->x_op == XDR_DECODE)
+		acl->naces = len;
+	return r;
+}
+
+/**
+ * @brief convert fsal_acl_t to octet string
+ *
+ * @param[in] acl the acl
+ * @param[out] sp will be set to returned length
+ * @param[out] bufp will be set to buffer
+ * @return -1 if failure, else 0
+ */
+
+static int fsal_acl_2_buf(fsal_acl_t *acl, size_t *sp, char **bufp)
+{
+	XDR xdrs[1];
+	char *buf;
+	int len;
+	len = na2len(acl->naces);
+	buf = malloc(len);
+	if (!buf) return -1;
+	xdrmem_create(xdrs, buf, len, XDR_ENCODE);
+	if (!xdr_acl(xdrs, acl)) {
+		free(buf);
+		return -1;
+	}
+	*bufp = buf;
+	*sp = len;
+	return 0;
+}
+
+/**
+ * @brief convert octet string to fsal_acl_t
+ *
+ * @param[out] buf octet string
+ * @param[out] s length of buffer
+ * @param[in] acl the acl
+ * @return -1 if failure, else 0
+ */
+
+static int buf_2_fsal_acl(char *buf, size_t s, fsal_acl_t **acl)
+{
+	XDR xdrs[1];
+	int count, i;
+	fsal_acl_data_t acldata[1];
+	fsal_acl_status_t status;
+
+	xdrmem_create(xdrs, buf, s, XDR_DECODE);
+	if (!xdr_int(xdrs, &count)) {
+		return -1;
+	}
+	if (count > len2na(s))
+		return -1;
+	acldata->naces = count;
+	acldata->aces = (fsal_ace_t*) nfs4_ace_alloc(acldata->naces);
+	if (!acldata->aces) {
+		return -1;
+	}
+	for (i = 0; i < count; ++i) {
+		if (!xdr_ace(xdrs, &acldata->aces[i])) {
+			free(acldata->aces);
+			return -1;
+		}
+	}
+	*acl = nfs4_acl_new_entry(acldata, &status);
+	if (!*acl) {
+		return -1;
+	}
+	return 0;
+}
 
 /**
  * @brief helper function to map unix bits to permissions
@@ -1749,11 +1913,8 @@ static int vfs_default_acl(int fd,
 
 static int vfs_retrieve_acl(int fd, struct stat *statp, fsal_acl_t **acl)
 {
-	struct vfs_saved_acl *buf;
 	size_t s;
-	int i;
-	fsal_acl_data_t acldata[1];
-	fsal_acl_status_t status;
+	char *buf;
 
 	for (s = 0, buf = NULL;;) {
 		s = fgetxattr(fd, VFS_ACL_4_NFS4, buf, s);
@@ -1769,25 +1930,7 @@ static int vfs_retrieve_acl(int fd, struct stat *statp, fsal_acl_t **acl)
 			return -1;
 		}
 	}
-	acldata->naces = s / sizeof *buf;
-	acldata->aces = (fsal_ace_t*) nfs4_ace_alloc(acldata->naces);
-	if (!acldata->aces) {
-		return -1;
-	}
-	for (i = 0; i < acldata->naces; ++i) {
-// XXX fix endianisms
-		acldata->aces[i].type = buf[i].type;
-		acldata->aces[i].perm = buf[i].perm;
-		acldata->aces[i].flag = buf[i].flag;
-		acldata->aces[i].iflag = buf[i].iflag;
-		acldata->aces[i].who.uid = buf[i].uid;
-//union!	acldata->aces[i].who.gid = buf[i].gid;
-	}
-	*acl = nfs4_acl_new_entry(acldata, &status);
-	if (!*acl) {
-		return -1;
-	}
-	return 0;
+	return buf_2_fsal_acl(buf, s, acl);
 }
 
 /**
@@ -1800,21 +1943,12 @@ static int vfs_retrieve_acl(int fd, struct stat *statp, fsal_acl_t **acl)
 
 static int vfs_store_acl(int fd, fsal_acl_t *acl)
 {
-	struct vfs_saved_acl *buf;
-	size_t s = acl->naces * sizeof *buf;
-	int r, i;
+	char *buf = 0;
+	size_t s;
+	int r;
 
-	buf = malloc(s);
-	if (!buf) return -1;
-	for (i = 0; i < acl->naces; ++i) {
-// XXX fix endianisms
-		buf[i].type = GET_FSAL_ACE_TYPE(acl->aces[i]);
-		buf[i].perm = GET_FSAL_ACE_PERM(acl->aces[i]);
-		buf[i].flag = GET_FSAL_ACE_FLAG(acl->aces[i]);
-		buf[i].iflag = GET_FSAL_ACE_IFLAG(acl->aces[i]);
-		buf[i].uid = GET_FSAL_ACE_USER(acl->aces[i]);
-//union!	buf[i].gid = GET_FSAL_ACE_GROUP(acl->aces[i]);
-	}
+	r = fsal_acl_2_buf(acl, &s, &buf);
+	if (r) return r;
 	r = fsetxattr(fd, VFS_ACL_4_NFS4, buf, s, 0);
 	free(buf);
 	return r;
