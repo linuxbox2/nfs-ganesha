@@ -1825,17 +1825,14 @@ static int vfs_default_ace(fsal_ace_t *ace,
  * The algorithm should be similar to that of RFC 5661 6.4.1.1.
  * Unfortunately that algorithm isn't very complete.
  *
- * @param[in] fd The file descriptor of the file to receive the acl
  * @param[in] statp The file status of the file
  * @param[out] acl Receive the acl that was constructed
  * @return -1 on error (no memory?), else 0
  */
 
-static int vfs_default_acl(int fd,
-	struct stat *stat,
+static int vfs_default_acl(struct stat *stat,
 	fsal_acl_t **acl)
 {
-// XXX get rid of "fd" as a parameter.  It is not used.
 	int owner, group, other, resid;
 	int isdir;
 	fsal_acl_data_t acldata[1];
@@ -1922,7 +1919,7 @@ static int vfs_retrieve_acl(int fd, struct stat *statp, fsal_acl_t **acl)
 			if (errno != ENOATTR) {
 				return -1;
 			}
-			return vfs_default_acl(fd, statp, acl);
+			return vfs_default_acl(statp, acl);
 		}
 		if (buf) break;
 		buf = malloc(s);
