@@ -1776,10 +1776,7 @@ static fsal_aceperm_t vfs_compute_perm(int mode, int isdir)
 	}
 	if (mode & S_IWOTH) {
 		perm |= (FSAL_ACE_PERM_WRITE_DATA | ACE4_APPEND_DATA
-			| FSAL_ACE_PERM_WRITE_NAMED_ATTR | FSAL_ACE_PERM_WRITE_ATTR
-			| FSAL_ACE_PERM_WRITE_ACL
-			| FSAL_ACE_PERM_READ_ACL
-			| FSAL_ACE_PERM_WRITE_OWNER);
+			| FSAL_ACE_PERM_WRITE_NAMED_ATTR | FSAL_ACE_PERM_WRITE_ATTR);
 		if (isdir)
 			perm |= FSAL_ACE_PERM_DELETE_CHILD;
 	}
@@ -1787,7 +1784,6 @@ static fsal_aceperm_t vfs_compute_perm(int mode, int isdir)
 		perm |= (FSAL_ACE_PERM_READ_DATA
 			| FSAL_ACE_PERM_READ_NAMED_ATTR
 			| FSAL_ACE_PERM_READ_ATTR
-			| FSAL_ACE_PERM_READ_ACL
 			| FSAL_ACE_PERM_SYNCHRONIZE);
 	}
 	return perm;
