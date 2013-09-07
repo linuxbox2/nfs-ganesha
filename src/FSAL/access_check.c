@@ -323,6 +323,17 @@ static int fsal_check_access_acl(struct user_cred *creds,   /* IN */
         ace_number += 1;
     }
 
+  if(missing_access & FSAL_ACE_PERM_READ_ACL)
+    {
+      missing_access &= ~FSAL_ACE_PERM_READ_ACL;
+      LogDebug(COMPONENT_FSAL, "everyone: default read_acl");
+    }
+  if(is_owner && (missing_access & FSAL_ACE_PERM_WRITE_OWNER))
+    {
+      missing_access &= ~FSAL_ACE_PERM_WRITE_OWNER;
+      LogDebug(COMPONENT_FSAL, "owner: default write_owner");
+    }
+
   if(missing_access)
     {
       LogDebug(COMPONENT_FSAL, "access denied");
