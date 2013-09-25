@@ -307,7 +307,16 @@ void *GPFSFSAL_UP_Thread(void *Arg)
 
 	        posix2fsal_attributes(&buf, &attr);
 	        attr.grace_period_attr = grace_period_attr;
-		rc = event_func->update(gpfs_fsal_up_ctx->gf_export,
+
+		if ((upflags & fsal_up_nlink) && (attr.numlinks == 0))
+		  rc = up_async_update(general_fridge,
+					gpfs_fsal_up_ctx->gf_export,
+					&key,
+					&attr,
+					upflags,
+				 	NULL, NULL);
+		else
+		  rc = event_func->update(gpfs_fsal_up_ctx->gf_export,
 					&key,
 					&attr,
 					upflags);
