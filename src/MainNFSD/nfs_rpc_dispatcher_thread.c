@@ -445,6 +445,7 @@ void nfs_Init_svc()
     svc_params.idle_timeout = nfs_param.core_param.rpc.idle_timeout_s;
     svc_params.warnx = NULL;
     svc_params.gss_ctx_hash_partitions = 17;
+    svc_params.gss_max_ctx = 1024; /* max cached gss contexts */
     svc_params.gss_max_idle_gen = 1024; /* GSS ctx cache expiration */
     svc_params.gss_max_gc = 200;
 
