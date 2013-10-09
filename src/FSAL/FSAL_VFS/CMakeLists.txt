@@ -17,6 +17,7 @@ SET(fsalvfs_LIB_SRCS
    fsal_convert.c
    main.c
    export.c
+   extent.c
    handle.c
    file.c
    xattrs.c
