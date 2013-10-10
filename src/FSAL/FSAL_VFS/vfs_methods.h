@@ -126,6 +126,11 @@ fsal_status_t vfs_write(struct fsal_obj_handle *obj_hdl,
 			void *buffer,
 			size_t * write_amount,
 			bool *fsal_stable);
+fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
+			   struct gsh_uio *uio,
+			   bool *fsal_stable);
+fsal_status_t vfs_uio_rele(struct fsal_obj_handle *obj_hdl,
+			   struct gsh_uio *uio);
 fsal_status_t vfs_commit(struct fsal_obj_handle *obj_hdl, /* sync */
 			 off_t offset,
 			 size_t len);

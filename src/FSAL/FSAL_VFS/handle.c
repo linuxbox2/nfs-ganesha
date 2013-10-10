@@ -42,10 +42,22 @@
 #include "fsal_convert.h"
 #include "FSAL/fsal_commonlib.h"
 #include "vfs_methods.h"
+#include "extent.h"
 #include <os/subr.h>
 
 /* helpers
  */
+
+/* init_maps
+ * initialize file mapping structures
+ */
+static inline void
+init_file_maps(struct vfs_fsal_obj_handle *hdl)
+{
+	hdl->maps.flags = VFS_FILE_MAP_NONE;
+	opr_rbtree_init(&hdl->maps.t, vfs_fsal_mapping_cmpf);
+	pthread_spin_init(&hdl->maps.sp, PTHREAD_PROCESS_PRIVATE);
+}
 
 int
 vfs_fsal_open(struct vfs_fsal_obj_handle *myself,
@@ -148,9 +160,10 @@ static struct vfs_fsal_obj_handle *alloc_handle(int dirfd,
 	st = posix2fsal_attributes(stat, &hdl->obj_handle.attributes);
 	if(FSAL_IS_ERROR(st))
 		goto spcerr;
-	if(!fsal_obj_handle_init(&hdl->obj_handle,
-				 exp_hdl,
-	                         posix2fsal_type(stat->st_mode)))
+	init_file_maps(hdl);
+	if(! fsal_obj_handle_init(&hdl->obj_handle,
+				  exp_hdl,
+				  posix2fsal_type(stat->st_mode)))
                 return hdl;
 
 	hdl->obj_handle.ops = NULL;
@@ -1362,6 +1375,8 @@ void vfs_handle_ops_init(struct fsal_obj_ops *ops)
 	ops->status = vfs_status;
 	ops->read = vfs_read;
 	ops->write = vfs_write;
+	ops->uio_rdwr = vfs_uio_rdwr,
+	ops->uio_rele = vfs_uio_rele,
 	ops->commit = vfs_commit;
 	ops->lock_op = vfs_lock_op;
 	ops->close = vfs_close;
