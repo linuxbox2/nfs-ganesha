@@ -1375,8 +1375,8 @@ void vfs_handle_ops_init(struct fsal_obj_ops *ops)
 	ops->status = vfs_status;
 	ops->read = vfs_read;
 	ops->write = vfs_write;
-	ops->uio_rdwr = vfs_uio_rdwr,
-	ops->uio_rele = vfs_uio_rele,
+	ops->uio_rdwr = vfs_uio_rdwr;
+	ops->uio_rele = vfs_uio_rele;
 	ops->commit = vfs_commit;
 	ops->lock_op = vfs_lock_op;
 	ops->close = vfs_close;

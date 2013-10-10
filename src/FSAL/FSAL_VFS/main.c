@@ -40,12 +40,13 @@
 #include <sys/types.h>
 #include "nlm_list.h"
 #include "FSAL/fsal_init.h"
+#include "extent.h"
 
 /* VFS FSAL module private storage
  */
 
 /* defined the set of attributes supported with POSIX */
-#define VFS_SUPPORTED_ATTRIBUTES (                                       \
+#define VFS_SUPPORTED_ATTRIBUTES (                         \
           ATTR_TYPE     | ATTR_SIZE     |                  \
           ATTR_FSID     | ATTR_FILEID   |                  \
           ATTR_MODE     | ATTR_NUMLINKS | ATTR_OWNER     | \
