@@ -1577,7 +1577,8 @@ struct fsal_obj_ops {
  */
 
         fsal_status_t (*uio_rdwr)(struct fsal_obj_handle *obj_hdl,
-                                  struct gsh_uio *uio);
+                                  struct gsh_uio *uio,
+				  bool *fsal_stable);
 
 /**
  * @brief Release buffers mapped by uio_rdwr

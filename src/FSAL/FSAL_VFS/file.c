@@ -216,7 +216,8 @@ bool check_uio(struct gsh_uio *uio)
 #define UIO_RDWR_TRACE 1
 
 fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
-                           struct gsh_uio *uio)
+                           struct gsh_uio *uio,
+			   bool *fsal_stable)
 {
 	struct vfs_fsal_obj_handle *hdl;
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;

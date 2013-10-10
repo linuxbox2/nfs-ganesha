@@ -356,7 +356,7 @@ cache_inode_status_t cache_inode_uio_rdwr(cache_entry_t *entry,
 	}
 
 	/* Call FSAL_read or FSAL_write (handles COMMIT/sync) */
-	fsal_status = obj_hdl->ops->uio_rdwr(obj_hdl, uio);
+	fsal_status = obj_hdl->ops->uio_rdwr(obj_hdl, uio, sync);
 
 	LogFullDebug(COMPONENT_FSAL,
 		     "cache_inode_rdwr: FSAL IO operation returned "
