@@ -91,7 +91,7 @@ nfs4_op_read(struct nfs_argop4 *op,
         res_READ4->status = NFS4_OK;
 
         /* Setup uio */
-        uio = &res_READ4.READ4res_u.resok4.data.uio;
+        uio = &res_READ4->READ4res_u.resok4.data.uio;
         uio->uio_flags &= ~GSH_UIO_RELE;
 
         /* Do basic checks on a filehandle Only files can be read */
@@ -260,7 +260,7 @@ nfs4_op_read(struct nfs_argop4 *op,
 
         if (((data->pexport->export_perms.options &
 	      EXPORT_OPTION_MAXOFFSETREAD) == EXPORT_OPTION_MAXOFFSETREAD) &&
-            ((off_t) (arg_READ4.offset + arg_READ4.count) >
+            ((off_t) (arg_READ4->offset + arg_READ4->count) >
 	     data->pexport->MaxOffsetRead)) {
                 res_READ4->status = NFS4ERR_DQUOT;
                 goto done;
@@ -268,7 +268,7 @@ nfs4_op_read(struct nfs_argop4 *op,
 
         /* If count == 0, no I/O is to be made and everything is
            alright */
-        if ((arg_READ4.count == 0) {
+        if (arg_READ4->count == 0) {
                 /* A size = 0 can not lead to EOF */
                 res_READ4->READ4res_u.resok4.eof = false;
 		res_READ4->READ4res_u.resok4.data.style = READ4resok_EXTERNAL;
@@ -290,15 +290,11 @@ nfs4_op_read(struct nfs_argop4 *op,
        /* describe io */
        uio->uio_rw = GSH_UIO_READ;
        uio->uio_flags = GSH_UIO_STABLE_DATA;
-       uio->uio_offset = arg_READ4.offset;
+       uio->uio_offset = arg_READ4->offset;
 
        /* take a forward ref on entry so it's definitely around when we free
 	* the current op */
-       if (cache_inode_lru_ref(entry, LRU_FLAG_NONE) != CACHE_INODE_SUCCESS) {
-               res_READ4.status = NFS4ERR_SERVERFAULT;
-	       uio->uio_udata = NULL;
-	       goto done;
-       }
+       cache_inode_lru_ref(entry, LRU_FLAG_NONE);
 
        /* and stash a pointer to it */
        uio->uio_udata = entry;
@@ -310,7 +306,7 @@ nfs4_op_read(struct nfs_argop4 *op,
        else
 	       check_size =
 		       entry->obj_handle->export->ops->fs_maxread(entry->obj_handle->export);
-		if( arg_READ4.count > check_size ) {
+		if(arg_READ4->count > check_size) {
 			/* the client asked for too much data,
 			 * this should normally not happen because
 			 * client will get FATTR4_MAXREAD value at mount time */
@@ -345,7 +341,7 @@ nfs4_op_read(struct nfs_argop4 *op,
 				uio,
 				data->req_ctx,
 				&cache_status) != CACHE_INODE_SUCCESS) {
-	       res_READ4.status = nfs4_Errno(cache_status);
+	       res_READ4->status = nfs4_Errno(cache_status);
 	       goto done;
        }
 
