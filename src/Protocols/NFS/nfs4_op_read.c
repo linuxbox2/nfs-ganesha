@@ -320,15 +320,17 @@ nfs4_op_read(struct nfs_argop4 *op,
         }
 
        /* XXX better indication sought */
-       if (entry->obj_handle->ops->uio_rdwr)
+       if (entry->obj_handle->ops->uio_rdwr) {
+	       uio->uio_resid = read_count;
 	       res_READ4->READ4res_u.resok4.data.style = READ4resok_UIO;
-       else {
+       } else {
 	       /* the usual way */
 	       res_READ4->READ4res_u.resok4.data.style = READ4resok_EXTERNAL;
 	       uio->uio_flags |= GSH_UIO_LEGACY_IO;
 
 	       /* so we still need a buffer (just alias it) */
-	       if ((uio->uio_iov = gsh_malloc_aligned(4096, uio->uio_resid)) == NULL) {
+	       if ((uio->uio_iov =
+		    gsh_malloc_aligned(4096, uio->uio_resid)) == NULL) {
 		       res_READ4->status = NFS4ERR_SERVERFAULT;
 		       goto done;
 	       }
