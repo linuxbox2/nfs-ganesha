@@ -42,6 +42,7 @@
 #include "sal_functions.h"
 #include "nfs_proto_functions.h"
 #include "nfs_proto_tools.h"
+#include "cache_inode_lru.h"
 #include <stdlib.h>
 #include <unistd.h>
 #include "fsal_pnfs.h"
@@ -71,14 +72,11 @@ nfs4_op_read(struct nfs_argop4 *op,
 {
 	READ4args *const arg_READ4 = &op->nfs_argop4_u.opread;
 	READ4res *const res_READ4 = &resp->nfs_resop4_u.opread;
-        size_t                 size = 0, check_size = 0;
-        size_t                 read_size = 0;
-        uint64_t               offset = 0;
-        bool                   eof_met = false;
-        void                 * bufferdata = NULL;
+        size_t                   check_size = 0;
         cache_inode_status_t   cache_status = CACHE_INODE_SUCCESS;
         state_t              * state_found = NULL;
         state_t              * state_open = NULL;
+        struct gsh_uio       * uio;
         uint64_t               file_size = 0;
         cache_entry_t        * entry = NULL;
         bool sync = false;
@@ -92,8 +90,11 @@ nfs4_op_read(struct nfs_argop4 *op,
         resp->resop = NFS4_OP_READ;
         res_READ4->status = NFS4_OK;
 
-        /* Do basic checks on a filehandle Only files can be read */
+        /* Setup uio */
+        uio = &res_READ4.READ4res_u.resok4.data.uio;
+        uio->uio_flags &= ~GSH_UIO_RELE;
 
+        /* Do basic checks on a filehandle Only files can be read */
         res_READ4->status = nfs4_sanity_check_FH(data, REGULAR_FILE, true);
         if (res_READ4->status != NFS4_OK) {
                 return res_READ4->status;
@@ -111,9 +112,9 @@ nfs4_op_read(struct nfs_argop4 *op,
         }
 
         entry = data->current_entry;
+
         /* Check stateid correctness and get pointer to state (also
          checks for special stateids) */
-
         res_READ4->status = nfs4_Check_Stateid(&arg_READ4->stateid,
 					       entry,
 					       &state_found,
@@ -256,44 +257,21 @@ nfs4_op_read(struct nfs_argop4 *op,
                         goto done;
                 }
         }
-        /* Get the size and offset of the read operation */
-        offset = arg_READ4->offset;
-        size = arg_READ4->count;
 
-        if (((data->pexport->export_perms.options & EXPORT_OPTION_MAXOFFSETREAD) ==
-             EXPORT_OPTION_MAXOFFSETREAD) &&
-            ((offset + size) > data->pexport->MaxOffsetRead)) {
+        if (((data->pexport->export_perms.options &
+	      EXPORT_OPTION_MAXOFFSETREAD) == EXPORT_OPTION_MAXOFFSETREAD) &&
+            ((off_t) (arg_READ4.offset + arg_READ4.count) >
+	     data->pexport->MaxOffsetRead)) {
                 res_READ4->status = NFS4ERR_DQUOT;
                 goto done;
         }
 
-        /* Do not read more than FATTR4_MAXREAD.  We should check
-           against the value we returned in getattr. This was not the
-           case before the following check_size code was added. */
-        if (((data->pexport->export_perms.options & EXPORT_OPTION_MAXREAD)
-             == EXPORT_OPTION_MAXREAD)) {
-                check_size = data->pexport->MaxRead;
-        } else {
-                check_size = entry->obj_handle->export->ops
-                        ->fs_maxread(entry->obj_handle->export);
-        }
-        if (size > check_size) {
-                /* the client asked for too much data, this should normally
-                   not happen because client will get FATTR4_MAXREAD value
-                   at mount time */
-
-                LogFullDebug(COMPONENT_NFS_V4,
-                             "NFS4_OP_READ: read requested size = %zu "
-                             " read allowed size = %"PRIu64,
-                             size, check_size);
-                size = check_size;
-        }
-
-        /* If size == 0, no I/O is to be made and everything is
+        /* If count == 0, no I/O is to be made and everything is
            alright */
-        if (size == 0) {
+        if ((arg_READ4.count == 0) {
                 /* A size = 0 can not lead to EOF */
                 res_READ4->READ4res_u.resok4.eof = false;
+		res_READ4->READ4res_u.resok4.data.style = READ4resok_EXTERNAL;
 		res_READ4->READ4res_u.resok4.data.data_len = 0;
                 res_READ4->READ4res_u.resok4.data.data_val = NULL;
                 res_READ4->status = NFS4_OK;
@@ -301,41 +279,80 @@ nfs4_op_read(struct nfs_argop4 *op,
         }
 
         /* Some work is to be done */
-        if ((bufferdata = gsh_malloc_aligned(4096, size)) == NULL) {
-                LogEvent(COMPONENT_NFS_V4,
-                        "FAILED to allocate bufferdata");
-                res_READ4->status = NFS4ERR_SERVERFAULT;
-                goto done;
-        }
 
-        if (!anonymous &&
+       if (!anonymous &&
             data->minorversion == 0) {
                 data->req_ctx->clientid
                         = &state_found->state_owner->so_owner
                         .so_nfs4_owner.so_clientid;
         }
 
-        cache_status = cache_inode_rdwr(entry,
-					CACHE_INODE_READ,
-					offset,
-					size,
-					&read_size,
-					bufferdata,
-					&eof_met,
-					data->req_ctx,
-					&sync);
-	if (cache_status != CACHE_INODE_SUCCESS) {
-                res_READ4->status = nfs4_Errno(cache_status);
-                gsh_free(bufferdata);
-                res_READ4->READ4res_u.resok4.data.data_val = NULL;
-                goto done;
-        }
+       /* describe io */
+       uio->uio_rw = GSH_UIO_READ;
+       uio->uio_flags = GSH_UIO_STABLE_DATA;
+       uio->uio_offset = arg_READ4.offset;
+
+       /* take a forward ref on entry so it's definitely around when we free
+	* the current op */
+       if (cache_inode_lru_ref(entry, LRU_FLAG_NONE) != CACHE_INODE_SUCCESS) {
+               res_READ4.status = NFS4ERR_SERVERFAULT;
+	       uio->uio_udata = NULL;
+	       goto done;
+       }
+
+       /* and stash a pointer to it */
+       uio->uio_udata = entry;
+
+       /* Do not read more than FATTR4_MAXREAD */
+       if( ((data->pexport->options & EXPORT_OPTION_MAXREAD) ==
+	    EXPORT_OPTION_MAXREAD))
+	       check_size = data->pexport->MaxRead;
+       else
+	       check_size =
+		       entry->obj_handle->export->ops->fs_maxread(entry->obj_handle->export);
+		if( arg_READ4.count > check_size ) {
+			/* the client asked for too much data,
+			 * this should normally not happen because
+			 * client will get FATTR4_MAXREAD value at mount time */
+			LogFullDebug(COMPONENT_NFS_V4,
+				     "NFS4_OP_READ: read requested size = %u "
+				     "read allowed size = %"PRIu32,
+				     arg_READ4.count, data->pexport->MaxRead);
+			uio->uio_resid = data->pexport->MaxRead;
+		} else
+			uio->uio_resid = arg_READ4.count;
+
+       /* XXX better indication sought */
+       if (  entry->obj_handle->ops->uio_rdwr )
+	       res_READ4.READ4res_u.resok4.data.style = READ4resok_UIO;
+       else {
+	       /* the usual way */
+	       res_READ4.READ4res_u.resok4.data.style = READ4resok_EXTERNAL;
+	       uio->uio_flags |= GSH_UIO_LEGACY_IO;
+
+	       /* so we still need a buffer (just alias it) */
+	       if ((uio->uio_iov = gsh_malloc_aligned(4096, uio->uio_resid)) == NULL) {
+		       res_READ4.status = NFS4ERR_SERVERFAULT;
+		       goto done;
+	       }
+	       if(data->pexport->options & EXPORT_OPTION_USE_DATACACHE)
+		       memset(uio->uio_iov, 0, uio->uio_resid);
+	       res_READ4.READ4res_u.resok4.data.data_val = (caddr_t)
+		       uio->uio_iov;
+       }
+
+       if (cache_inode_uio_rdwr(entry,
+				uio,
+				data->req_ctx,
+				&cache_status) != CACHE_INODE_SUCCESS) {
+	       res_READ4.status = nfs4_Errno(cache_status);
+	       goto done;
+       }
 
         if (cache_inode_size(entry,
                              data->req_ctx,
                              &file_size) != CACHE_INODE_SUCCESS) {
                 res_READ4->status = nfs4_Errno(cache_status);
-                gsh_free(bufferdata);
                 res_READ4->READ4res_u.resok4.data.data_val = NULL;
                 goto done;
         }
@@ -345,17 +362,18 @@ nfs4_op_read(struct nfs_argop4 *op,
                 data->req_ctx->clientid = NULL;
         }
 
-        res_READ4->READ4res_u.resok4.data.data_len = read_size;
-        res_READ4->READ4res_u.resok4.data.data_val = bufferdata;
+	res_READ4.READ4res_u.resok4.data.data_len = uio->uio_resid;
 
         LogFullDebug(COMPONENT_NFS_V4,
                      "NFS4_OP_READ: offset = %"PRIu64" read length = %zu eof=%u",
-                     offset, read_size, eof_met);
+		     uio->uio_offset, uio->uio_resid,
+		     (uio->uio_flags & GSH_UIO_EOF));
+		offset, read_size, eof_met);
 
         /* Is EOF met or not ? */
-        res_READ4->READ4res_u.resok4.eof
-                = (eof_met ||
-                   ((offset + read_size) >= file_size));
+        res_READ4->READ4res_u.resok4.eof =
+		((uio->uio_flags & GSH_UIO_EOF ) ||
+		 ((uio->uio_offset + uio->uio_resid) >= attr.filesize));
 
         /* Say it is ok */
         res_READ4->status = NFS4_OK;
@@ -388,7 +406,16 @@ void
 nfs4_op_read_Free(nfs_resop4 * res)
 {
 	READ4res *resp = &res->nfs_resop4_u.opread;
+	struct gsh_uio *uio = &resp->READ4res_u.resok4.data.uio;
 
+        /* release buffers if requested */
+	if (uio->uio_udata) {
+		cache_entry_t *entry = (cache_entry_t *) uio->uio_udata;
+		if (uio->uio_flags & GSH_UIO_RELE)
+			entry->obj_handle->ops->uio_rele(entry->obj_handle, uio);
+		/* release the extra ref */
+		cache_inode_lru_unref(entry, LRU_FLAG_NONE);
+	}
         if (resp->status == NFS4_OK) {
                 if (resp->READ4res_u.resok4.data.data_val != NULL) {
                         gsh_free(resp->READ4res_u.resok4.data.data_val);

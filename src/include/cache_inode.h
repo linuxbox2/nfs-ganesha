@@ -721,6 +721,11 @@ cache_inode_status_t cache_inode_rdwr(cache_entry_t *entry,
 				      struct req_op_context *req_ctx,
 				      bool *sync);
 
+cache_inode_status_t cache_inode_uio_rdwr(cache_entry_t *entry,
+                                          struct gsh_uio *uio,
+                                          struct req_op_context *req_ctx,
+                                          bool *sync);
+
 cache_inode_status_t cache_inode_commit(cache_entry_t *entry,
 					uint64_t offset,
 					size_t count,

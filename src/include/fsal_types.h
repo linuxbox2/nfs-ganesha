@@ -496,12 +496,7 @@ FSAL_ACE4_MASK(fsal_accessflags_t access)
 /**
  * @todo ACE: These should probably be moved to cache_inode_lru.h
  */
-
-typedef enum {
-        LRU_CLOSE_FILES = 0x1,
-        LRU_FREE_MEMORY = 0x2
-} lru_actions_t;
-
+typedef uint32_t lru_actions_t;
 
 /** FSAL_open behavior. */
 
@@ -686,6 +681,10 @@ typedef struct fsal_share_param_t
         uint32_t share_access;
         uint32_t share_deny;
 } fsal_share_param_t;
+
+/* debloat */
+#define FSAL_CLEANUP_LRU_WEAK         0x0001
+#define FSAL_CLEANUP_LRU_L1L2         0x0002
 
 #endif /* _FSAL_TYPES_H */
 /** @} */
