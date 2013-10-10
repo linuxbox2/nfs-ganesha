@@ -72,7 +72,8 @@ nfs4_op_read(struct nfs_argop4 *op,
 {
 	READ4args *const arg_READ4 = &op->nfs_argop4_u.opread;
 	READ4res *const res_READ4 = &resp->nfs_resop4_u.opread;
-        size_t                   check_size = 0;
+        size_t                 read_count = arg_READ4->count;
+        size_t                 check_size = 0;
         cache_inode_status_t   cache_status = CACHE_INODE_SUCCESS;
         state_t              * state_found = NULL;
         state_t              * state_open = NULL;
@@ -260,7 +261,7 @@ nfs4_op_read(struct nfs_argop4 *op,
 
         if (((data->pexport->export_perms.options &
 	      EXPORT_OPTION_MAXOFFSETREAD) == EXPORT_OPTION_MAXOFFSETREAD) &&
-            ((off_t) (arg_READ4->offset + arg_READ4->count) >
+            ((off_t) (arg_READ4->offset + read_count) >
 	     data->pexport->MaxOffsetRead)) {
                 res_READ4->status = NFS4ERR_DQUOT;
                 goto done;
@@ -268,7 +269,7 @@ nfs4_op_read(struct nfs_argop4 *op,
 
         /* If count == 0, no I/O is to be made and everything is
            alright */
-        if (arg_READ4->count == 0) {
+        if (read_count == 0) {
                 /* A size = 0 can not lead to EOF */
                 res_READ4->READ4res_u.resok4.eof = false;
 		res_READ4->READ4res_u.resok4.data.style = READ4resok_EXTERNAL;
@@ -300,47 +301,45 @@ nfs4_op_read(struct nfs_argop4 *op,
        uio->uio_udata = entry;
 
        /* Do not read more than FATTR4_MAXREAD */
-       if( ((data->pexport->options & EXPORT_OPTION_MAXREAD) ==
-	    EXPORT_OPTION_MAXREAD))
-	       check_size = data->pexport->MaxRead;
-       else
-	       check_size =
-		       entry->obj_handle->export->ops->fs_maxread(entry->obj_handle->export);
-		if(arg_READ4->count > check_size) {
-			/* the client asked for too much data,
-			 * this should normally not happen because
-			 * client will get FATTR4_MAXREAD value at mount time */
-			LogFullDebug(COMPONENT_NFS_V4,
-				     "NFS4_OP_READ: read requested size = %u "
-				     "read allowed size = %"PRIu32,
-				     arg_READ4.count, data->pexport->MaxRead);
-			uio->uio_resid = data->pexport->MaxRead;
-		} else
-			uio->uio_resid = arg_READ4.count;
+        if (((data->pexport->export_perms.options & EXPORT_OPTION_MAXREAD)
+             == EXPORT_OPTION_MAXREAD)) {
+                check_size = data->pexport->MaxRead;
+        } else {
+                check_size = entry->obj_handle->export->ops
+                        ->fs_maxread(entry->obj_handle->export);
+        }
+        if (read_count > check_size) {
+                /* the client asked for too much data, this should normally
+                   not happen because client will get FATTR4_MAXREAD value
+                   at mount time */
+                LogFullDebug(COMPONENT_NFS_V4,
+                             "NFS4_OP_READ: read requested size = %zu "
+                             " read allowed size = %"PRIu64,
+                             read_count, check_size);
+                read_count = check_size;
+        }
 
        /* XXX better indication sought */
-       if (  entry->obj_handle->ops->uio_rdwr )
-	       res_READ4.READ4res_u.resok4.data.style = READ4resok_UIO;
+       if (entry->obj_handle->ops->uio_rdwr)
+	       res_READ4->READ4res_u.resok4.data.style = READ4resok_UIO;
        else {
 	       /* the usual way */
-	       res_READ4.READ4res_u.resok4.data.style = READ4resok_EXTERNAL;
+	       res_READ4->READ4res_u.resok4.data.style = READ4resok_EXTERNAL;
 	       uio->uio_flags |= GSH_UIO_LEGACY_IO;
 
 	       /* so we still need a buffer (just alias it) */
 	       if ((uio->uio_iov = gsh_malloc_aligned(4096, uio->uio_resid)) == NULL) {
-		       res_READ4.status = NFS4ERR_SERVERFAULT;
+		       res_READ4->status = NFS4ERR_SERVERFAULT;
 		       goto done;
 	       }
-	       if(data->pexport->options & EXPORT_OPTION_USE_DATACACHE)
-		       memset(uio->uio_iov, 0, uio->uio_resid);
-	       res_READ4.READ4res_u.resok4.data.data_val = (caddr_t)
+	       res_READ4->READ4res_u.resok4.data.data_val = (caddr_t)
 		       uio->uio_iov;
        }
 
        if (cache_inode_uio_rdwr(entry,
 				uio,
 				data->req_ctx,
-				&cache_status) != CACHE_INODE_SUCCESS) {
+				&sync) != CACHE_INODE_SUCCESS) {
 	       res_READ4->status = nfs4_Errno(cache_status);
 	       goto done;
        }
@@ -358,18 +357,18 @@ nfs4_op_read(struct nfs_argop4 *op,
                 data->req_ctx->clientid = NULL;
         }
 
-	res_READ4.READ4res_u.resok4.data.data_len = uio->uio_resid;
+	res_READ4->READ4res_u.resok4.data.data_len = uio->uio_resid;
 
         LogFullDebug(COMPONENT_NFS_V4,
-                     "NFS4_OP_READ: offset = %"PRIu64" read length = %zu eof=%u",
+                     "NFS4_OP_READ: offset = %"PRIu64
+		     " read length = %zu eof=%u",
 		     uio->uio_offset, uio->uio_resid,
 		     (uio->uio_flags & GSH_UIO_EOF));
-		offset, read_size, eof_met);
 
         /* Is EOF met or not ? */
         res_READ4->READ4res_u.resok4.eof =
 		((uio->uio_flags & GSH_UIO_EOF ) ||
-		 ((uio->uio_offset + uio->uio_resid) >= attr.filesize));
+		 ((uio->uio_offset + uio->uio_resid) >= file_size));
 
         /* Say it is ok */
         res_READ4->status = NFS4_OK;
@@ -380,8 +379,8 @@ done:
         }
 #ifdef USE_DBUS_STATS
 	server_stats_io_done(data->req_ctx,
-			     size,
-			     read_size,
+			     read_count,
+			     uio->uio_resid,
 			     (res_READ4->status == NFS4_OK) ? true : false,
 			     false);
 #endif
@@ -444,12 +443,13 @@ static int op_dsread(struct nfs_argop4 *op,
         nfsstat4 nfs_status = 0;
         /* Buffer into which data is to be read */
         void *buffer = NULL;
+	size_t read_count = arg_READ4->count;
         /* End of file flag */
         bool eof = false;
 
         /* Don't bother calling the FSAL if the read length is 0. */
 
-        if (arg_READ4->count == 0) {
+        if (read_count == 0) {
                 res_READ4->READ4res_u.resok4.eof = FALSE;
                 res_READ4->READ4res_u.resok4.data.data_len = 0;
                 res_READ4->READ4res_u.resok4.data.data_val = NULL;
@@ -459,7 +459,7 @@ static int op_dsread(struct nfs_argop4 *op,
 
         /* Construct the FSAL file handle */
 
-        buffer = gsh_malloc_aligned(4096, arg_READ4->count);
+        buffer = gsh_malloc_aligned(4096, read_count);
         if (buffer == NULL) {
                 LogEvent(COMPONENT_NFS_V4,
                         "FAILED to allocate read buffer");
@@ -473,7 +473,7 @@ static int op_dsread(struct nfs_argop4 *op,
              = data->current_ds->ops->read(
 		     data->current_ds, data->req_ctx,
 		     &arg_READ4->stateid, arg_READ4->offset,
-		     arg_READ4->count,
+		     read_count,
 		     res_READ4->READ4res_u.resok4.data.data_val,
 		     &res_READ4->READ4res_u.resok4.data.data_len,
 		     &eof)) != NFS4_OK) {
