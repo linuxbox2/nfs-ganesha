@@ -577,34 +577,23 @@ out:
 
 fsal_status_t vfs_close(struct fsal_obj_handle *obj_hdl)
 {
-	struct vfs_fsal_obj_handle *hdl;
+	struct vfs_fsal_obj_handle *myself;
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 	int retval = 0;
 
-	if(obj_hdl->type == REGULAR_FILE) {
-		hdl = container_of(obj_hdl, struct vfs_fsal_obj_handle,
-				   obj_handle);
-		/* lru cleanup is now MQ-aware */
-		if (flags & FSAL_CLEANUP_LRU_WEAK) {
-			/* entry may be referenced, but it has been scanned by
-			 * lru_thread */
-			retval = vfs_extent_prune_extents(hdl);
-		} else if (flags & FSAL_CLEANUP_LRU_L1L2) {
-			/* entry has no references */
-			retval = vfs_extent_prune_extents(hdl); /* and no extents */
-			/* XXX retval? */
-			if(hdl->u.file.fd >= 0) {
-				retval = close(hdl->u.file.fd);
-				hdl->u.file.fd = -1;
-				hdl->u.file.openflags = FSAL_O_CLOSED;
-			}
-			if(retval < 0) {
-				retval = errno;
-				fsal_error = posix2fsal_error(retval);
-			}
+	assert(obj_hdl->type == REGULAR_FILE);
+	myself = container_of(obj_hdl, struct vfs_fsal_obj_handle, obj_handle);
+	if(myself->u.file.fd >= 0 &&
+	   myself->u.file.openflags != FSAL_O_CLOSED){
+		retval = close(myself->u.file.fd);
+		if(retval < 0) {
+			retval = errno;
+			fsal_error = posix2fsal_error(retval);
 		}
+		myself->u.file.fd = -1;
+		myself->u.file.openflags = FSAL_O_CLOSED;
 	}
-	return fsalstat(fsal_error, retval);
+	return fsalstat(fsal_error, retval);	
 }
 
 /* vfs_lru_cleanup
@@ -614,21 +603,33 @@ fsal_status_t vfs_close(struct fsal_obj_handle *obj_hdl)
  */
 
 fsal_status_t vfs_lru_cleanup(struct fsal_obj_handle *obj_hdl,
-			      lru_actions_t requests)
+                              lru_actions_t flags)
 {
-	struct vfs_fsal_obj_handle *myself;
-	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
-	int retval = 0;
+    struct vfs_fsal_obj_handle *hdl;
+    fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
+    int retval = 0;
 
-	myself = container_of(obj_hdl, struct vfs_fsal_obj_handle, obj_handle);
-	if(obj_hdl->type == REGULAR_FILE && myself->u.file.fd >= 0) {
-		retval = close(myself->u.file.fd);
-		myself->u.file.fd = -1;
-		myself->u.file.openflags = FSAL_O_CLOSED;
-	}
-	if(retval == -1) {
-		retval = errno;
-		fsal_error = posix2fsal_error(retval);
-	}
-	return fsalstat(fsal_error, retval);	
+    if(obj_hdl->type == REGULAR_FILE) {
+        hdl = container_of(obj_hdl, struct vfs_fsal_obj_handle, obj_handle);
+        /* lru cleanup is now MQ-aware */
+        if (flags & FSAL_CLEANUP_LRU_WEAK) {
+            /* entry may be referenced, but it has been scanned by
+             * lru_thread */
+            retval = vfs_extent_prune_extents(hdl);
+        } else if (flags & FSAL_CLEANUP_LRU_L1L2) {
+            /* entry has no references */
+            retval = vfs_extent_prune_extents(hdl); /* and no extents */
+            /* XXX retval? */
+            if(hdl->u.file.fd >= 0) {
+                retval = close(hdl->u.file.fd);
+                hdl->u.file.fd = -1;
+                hdl->u.file.openflags = FSAL_O_CLOSED;
+            }
+            if(retval == -1) {
+                retval = errno;
+                fsal_error = posix2fsal_error(retval);
+            }
+        }
+    }
+    return fsalstat(fsal_error, retval);
 }
