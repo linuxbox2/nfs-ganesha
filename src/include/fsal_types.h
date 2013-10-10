@@ -51,6 +51,7 @@ static const char *CONF_LABEL_FS_COMMON __attribute__((unused)) = "FileSystem";
 #include "err_fsal.h"
 #include "ganesha_rpc.h"
 #include "ganesha_types.h"
+#include "gsh_uio.h"
 
 /* Forward declarations */
 struct fsal_staticfsinfo_t;

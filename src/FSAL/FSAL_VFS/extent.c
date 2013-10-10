@@ -62,7 +62,7 @@ int vfs_extent_prune_extents(struct vfs_fsal_obj_handle *hdl)
     struct mapping *map;
     int retval = 0;
 
-    pthread_mutex_lock(&hdl->maps.mtx);
+    pthread_spin_lock(&hdl->maps.sp);
     if (opr_rbtree_size(&hdl->maps.t) > 0 ) {
         while ((node = opr_rbtree_first(&hdl->maps.t)) != NULL) {
             map = opr_containerof(node, struct mapping, node_k);
@@ -75,7 +75,7 @@ int vfs_extent_prune_extents(struct vfs_fsal_obj_handle *hdl)
             pthread_spin_unlock(&map->sp);
         }
     }
-    pthread_mutex_unlock(&hdl->maps.mtx);
+    pthread_spin_unlock(&hdl->maps.sp);
 
     return (retval);
 }

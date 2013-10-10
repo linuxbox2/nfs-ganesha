@@ -42,7 +42,6 @@
 #include <sys/mman.h>
 #include <misc/rbtree.h>
 #include "fsal.h"
-#include "fsal_internal.h"
 #include "abstract_mem.h"
 
 #define VFS_MAPPING_FLAGS_NONE   0x0000
@@ -50,8 +49,8 @@
 
 #define VFS_FILE_MAP_NONE        0x0000
 
-#define VFS_MAP_SIZE   4194304 /* 4M */
-#define VFS_MAP_SHIFT  22
+#define VFS_MAP_SIZE   4194304 * 8 /* 32M */
+#define VFS_MAP_SHIFT  22 /* XXX needed? */
 #define VFS_MAP_PROT   (PROT_READ|PROT_WRITE)
 #define VFS_MAP_FLAGS  MAP_SHARED /* in future, might want MAP_HUGETLB */
 

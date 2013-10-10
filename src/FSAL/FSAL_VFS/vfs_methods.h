@@ -1,7 +1,12 @@
+#ifndef VFS_METHODS_H
+#define VFS_METHODS_H
+
 /* VFS methods for handles
  */
 
 #include "fsal_handle_syscalls.h"
+#include "extent.h"
+
 struct vfs_fsal_obj_handle;
 
 struct vfs_exp_handle_ops {
@@ -80,6 +85,11 @@ struct vfs_fsal_obj_handle {
 			char *name;
 		} unopenable;
 	} u;
+	struct {
+		pthread_spinlock_t sp;
+		struct opr_rbtree t;
+		uint32_t flags;
+	} maps;
 };
 
 int vfs_fsal_open(struct vfs_fsal_obj_handle *, int, fsal_errors_t *);
@@ -177,3 +187,5 @@ fsal_status_t vfs_remove_extattr_by_id(struct fsal_obj_handle *obj_hdl,
 fsal_status_t vfs_remove_extattr_by_name(struct fsal_obj_handle *obj_hdl,
                                          const struct req_op_context *opctx,
 					 const char *xattr_name);
+
+#endif /* VFS_METHODS_H */

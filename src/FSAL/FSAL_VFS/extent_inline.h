@@ -42,7 +42,6 @@
 #include <sys/mman.h>
 #include <misc/rbtree.h>
 #include "fsal.h"
-#include "fsal_internal.h"
 #include "vfs_methods.h"
 #include "abstract_mem.h"
 
@@ -56,7 +55,7 @@ vfs_extent_remove_mapping(struct vfs_fsal_obj_handle *hdl,
     opr_rbtree_remove(&hdl->maps.t, &map->node_k);
     /* unmap it */
     retval = munmap(map->addr, VFS_MAP_SIZE);
-    pthread_mutex_unlock(&hdl->maps.mtx);
+    pthread_spin_unlock(&hdl->maps.sp);
     pthread_spin_unlock(&map->sp);
     pthread_spin_destroy(&map->sp);
     pool_free(extent_pool, map);
