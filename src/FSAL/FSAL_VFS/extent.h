@@ -49,7 +49,7 @@
 
 #define VFS_FILE_MAP_NONE        0x0000
 
-#define VFS_MAP_SIZE   4194304 * 8 /* 32M */
+#define VFS_MAP_SIZE   4194304 * 32 /* 128M */
 #define VFS_MAP_PROT   (PROT_READ|PROT_WRITE)
 #define VFS_MAP_FLAGS  MAP_SHARED /* in future, might want MAP_HUGETLB */
 
