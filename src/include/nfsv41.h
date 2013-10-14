@@ -21,7 +21,6 @@ extern "C"
 #define _AUTH_SYS_DEFINE_FOR_NFSv41
 
 #include "ganesha_rpc.h"
-#include "gsh_uio.h"
   typedef struct authsys_parms authsys_parms;
 #endif                          /* _AUTH_SYS_DEFINE_FOR_NFSv41 */
 
@@ -1813,7 +1812,7 @@ extern "C"
       u_int style;
       u_int data_len;
       char *data_val;
-      struct gsh_uio uio;
+      struct xdr_uio uio;
     } data;
   };
   typedef struct READ4resok READ4resok;
@@ -2080,7 +2079,7 @@ extern "C"
       u_int style;
       u_int data_len;
       char *data_val;
-      struct gsh_uio uio;
+      struct xdr_uio uio;
     } data;
   };
   typedef struct WRITE4args WRITE4args;
@@ -5885,28 +5884,20 @@ static inline bool xdr_READ4resok_Ext(XDR * xdrs, READ4resok * objp)
     return true;
 }
 
-static inline bool xdr_READ4resok_UIO(XDR * xdrs, READ4resok * objp)
+static inline bool xdr_READ4resok_UIO(XDR *xdrs, READ4resok *objp)
 {
-    int ix;
-    struct xdr_iovec *iov;
+    struct xdr_uio *x_uio = &(objp->data.uio);
     u_int uio_resid;
 
     switch (xdrs->x_op) {
     case XDR_ENCODE:
         if(!inline_xdr_bool(xdrs, &objp->eof))
             return false;
-        /* XXX inline_xdr_gsh_uio */
-        uio_resid = objp->data.uio.uio_resid;
-        if (! inline_xdr_u_int(xdrs, &uio_resid))
+	uio_resid = x_uio->uio_resid;
+        if (! inline_xdr_u_int(xdrs, &uio_resid)) /* XXX size_t vs u_int */
             return (false);
-        /* assert: sum(iov->iov_len) == uio_resid */
-        for (ix = 0; ix < objp->data.uio.uio_iovcnt; ++ix) {
-            iov = &(objp->data.uio.uio_iov[ix]);
-            if(! inline_xdr_opaque(
-                   xdrs, (caddr_t) iov->iov_base, iov->iov_len))
-                return false;
-        }
-        /* end */
+	if(! inline_xdr_opaque_UIO(xdrs, x_uio, XDR_FLAG_NONE))
+	  return false;	
         break;
     case XDR_DECODE:
     default:

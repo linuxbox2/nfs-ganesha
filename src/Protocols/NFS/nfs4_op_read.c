@@ -52,6 +52,8 @@ static int op_dsread(struct nfs_argop4 *op,
                      compound_data_t * data,
                      struct nfs_resop4 *resp);
 
+static void nfs4_read_rele(struct xdr_uio *uio, u_int flags);
+
 /**
  * @brief The NFS4_OP_READ operation
  *
@@ -77,7 +79,8 @@ nfs4_op_read(struct nfs_argop4 *op,
         cache_inode_status_t   cache_status = CACHE_INODE_SUCCESS;
         state_t              * state_found = NULL;
         state_t              * state_open = NULL;
-        struct gsh_uio       * uio;
+        struct gsh_uio         uio [1];
+	struct xdr_uio       * x_uio = &res_READ4->READ4res_u.resok4.data.uio;
         uint64_t               file_size = 0;
         cache_entry_t        * entry = NULL;
         bool sync = false;
@@ -90,10 +93,6 @@ nfs4_op_read(struct nfs_argop4 *op,
         /* Say we are managing NFS4_OP_READ */
         resp->resop = NFS4_OP_READ;
         res_READ4->status = NFS4_OK;
-
-        /* Setup uio */
-        uio = &res_READ4->READ4res_u.resok4.data.uio;
-        uio->uio_flags &= ~GSH_UIO_RELE;
 
         /* Do basic checks on a filehandle Only files can be read */
         res_READ4->status = nfs4_sanity_check_FH(data, REGULAR_FILE, true);
@@ -293,13 +292,6 @@ nfs4_op_read(struct nfs_argop4 *op,
        uio->uio_flags = GSH_UIO_STABLE_DATA;
        uio->uio_offset = arg_READ4->offset;
 
-       /* take a forward ref on entry so it's definitely around when we free
-	* the current op */
-       cache_inode_lru_ref(entry, LRU_FLAG_NONE);
-
-       /* and stash a pointer to it */
-       uio->uio_udata = entry;
-
        /* Do not read more than FATTR4_MAXREAD */
         if (((data->pexport->export_perms.options & EXPORT_OPTION_MAXREAD)
              == EXPORT_OPTION_MAXREAD)) {
@@ -346,6 +338,21 @@ nfs4_op_read(struct nfs_argop4 *op,
 	       goto done;
        }
 
+       /* setup XDR uio */
+       x_uio = &res_READ4->READ4res_u.resok4.data.uio;
+       x_uio->uio_iov = uio->uio_iov;
+       x_uio->uio_iovcnt = uio->uio_iovcnt;
+       x_uio->uio_offset = uio->uio_offset;
+       x_uio->uio_resid = uio->uio_resid;
+       x_uio->uio_flags = XDR_PUTBUFS_FLAG_RDNLY;
+       x_uio->uio_uflags = uio->uio_flags;
+       x_uio->uio_rele = nfs4_read_rele;
+
+       /* take a forward ref on entry so it's definitely around when x_uio
+	* is released */
+       cache_inode_lru_ref(entry, LRU_FLAG_NONE);
+       x_uio->uio_u1 = entry;
+
         if (cache_inode_size(entry,
                              data->req_ctx,
                              &file_size) != CACHE_INODE_SUCCESS) {
@@ -390,6 +397,31 @@ done:
         return res_READ4->status;
 }                               /* nfs4_op_read */
 
+static void 
+nfs4_read_rele(struct xdr_uio *x_uio, u_int flags)
+{
+	/* map x_uio to a gsh_uio */
+	struct gsh_uio uio = {
+		.uio_iov = x_uio->uio_iov,
+		.uio_iovcnt = x_uio->uio_iovcnt,
+		.uio_offset = x_uio->uio_offset,
+		.uio_resid = x_uio->uio_resid,
+		.uio_flags = x_uio->uio_uflags,
+		.uio_rw = GSH_UIO_READ
+	};
+
+	/* x_uio->uio_u1 holds the matching cache entry */
+	cache_entry_t *entry;
+	entry = (cache_entry_t *) x_uio->uio_u1;
+
+	if (uio.uio_flags & GSH_UIO_RELE) {
+		entry->obj_handle->ops->uio_rele(entry->obj_handle, &uio);	
+	}
+
+	/* release the extra ref */
+	cache_inode_lru_unref(entry, LRU_FLAG_NONE);
+}
+
 /**
  * @brief Free data allocated for READ result.
  *
@@ -403,22 +435,13 @@ void
 nfs4_op_read_Free(nfs_resop4 * res)
 {
 	READ4res *resp = &res->nfs_resop4_u.opread;
-	struct gsh_uio *uio = &resp->READ4res_u.resok4.data.uio;
-
-        /* release buffers if requested */
-	if (uio->uio_udata) {
-		cache_entry_t *entry = (cache_entry_t *) uio->uio_udata;
-		if (uio->uio_flags & GSH_UIO_RELE)
-			entry->obj_handle->ops->uio_rele(entry->obj_handle, uio);
-		/* release the extra ref */
-		cache_inode_lru_unref(entry, LRU_FLAG_NONE);
-	}
         if (resp->status == NFS4_OK) {
-                if (resp->READ4res_u.resok4.data.data_val != NULL) {
-                        gsh_free(resp->READ4res_u.resok4.data.data_val);
-                }
+		if ((resp->READ4res_u.resok4.data.style ==
+		     READ4resok_EXTERNAL) &&
+		    (resp->READ4res_u.resok4.data.data_val != NULL)) {
+			    gsh_free(resp->READ4res_u.resok4.data.data_val);
+		}
         }
-        return;
 } /* nfs4_op_read_Free */
 
 /**
