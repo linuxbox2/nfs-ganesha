@@ -188,24 +188,24 @@ out:
 bool check_uio(struct gsh_uio *uio)
 {
     int ix;
-    struct gsh_iovec *iov;
+    struct xdr_iovec *iov;
 
     for (ix = 0; ix < uio->uio_iovcnt; ++ix)  {
         iov = &uio->uio_iov[ix];
 
         LogDebug(COMPONENT_FSAL,
-                "check_uio "
-                "ix=%d "
-                "uio_iovcnt=%d uio_offset=%"PRIu64 " "
-                "uio_resid=%"PRIu64
-                " %s flags=%d "
-                "iov_base=%p iov_len=%"PRIu64 " iov_map=%p",
-                ix,
-                uio->uio_iovcnt, uio->uio_offset, uio->uio_resid,
-                (uio->uio_rw == GSH_UIO_READ) ?
+		 "check_uio "
+		 "ix=%d "
+		 "uio_iovcnt=%d uio_offset=%"PRIu64 " "
+		 "uio_resid=%"PRIu64
+		 " %s flags=%d "
+		 "iov_base=%p iov_len=%"PRIu64 " iov_map=%p",
+		 ix,
+		 uio->uio_iovcnt, uio->uio_offset, uio->uio_resid,
+		 (uio->uio_rw == GSH_UIO_READ) ?
                 "UIO_READ" : "UIO_WRITE",
-                uio->uio_flags,
-                iov->iov_base, iov->iov_len, iov->iov_map);
+		 uio->uio_flags,
+		 iov->iov_base, iov->iov_len, (struct mapping *) iov->iov_u1);
     }
     return (TRUE);
 }
@@ -237,7 +237,7 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
 	struct opr_rbtree_node *node;
 	struct mapping map_k, *map;
 	struct gsh_uio tuio = *uio;
-	struct gsh_iovec *iov;
+	struct xdr_iovec *iov;
 	uint64_t off, end;
 	int retval = 0;
 	int ix = 0;
@@ -304,8 +304,8 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
 	uio->uio_resid = end - tuio.uio_offset; /* adjusted resid */
 	uio->uio_iovcnt =
 		vfs_extents_in_range(tuio.uio_offset, uio->uio_resid);
-	uio->uio_iov = (struct gsh_iovec *)
-		gsh_calloc(uio->uio_iovcnt, sizeof(struct gsh_iovec));
+	uio->uio_iov = (struct xdr_iovec *)
+		gsh_calloc(uio->uio_iovcnt, sizeof(struct xdr_iovec));
 
 	off = tuio.uio_offset;
 	do {
@@ -340,7 +340,7 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
 		pthread_spin_unlock(&map->sp);
 
 		iov = &(uio->uio_iov[ix]);
-		iov->iov_map = map;
+		iov->iov_u1 = map;
 
 		/* adj. offset */
 		if (ix == 0) {
@@ -369,14 +369,15 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
 			 (uio->uio_rw == GSH_UIO_READ) ?
 			 "UIO_READ" : "UIO_WRITE",
 			 uio->uio_flags,
-			 iov->iov_base, iov->iov_len, iov->iov_map);
+			 iov->iov_base, iov->iov_len,
+			 (struct mapping *) iov->iov_u1);
 #endif
 		/* advance iov */
 		++ix;
 	} while ((off = vfs_extent_next(map->off)) <  end);
 
 	/* XXX fix */
-	if (! uio->uio_iov[(uio->uio_iovcnt-1)].iov_map)
+	if (! uio->uio_iov[(uio->uio_iovcnt-1)].iov_u1)
 		uio->uio_iovcnt--;
 
 	/* mark for release */
@@ -411,14 +412,14 @@ fsal_status_t vfs_uio_rele(struct fsal_obj_handle *obj_hdl,
 	struct vfs_fsal_obj_handle *hdl;
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 	struct mapping *map;
-	struct gsh_iovec *iov;
+	struct xdr_iovec *iov;
 	int retval = 0;
 	int ix;
 
 	hdl = container_of(obj_hdl, struct vfs_fsal_obj_handle, obj_handle);
 	for (ix = 0; ix < uio->uio_iovcnt; ++ix)  {
 		iov = &uio->uio_iov[ix];
-		map = iov->iov_map;
+		map = (struct mapping *) iov->iov_u1;
 		pthread_spin_lock(&map->sp);
 		/* decref */
 		--(map->refcnt);
@@ -432,7 +433,7 @@ fsal_status_t vfs_uio_rele(struct fsal_obj_handle *obj_hdl,
 				retval = vfs_extent_remove_mapping(hdl, map);
 				if (unlikely(retval == -1))
 					fsal_error = ERR_FSAL_IO;
-				iov->iov_map = NULL;
+				iov->iov_u1 = NULL;
 				continue;
 			}
 			/* raced ftw */

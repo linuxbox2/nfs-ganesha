@@ -5888,7 +5888,7 @@ static inline bool xdr_READ4resok_Ext(XDR * xdrs, READ4resok * objp)
 static inline bool xdr_READ4resok_UIO(XDR * xdrs, READ4resok * objp)
 {
     int ix;
-    struct gsh_iovec *iov;
+    struct xdr_iovec *iov;
     u_int uio_resid;
 
     switch (xdrs->x_op) {

@@ -37,14 +37,9 @@
 #ifndef _GSH_UIO_H
 #define _GSH_UIO_H
 
-#include <sys/uio.h>
 
-struct gsh_iovec
-{
-    void *iov_base;
-    void *iov_map; /* it's eff. */
-    size_t iov_len;
-};
+#include "ganesha_rpc.h"
+
 
 enum gsh_uio_rw { GSH_UIO_READ, GSH_UIO_WRITE };
 
@@ -61,7 +56,7 @@ enum gsh_uio_rw { GSH_UIO_READ, GSH_UIO_WRITE };
 #define GSH_UIO_RELE              0x0400
 
 struct gsh_uio {
-    struct gsh_iovec *uio_iov;
+    struct xdr_iovec *uio_iov;
     void *uio_udata; /* caller private data */
     int uio_iovcnt;
     off_t uio_offset;
