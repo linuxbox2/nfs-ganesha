@@ -674,21 +674,16 @@ lru_run(struct fridgethr_context *ctx)
 	L2 functionality rather than something we expect to be
 	permanent.  (It will have to adapt heavily to the new FSAL
 	API, for example.) */
-
      if ((atomic_fetch_size_t(&open_fd_count) < lru_state.fds_lowat) &&
 	 nfs_param.cache_param.use_fd_cache) {
-	  LogDebug(COMPONENT_CACHE_INODE_LRU,
-		   "FD count is %zd and low water mark is "
-		   "%d: not reaping.",
-		   open_fd_count,
-		   lru_state.fds_lowat);
-	  if (nfs_param.cache_param.use_fd_cache &&
-	      !lru_state.caching_fds) {
+	  if (! lru_state.caching_fds) {
 	       lru_state.caching_fds = true;
 	       LogEvent(COMPONENT_CACHE_INODE_LRU,
 		       "Re-enabling FD cache.");
 	  }
-     } else {
+     }
+
+     {
 	  /* The count of open file descriptors before this run
 	     of the reaper. */
 	  size_t formeropen = open_fd_count;
