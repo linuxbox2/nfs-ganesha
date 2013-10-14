@@ -729,6 +729,8 @@ lru_run(struct fridgethr_context *ctx)
 			 CACHE_INODE_SUCCESS;
 		    /* a cache entry */
 		    cache_entry_t *entry;
+		    /* its obj_handle */
+		    struct fsal_obj_handle *obj_hdl;
 		    /* Current queue lane */
 		    struct lru_q_lane *qlane = &LRU[lane];
 		    q = &qlane->L1;
@@ -766,6 +768,7 @@ lru_run(struct fridgethr_context *ctx)
 
                             /* get entry early */
 			    entry = container_of(lru, cache_entry_t, lru);
+			    obj_hdl = entry->obj_handle;
 
 			    /* check refcnt in range */
 			    if (unlikely(refcnt > 2)) {
@@ -809,6 +812,10 @@ lru_run(struct fridgethr_context *ctx)
 				    }
 			    }
 			    pthread_rwlock_unlock(&entry->content_lock);
+
+			    /* Do a "weak" LRU cleanup (for VFS, removes
+			     * unused mappings) */
+			    (void) obj_hdl->ops->lru_cleanup(obj_hdl, FSAL_CLEANUP_LRU_WEAK);
 
 			    QLOCK(qlane); /* QLOCKED */
 			    cache_inode_lru_unref(entry, LRU_UNREF_QLOCKED); /* return lru */

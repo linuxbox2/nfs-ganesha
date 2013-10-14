@@ -50,7 +50,6 @@
 #define VFS_FILE_MAP_NONE        0x0000
 
 #define VFS_MAP_SIZE   4194304 * 8 /* 32M */
-#define VFS_MAP_SHIFT  22 /* XXX needed? */
 #define VFS_MAP_PROT   (PROT_READ|PROT_WRITE)
 #define VFS_MAP_FLAGS  MAP_SHARED /* in future, might want MAP_HUGETLB */
 
@@ -61,7 +60,7 @@ struct mapping
     pthread_spinlock_t sp;
     uint64_t off;
     uint32_t len; /* fixed for any set of mappings */
-    void *addr;
+    char *addr;
     uint32_t flags;
     uint32_t refcnt;
 };

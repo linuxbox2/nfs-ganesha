@@ -215,6 +215,19 @@ bool check_uio(struct gsh_uio *uio)
 
 #define UIO_RDWR_TRACE 1
 
+#if 0
+static void check_mapping(struct mapping *map, size_t len)
+{
+	char *buf = gsh_calloc(1, 8192);
+	size_t off;
+
+	for (off = 0; off < len; off += 8192) {
+		memcpy(buf, map->addr + off, 8192);
+		printf("checked map %p off %"PRIu64, map->addr, off);
+	}
+}
+#endif
+
 fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
                            struct gsh_uio *uio,
 			   bool *fsal_stable)
@@ -223,9 +236,9 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 	struct opr_rbtree_node *node;
 	struct mapping map_k, *map;
+	struct gsh_uio tuio = *uio;
 	struct gsh_iovec *iov;
-	uint64_t base, end;
-	uint32_t l_adj, r_adj = 0;
+	uint64_t off, end;
 	int retval = 0;
 	int ix = 0;
 
@@ -247,7 +260,6 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
 #endif
 
 	/* on entry, uio_offset indicates logical read or write offset */
-	base = uio->uio_offset;
 
 	/* end is computed from uio_resid (now a size_t) */
 	switch (uio->uio_rw) {
@@ -258,7 +270,11 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
 		break;
 	case GSH_UIO_WRITE:
 		end = uio->uio_offset + uio->uio_resid;
-		retval = ftruncate(hdl->u.file.fd, end);
+		if (end > hdl->obj_handle.attributes.filesize) {
+			retval = ftruncate(hdl->u.file.fd, end);
+			if (retval == 0)
+				hdl->obj_handle.attributes.filesize = end;
+		}
 		break;
 	default:
 		/* error */
@@ -269,33 +285,32 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
 #if UIO_RDWR_TRACE
 	LogDebug(COMPONENT_FSAL,
 		 "compute end "
-		 "base=%"PRIu64 " end=%"PRIu64 " attrs.fsize=%"PRIu64 " "
+		 "start=%"PRIu64 " end=%"PRIu64 " attrs.fsize=%"PRIu64 " "
 		 "uio_iovcnt=%d uio_offset=%"PRIu64 " "
 		 "uio_resid=%"PRIu64
 		 " %s flags=%d ",
-		 base, end, hdl->obj_handle.attributes.filesize,
+		 tuio.uio_offset, end, hdl->obj_handle.attributes.filesize,
 		 uio->uio_iovcnt, uio->uio_offset, uio->uio_resid,
 		 (uio->uio_rw == GSH_UIO_READ) ?
 		 "UIO_READ" : "UIO_WRITE",
 		 uio->uio_flags);
 #endif
-	if (base >= end) {
+	if (tuio.uio_offset >= end) {
 		uio->uio_iovcnt = 0;
 		goto out;
 	}
 
-	/* the following calculation actually uses just the end position,
-	 * considering the base of the first extent */
-	uio->uio_iovcnt = vfs_extents_in_range(base, (end-vfs_extent_of(base)));
-
+	/* project the required iovec range */
+	uio->uio_resid = end - tuio.uio_offset; /* adjusted resid */
+	uio->uio_iovcnt =
+		vfs_extents_in_range(tuio.uio_offset, uio->uio_resid);
 	uio->uio_iov = (struct gsh_iovec *)
 		gsh_calloc(uio->uio_iovcnt, sizeof(struct gsh_iovec));
 
-	/* will adjust */
-	uio->uio_resid = uio->uio_iovcnt * VFS_MAP_SIZE;
-
+	off = tuio.uio_offset;
 	do {
-		map_k.off = vfs_extent_of(base);
+		size_t adj_off;
+		map_k.off = vfs_extent_of(off);
 		pthread_spin_lock(&hdl->maps.sp);
 		node = opr_rbtree_lookup(&hdl->maps.t, &map_k.node_k);
 		if (unlikely(node)) {
@@ -315,44 +330,41 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
 			map->refcnt = 2 /* sentinel + 1 */;
 			map->off = map_k.off;
 			map->len = VFS_MAP_SIZE;
-			map->addr = mmap(NULL, VFS_MAP_SIZE, VFS_MAP_PROT, VFS_MAP_FLAGS,
-					 hdl->u.file.fd, map->off);
-			assert(map->addr != (void *) MAP_FAILED);
+			map->addr = mmap(NULL, VFS_MAP_SIZE, VFS_MAP_PROT,
+					 VFS_MAP_FLAGS, hdl->u.file.fd,
+					 map->off);
+			assert(map->addr != (char *) MAP_FAILED);
 			LogDebug(COMPONENT_FSAL,
 				 "new mapping %p ", map);
 		}
 		pthread_spin_unlock(&map->sp);
 
 		iov = &(uio->uio_iov[ix]);
-
-		/* left adjust 1st iovec */
-		if (ix == 0) {
-			l_adj = base % VFS_MAP_SIZE;
-			uio->uio_resid -= l_adj;
-		} else {
-			if (l_adj)
-				l_adj = 0;
-		}
-
-		/* right adjust last iovec */
-		if (ix == (uio->uio_iovcnt-1)) {
-			r_adj = VFS_MAP_SIZE - (end % VFS_MAP_SIZE);
-			uio->uio_resid -= r_adj;
-		}
-
-		iov->iov_base = map->addr + l_adj;
-		iov->iov_len = VFS_MAP_SIZE - l_adj - r_adj;
 		iov->iov_map = map;
+
+		/* adj. offset */
+		if (ix == 0) {
+			if (off < VFS_MAP_SIZE)
+				adj_off = off;
+			else
+				adj_off = off % VFS_MAP_SIZE;
+		} else
+			adj_off = 0;
+
+			iov->iov_base = map->addr + adj_off;
+			iov->iov_len = MIN(VFS_MAP_SIZE - adj_off,
+					   tuio.uio_resid);
+			tuio.uio_resid -= iov->iov_len;
 
 #if UIO_RDWR_TRACE
 		LogDebug(COMPONENT_FSAL,
 			 "mapped segment ix=%d "
-			 "l_adj=%d r_adj=%d base=%"PRIu64 " end=%"PRIu64 " "
+			 "off=%"PRIu64 " end=%"PRIu64 " "
 			 "uio_iovcnt=%d uio_offset=%"PRIu64 " "
 			 "uio_resid=%"PRIu64
 			 " %s flags=%d "
 			 "iov_base=%p iov_len=%"PRIu64 " iov_map=%p",
-			 ix, l_adj, r_adj, base, end,
+			 ix, off, end,
 			 uio->uio_iovcnt, uio->uio_offset, uio->uio_resid,
 			 (uio->uio_rw == GSH_UIO_READ) ?
 			 "UIO_READ" : "UIO_WRITE",
@@ -361,7 +373,7 @@ fsal_status_t vfs_uio_rdwr(struct fsal_obj_handle *obj_hdl,
 #endif
 		/* advance iov */
 		++ix;
-	} while ((base = vfs_extent_next(map->off)) <  end);
+	} while ((off = vfs_extent_next(map->off)) <  end);
 
 	/* XXX fix */
 	if (! uio->uio_iov[(uio->uio_iovcnt-1)].iov_map)
@@ -420,6 +432,7 @@ fsal_status_t vfs_uio_rele(struct fsal_obj_handle *obj_hdl,
 				retval = vfs_extent_remove_mapping(hdl, map);
 				if (unlikely(retval == -1))
 					fsal_error = ERR_FSAL_IO;
+				iov->iov_map = NULL;
 				continue;
 			}
 			/* raced ftw */
@@ -430,6 +443,7 @@ fsal_status_t vfs_uio_rele(struct fsal_obj_handle *obj_hdl,
 	}
 
 	gsh_free(uio->uio_iov);
+	uio->uio_iov = NULL;
 	uio->uio_iovcnt = 0;
 
 	return fsalstat(fsal_error, retval);
@@ -584,7 +598,7 @@ fsal_status_t vfs_close(struct fsal_obj_handle *obj_hdl)
 	assert(obj_hdl->type == REGULAR_FILE);
 	myself = container_of(obj_hdl, struct vfs_fsal_obj_handle, obj_handle);
 	if(myself->u.file.fd >= 0 &&
-	   myself->u.file.openflags != FSAL_O_CLOSED){
+	   myself->u.file.openflags != FSAL_O_CLOSED) {
 		retval = close(myself->u.file.fd);
 		if(retval < 0) {
 			retval = errno;
@@ -612,23 +626,10 @@ fsal_status_t vfs_lru_cleanup(struct fsal_obj_handle *obj_hdl,
     if(obj_hdl->type == REGULAR_FILE) {
         hdl = container_of(obj_hdl, struct vfs_fsal_obj_handle, obj_handle);
         /* lru cleanup is now MQ-aware */
-        if (flags & FSAL_CLEANUP_LRU_WEAK) {
+        if (flags & (FSAL_CLEANUP_LRU_WEAK|FSAL_CLEANUP_LRU_L1L2)) {
             /* entry may be referenced, but it has been scanned by
              * lru_thread */
             retval = vfs_extent_prune_extents(hdl);
-        } else if (flags & FSAL_CLEANUP_LRU_L1L2) {
-            /* entry has no references */
-            retval = vfs_extent_prune_extents(hdl); /* and no extents */
-            /* XXX retval? */
-            if(hdl->u.file.fd >= 0) {
-                retval = close(hdl->u.file.fd);
-                hdl->u.file.fd = -1;
-                hdl->u.file.openflags = FSAL_O_CLOSED;
-            }
-            if(retval == -1) {
-                retval = errno;
-                fsal_error = posix2fsal_error(retval);
-            }
         }
     }
     return fsalstat(fsal_error, retval);
