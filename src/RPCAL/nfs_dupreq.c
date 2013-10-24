@@ -805,7 +805,7 @@ static inline dupreq_entry_t *alloc_dupreq(void)
 	}
 	memset(dv, 0, sizeof(dupreq_entry_t));	/* XXX pool_zalloc */
 	gsh_mutex_init(&dv->mtx, NULL);
-	TAILQ_INIT_ENTRY(dv, fifo_q)
+	TAILQ_INIT_ENTRY(dv, fifo_q);
  out:
 	return (dv);
 }
