@@ -81,9 +81,10 @@ cache_inode_get(cache_inode_fsal_data_t *fsdata,
 
 	/* Do lookup */
 	*entry =
-	    cih_get_by_fh_latched(&fsdata->fh_desc, &latch,
-				  CIH_GET_RLOCK | CIH_GET_UNLOCK_ON_MISS,
-				  __func__, __LINE__);
+		cih_get_by_fh_latched(cih_fhcache_temp, &fsdata->fh_desc,
+				      &latch,
+				      CIH_GET_RLOCK | CIH_GET_UNLOCK_ON_MISS,
+				      __func__, __LINE__);
 	if (*entry) {
 		/* take an extra reference within the critical section */
 		cache_inode_lru_ref(*entry, LRU_REQ_INITIAL);
@@ -167,9 +168,9 @@ cache_inode_get_keyed(cache_inode_key_t *key,
 
 	/* Check if the entry already exists */
 	entry =
-	    cih_get_by_key_latched(key, &latch,
-				   CIH_GET_RLOCK | CIH_GET_UNLOCK_ON_MISS,
-				   __func__, __LINE__);
+		cih_get_by_key_latched(cih_fhcache_temp, key, &latch,
+				       CIH_GET_RLOCK | CIH_GET_UNLOCK_ON_MISS,
+				       __func__, __LINE__);
 	if (likely(entry)) {
 		/* Ref entry */
 		cache_inode_lru_ref(entry, LRU_FLAG_NONE);

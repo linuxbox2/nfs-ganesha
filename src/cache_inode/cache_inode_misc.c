@@ -245,9 +245,9 @@ cache_inode_new_entry(struct fsal_obj_handle *new_obj,
 	 * because cache_inode_lru_get has a slow path, and the latch is a
 	 * shared lock. */
 	oentry =
-	    cih_get_by_fh_latched(&fh_desc, &latch,
-				  CIH_GET_RLOCK | CIH_GET_UNLOCK_ON_MISS,
-				  __func__, __LINE__);
+		cih_get_by_fh_latched(cih_fhcache_temp, &fh_desc, &latch,
+				      CIH_GET_RLOCK | CIH_GET_UNLOCK_ON_MISS,
+				      __func__, __LINE__);
 	if (oentry) {
 		/* Entry is already in the cache, do not add it */
 		status = CACHE_INODE_ENTRY_EXISTS;
@@ -275,8 +275,8 @@ cache_inode_new_entry(struct fsal_obj_handle *new_obj,
 
 	/* See if someone raced us. */
 	oentry =
-	    cih_get_by_fh_latched(&fh_desc, &latch, CIH_GET_WLOCK, __func__,
-				  __LINE__);
+		cih_get_by_fh_latched(cih_fhcache_temp, &fh_desc, &latch,
+				      CIH_GET_WLOCK, __func__, __LINE__);
 	if (oentry) {
 		/* Entry is already in the cache, do not add it. */
 		status = CACHE_INODE_ENTRY_EXISTS;

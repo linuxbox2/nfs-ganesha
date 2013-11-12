@@ -837,9 +837,11 @@ cache_inode_destroyer(void)
 	/* Index over partitions */
 	uint32_t i = 0;
 
-	for (i = 0; i < cih_fhcache.npart; ++i) {
+	/* XXX this is incompatible with multiple cache lookup
+	 * tables */
+	for (i = 0; i < cih_fhcache_temp->npart; ++i) {
 		struct avltree_node *node =
-		    avltree_first(&cih_fhcache.partition[i].t);
+			avltree_first(&cih_fhcache_temp->partition[i].t);
 		while (node) {
 			/* The current entry to destroy */
 			cache_entry_t *entry =
@@ -848,9 +850,9 @@ cache_inode_destroyer(void)
 						     fh_hk.
 						     node_k);
 			destroy_entry(entry);
-			avltree_remove(node, &cih_fhcache.partition[i].t);
+			avltree_remove(node, &cih_fhcache_temp->partition[i].t);
 			pool_free(cache_inode_entry_pool, entry);
-			node = avltree_first(&cih_fhcache.partition[i].t);
+			node = avltree_first(&cih_fhcache_temp->partition[i].t);
 		}
 	}
 }

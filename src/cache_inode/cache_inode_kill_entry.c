@@ -73,7 +73,8 @@ cache_inode_kill_entry(cache_entry_t *entry)
 	LogDebug(COMPONENT_CACHE_INODE,
 		 "Using cache_inode_kill_entry for entry %p", entry);
 
-	cih_remove_checked(entry);	/* !reachable, drop sentinel ref */
+	cih_remove_checked(cih_fhcache_temp,
+			   entry); /* !reachable, drop sentinel ref */
 
 	/* queue for cleanup */
 	cache_inode_lru_cleanup_push(entry);

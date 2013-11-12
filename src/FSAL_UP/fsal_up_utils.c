@@ -54,12 +54,12 @@ cache_inode_status_t up_get(const struct gsh_buffdesc *key,
 {
 	cih_latch_t latch;
 
-	if ((&cih_fhcache)->partition == NULL)
+	if (cih_fhcache_temp->partition == NULL)
 		return CACHE_INODE_NOT_FOUND;
 	*entry =
-	    cih_get_by_fh_latched(key, &latch,
-				  CIH_GET_RLOCK | CIH_GET_UNLOCK_ON_MISS,
-				  __func__, __LINE__);
+		cih_get_by_fh_latched(cih_fhcache_temp, key, &latch,
+				      CIH_GET_RLOCK | CIH_GET_UNLOCK_ON_MISS,
+				      __func__, __LINE__);
 	if (*entry == NULL)
 		return CACHE_INODE_NOT_FOUND;
 

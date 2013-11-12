@@ -61,8 +61,10 @@
  * implementation.
  */
 
-struct cih_lookup_table cih_fhcache;
+struct cih_lookup_table *cih_fhcache_temp; /* XXX going away */
 static bool initialized;
+
+static pthread_rwlockattr_t rwlock_attr;
 
 /**
  * @brief Initialize the package.
@@ -70,11 +72,7 @@ static bool initialized;
 void
 cih_pkginit(void)
 {
-	pthread_rwlockattr_t rwlock_attr;
-	cih_partition_t *cp;
-	uint32_t npart;
 	uint32_t cache_sz = 32767;	/* XXX */
-	int ix;
 
 	/* avoid writer starvation */
 	pthread_rwlockattr_init(&rwlock_attr);
@@ -83,18 +81,43 @@ cih_pkginit(void)
 		&rwlock_attr,
 		PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
 #endif
-	npart = nfs_param.cache_param.nparts;
-	cih_fhcache.npart = npart;
-	cih_fhcache.partition = gsh_calloc(npart, sizeof(cih_partition_t));
+	cih_fhcache_temp = cih_alloc_fhcache(nfs_param.cache_param.nparts,
+					     cache_sz);
+	initialized = true;
+}
+
+/**
+ * @brief Create a new cache inode hash table
+ *
+ * This function creates a new cache inode hash table, taking as
+ * parameters a number of partitions and number of cache slotes (which
+ * should be prime).
+ *
+ * @param npart [in] Number of partitions
+ * @param cache_sz [in] Number of cache slots
+ *
+ * @return The table.
+ */
+struct cih_lookup_table *
+cih_alloc_fhcache(uint32_t npart, uint32_t cache_sz)
+{
+	int ix;
+	cih_partition_t *cp;
+	struct cih_lookup_table *cih_fhcache =
+		gsh_calloc(1, sizeof(struct cih_lookup_table));
+
+	cih_fhcache->npart = npart;
+	cih_fhcache->partition = gsh_calloc(npart, sizeof(cih_partition_t));
 	for (ix = 0; ix < npart; ++ix) {
-		cp = &cih_fhcache.partition[ix];
+		cp = &cih_fhcache->partition[ix];
 		cp->part_ix = ix;
 		pthread_rwlock_init(&cp->lock, &rwlock_attr);
 		avltree_init(&cp->t, cih_fh_cmpf, 0 /* must be 0 */);
-		cih_fhcache.cache_sz = cache_sz;
+		cih_fhcache->cache_sz = cache_sz;
 		cp->cache = gsh_calloc(cache_sz, sizeof(struct avltree_node *));
 	}
-	initialized = true;
+
+	return (cih_fhcache);
 }
 
 /** @} */

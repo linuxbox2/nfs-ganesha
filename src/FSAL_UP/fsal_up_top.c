@@ -473,6 +473,7 @@ cache_inode_status_t up_unlink(struct fsal_export *export,
 	if (dirent && ~(dirent->flags & DIR_ENTRY_FLAG_DELETED)) {
 		cih_latch_t latch;
 		cache_entry_t *entry = cih_get_by_key_latched(
+			cih_fhcache_temp,
 			&dirent->ckey,
 			&latch,
 			CIH_GET_UNLOCK_ON_MISS,
@@ -489,7 +490,8 @@ cache_inode_status_t up_unlink(struct fsal_export *export,
 				}
 				if (entry->obj_handle->attributes.numlinks
 				    == 0)
-					cih_remove_latched(entry, &latch,
+					cih_remove_latched(cih_fhcache_temp,
+							   entry, &latch,
 							   CIH_REMOVE_UNLOCK);
 			}
 			PTHREAD_RWLOCK_unlock(&entry->attr_lock);
