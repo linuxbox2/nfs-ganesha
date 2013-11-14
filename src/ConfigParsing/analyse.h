@@ -23,6 +23,7 @@
 #define CONFPARSER_H
 
 #include <stdio.h>
+#include "nlm_list.h"
 
 #define MAXSTRLEN   1024
 
@@ -66,6 +67,27 @@ typedef struct _generic_item_ {
 
 } generic_item;
 
+/**
+ * @brief Configuration parser data structures
+ * and linkage betweek the parser, analyse.c and config_parsing.c
+ */
+
+/*
+ * Parse tree node.
+ */
+
+struct config_node {
+	struct glist_head node;
+	char *name;		/* block or parameter name */
+	char *filename;		/* pointer to filename in file list */
+	int linenumber;
+	type_item type;		/* switches union contents */
+	union {			/* sub_nodes are always struct config_node */
+		char *varvalue;			/* TYPE_STMT */
+		struct glist_head sub_nodes;	/* TYPE_BLOCK */
+	}u;
+};
+
 typedef generic_item *list_items;
 
 /**
@@ -77,6 +99,39 @@ list_items *config_CreateItemsList();
  *  Create a block item with the given content
  */
 generic_item *config_CreateBlock(char *blockname, list_items * list);
+
+/*
+ * File list
+ * Every config_node points to a pathname in this list
+ */
+
+struct file_list {
+	struct file_list *next;
+	char *pathname;
+};
+
+/*
+ * Parse tree root
+ * A parse tree consists of several blocks,
+ * each block consists of variables definitions
+ * and subblocks.
+ * All storage allocated into the parse tree is here
+ */
+
+struct config_root {
+	struct glist_head nodes;
+	char *conf_dir;
+	struct file_list *files;
+};
+
+/*
+ * parser/lexer linkage
+ */
+
+struct parser_state {
+	struct config_root *root_node;
+	void *scanner;
+};
 
 /**
  *  Create a key=value peer (assignment)
