@@ -20,7 +20,8 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301 USA
  *
  * -------------
  */
@@ -163,6 +164,7 @@ static struct vfs_fsal_module VFS;
 
 /* linkage to the exports and handle ops initializers
  */
+void vfs_export_init(void);
 
 MODULE_INIT void vfs_init(void)
 {
@@ -179,6 +181,7 @@ MODULE_INIT void vfs_init(void)
 	myself->ops->create_export = vfs_create_export;
 	myself->ops->init_config = init_config;
 	init_fsal_parameters(&VFS.fsal_info);
+	vfs_export_init();
 }
 
 MODULE_FINI void vfs_unload(void)

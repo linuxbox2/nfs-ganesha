@@ -189,6 +189,7 @@ typedef struct exportlist {
 						 */
 	cache_entry_t *exp_root_cache_inode;	/*< entry for root of this
 						    export  */
+	struct cih_lookup_table *cih_fhcache;	/*< cache lookup table */
 	cache_inode_expire_type_t expire_type_attr;
 } exportlist_t;
 

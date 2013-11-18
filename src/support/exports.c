@@ -1283,7 +1283,7 @@ static int BuildExportClient(config_item_t block,
 
 static int BuildExportEntry(config_item_t block)
 {
-	exportlist_t *p_entry = NULL;
+	exportlist_t *exp_list = NULL;
 	bool path_matches = false;
 	int i, rc;
 	config_item_t item;
@@ -1340,10 +1340,10 @@ static int BuildExportEntry(config_item_t block)
 		return -1;
 	} else {
 		/* initialize the exportlist part with the id */
-		p_entry = &exp->export;
+		exp_list = &exp->export;
 		/* warn defined twice nicely */
 		set_options &= ~FLAG_EXPORT_ID;
-		if (pthread_mutex_init(&p_entry->exp_state_mutex, NULL) == -1) {
+		if (pthread_mutex_init(&exp_list->exp_state_mutex, NULL) == -1) {
 			LogCrit(COMPONENT_CONFIG,
 				"NFS READ %s: could not initialize exp_state_mutex",
 				label);
@@ -1351,20 +1351,20 @@ static int BuildExportEntry(config_item_t block)
 			remove_gsh_export(export_id);
 			return -1;
 		}
-		p_entry->UseCookieVerifier = true;
-		p_entry->UseCookieVerifier = true;
-		p_entry->filesystem_id.major = 666;
-		p_entry->filesystem_id.minor = 666;
-		p_entry->MaxWrite = 16384;
-		p_entry->MaxRead = 16384;
-		p_entry->PrefWrite = 16384;
-		p_entry->PrefRead = 16384;
-		p_entry->PrefReaddir = 16384;
-		p_entry->expire_type_attr =
+		exp_list->UseCookieVerifier = true;
+		exp_list->UseCookieVerifier = true;
+		exp_list->filesystem_id.major = 666;
+		exp_list->filesystem_id.minor = 666;
+		exp_list->MaxWrite = 16384;
+		exp_list->MaxRead = 16384;
+		exp_list->PrefWrite = 16384;
+		exp_list->PrefRead = 16384;
+		exp_list->PrefReaddir = 16384;
+		exp_list->expire_type_attr =
 		    nfs_param.cache_param.expire_type_attr;
-		glist_init(&p_entry->exp_state_list);
-		glist_init(&p_entry->exp_lock_list);
-		glist_init(&p_entry->clients.client_list);
+		glist_init(&exp_list->exp_state_list);
+		glist_init(&exp_list->exp_lock_list);
+		glist_init(&exp_list->clients.client_list);
 	}
 
 	/* the mandatory options */
@@ -1376,7 +1376,7 @@ static int BuildExportEntry(config_item_t block)
 	p_access_list->num_clients = 0;
 
 	/* by default, we support auth_none and auth_sys */
-	p_perms = &p_entry->export_perms;
+	p_perms = &exp_list->export_perms;
 	p_perms->options = EXPORT_OPTION_AUTH_NONE | EXPORT_OPTION_AUTH_UNIX;
 
 	/* Default anonymous uid and gid */
@@ -1403,7 +1403,7 @@ static int BuildExportEntry(config_item_t block)
 			char *blk_name = config_GetBlockName(item);
 
 			if (!strcasecmp(blk_name, CONF_EXPORT_CLIENT_DEF)) {
-				rc = BuildExportClient(item, &p_entry->clients);
+				rc = BuildExportClient(item, &exp_list->clients);
 			} else {
 				LogCrit(COMPONENT_CONFIG,
 					"NFS READ %s: unknown block \"%s\", ignored",
@@ -1444,10 +1444,10 @@ static int BuildExportEntry(config_item_t block)
 					   &err_flag,
 					   &export_id))
 				continue;
-			if (export_id != p_entry->id) {
+			if (export_id != exp_list->id) {
 				LogCrit(COMPONENT_CONFIG,
 					"NFS READ %s: Strange Export_id: (new)\"%d\" != (old)\"%d\"",
-					label, export_id, p_entry->id);
+					label, export_id, exp_list->id);
 				err_flag = true;
 				continue;
 			}
@@ -1508,7 +1508,7 @@ static int BuildExportEntry(config_item_t block)
 				continue;
 			}
 
-			p_entry->fullpath = gsh_strdup(var_value);
+			exp_list->fullpath = gsh_strdup(var_value);
 
 			/* Remember the entry we found so we can verify Tag
 			 * and/or Pseudo is set by the time the EXPORT stanza
@@ -1626,7 +1626,7 @@ static int BuildExportEntry(config_item_t block)
 				err_flag = true;
 				continue;
 			}
-			p_entry->pseudopath = gsh_strdup(var_value);
+			exp_list->pseudopath = gsh_strdup(var_value);
 
 			p_perms->options |= EXPORT_OPTION_PSEUDO;
 		} else if (!STRCMP(var_name, CONF_EXPORT_ACCESSTYPE)) {
@@ -1888,8 +1888,8 @@ static int BuildExportEntry(config_item_t block)
 					   &err_flag,
 					   &size))
 				continue;
-			p_entry->MaxRead = size;
-			if (p_entry->MaxRead >
+			exp_list->MaxRead = size;
+			if (exp_list->MaxRead >
 			    nfs_param.core_param.rpc.max_send_buffer_size) {
 				LogMajor(COMPONENT_CONFIG,
 					 "The MaxRead for an export is larger than the RPC "
@@ -1910,8 +1910,8 @@ static int BuildExportEntry(config_item_t block)
 					   &err_flag,
 					   &size))
 				continue;
-			p_entry->MaxWrite = size;
-			if (p_entry->MaxWrite >
+			exp_list->MaxWrite = size;
+			if (exp_list->MaxWrite >
 			    nfs_param.core_param.rpc.max_recv_buffer_size) {
 				LogMajor(COMPONENT_CONFIG,
 					 "The MaxWrite for an export is larger than the RPC "
@@ -1932,7 +1932,7 @@ static int BuildExportEntry(config_item_t block)
 					   &err_flag,
 					   &size))
 				continue;
-			p_entry->PrefRead = (uint32_t) size;
+			exp_list->PrefRead = (uint32_t) size;
 			p_perms->options |= EXPORT_OPTION_PREFREAD;
 		} else if (!STRCMP(var_name, CONF_EXPORT_PREF_WRITE)) {
 			int64_t size;
@@ -1947,7 +1947,7 @@ static int BuildExportEntry(config_item_t block)
 					   &err_flag,
 					   &size))
 				continue;
-			p_entry->PrefWrite = (uint32_t) size;
+			exp_list->PrefWrite = (uint32_t) size;
 			p_perms->options |= EXPORT_OPTION_PREFWRITE;
 		} else if (!STRCMP(var_name, CONF_EXPORT_PREF_READDIR)) {
 			int64_t size;
@@ -1961,7 +1961,7 @@ static int BuildExportEntry(config_item_t block)
 					   var_name,
 					   &err_flag, &size))
 				continue;
-			p_entry->PrefReaddir = (uint32_t) size;
+			exp_list->PrefReaddir = (uint32_t) size;
 			p_perms->options |= EXPORT_OPTION_PREFRDDIR;
 		} else if (!STRCMP(var_name, CONF_EXPORT_FSID)) {
 			int64_t major, minor;
@@ -2011,8 +2011,8 @@ static int BuildExportEntry(config_item_t block)
 
 			/* set filesystem_id */
 
-			p_entry->filesystem_id.major = (uint64_t) major;
-			p_entry->filesystem_id.minor = (uint64_t) minor;
+			exp_list->filesystem_id.major = (uint64_t) major;
+			exp_list->filesystem_id.minor = (uint64_t) minor;
 		} else if (!STRCMP(var_name, CONF_EXPORT_NOSUID)) {
 			bool on;
 
@@ -2084,7 +2084,7 @@ static int BuildExportEntry(config_item_t block)
 				err_flag = true;
 				continue;
 			}
-			p_entry->FS_specific = gsh_strdup(var_value);
+			exp_list->FS_specific = gsh_strdup(var_value);
 		} else if (!STRCMP(var_name, CONF_EXPORT_FS_TAG)) {
 			struct gsh_export *exp;
 
@@ -2116,7 +2116,7 @@ static int BuildExportEntry(config_item_t block)
 				err_flag = true;
 				continue;
 			}
-			p_entry->FS_tag = gsh_strdup(var_value);
+			exp_list->FS_tag = gsh_strdup(var_value);
 		} else if (!STRCMP(var_name, CONF_EXPORT_MAX_OFF_WRITE)) {
 			int64_t offset;
 
@@ -2130,7 +2130,7 @@ static int BuildExportEntry(config_item_t block)
 					   &err_flag,
 					   &offset))
 				continue;
-			p_entry->MaxOffsetWrite = (uint32_t) offset;
+			exp_list->MaxOffsetWrite = (uint32_t) offset;
 			p_perms->options |= EXPORT_OPTION_MAXOFFSETWRITE;
 
 			set_options |= FLAG_EXPORT_MAX_OFF_WRITE;
@@ -2148,7 +2148,7 @@ static int BuildExportEntry(config_item_t block)
 					   &err_flag,
 					   &offset))
 				continue;
-			p_entry->MaxOffsetRead = (uint32_t) offset;
+			exp_list->MaxOffsetRead = (uint32_t) offset;
 			p_perms->options |= EXPORT_OPTION_MAXOFFSETREAD;
 
 			set_options |= FLAG_EXPORT_MAX_OFF_READ;
@@ -2164,7 +2164,7 @@ static int BuildExportEntry(config_item_t block)
 					&err_flag,
 					&on))
 				continue;
-			p_entry->UseCookieVerifier = on;
+			exp_list->UseCookieVerifier = on;
 		} else if (!STRCMP(var_name, CONF_EXPORT_SQUASH)) {
 			/* check if it has not already been set */
 			if ((set_options & FLAG_EXPORT_SQUASH) ==
@@ -2214,9 +2214,8 @@ static int BuildExportEntry(config_item_t block)
 				LogCrit(COMPONENT_CONFIG,
 					"NFS READ %s: FSAL is already defined as (%s), new attempt = (%s)",
 					label,
-					fsal_hdl->ops->get_name(p_entry->
-								export_hdl->
-								fsal),
+					fsal_hdl->ops->get_name(
+						exp_list->export_hdl->fsal),
 					var_value);
 				continue;
 			}
@@ -2333,49 +2332,46 @@ static int BuildExportEntry(config_item_t block)
 	if (!err_flag && fsal_hdl != NULL) {
 		fsal_status_t expres = fsal_hdl->ops->create_export(
 					fsal_hdl,
-					p_entry->
-					fullpath,
-					p_entry->
-					FS_specific,
-					p_entry,
+					exp_list->fullpath,
+					exp_list->FS_specific,
+					exp_list,
 					NULL,
 					&fsal_up_top,
-					&p_entry->
-					export_hdl);
+					&exp_list->export_hdl);
 		if (FSAL_IS_ERROR(expres)) {
 			LogCrit(COMPONENT_CONFIG,
 				"Could not create FSAL export for %s",
-				p_entry->fullpath);
+				exp_list->fullpath);
 			err_flag = true;
 		} else {
-			if ((p_entry->export_perms.
+			if ((exp_list->export_perms.
 			     options & EXPORT_OPTION_MAXREAD) !=
 			    EXPORT_OPTION_MAXREAD) {
-				if (p_entry->export_hdl->ops->
-				    fs_maxread(p_entry->export_hdl) > 0)
-					p_entry->MaxRead =
-					    p_entry->export_hdl->ops->
-					    fs_maxread(p_entry->export_hdl);
+				if (exp_list->export_hdl->ops->
+				    fs_maxread(exp_list->export_hdl) > 0)
+					exp_list->MaxRead =
+					    exp_list->export_hdl->ops->
+					    fs_maxread(exp_list->export_hdl);
 				else
-					p_entry->MaxRead = LASTDEFAULT;
+					exp_list->MaxRead = LASTDEFAULT;
 			}
-			if ((p_entry->export_perms.
+			if ((exp_list->export_perms.
 			     options & EXPORT_OPTION_MAXWRITE) !=
 			    EXPORT_OPTION_MAXWRITE) {
-				if (p_entry->export_hdl->ops->
-				    fs_maxwrite(p_entry->export_hdl) > 0)
-					p_entry->MaxWrite =
-					    p_entry->export_hdl->ops->
-					    fs_maxwrite(p_entry->export_hdl);
+				if (exp_list->export_hdl->ops->
+				    fs_maxwrite(exp_list->export_hdl) > 0)
+					exp_list->MaxWrite =
+					    exp_list->export_hdl->ops->
+					    fs_maxwrite(exp_list->export_hdl);
 				else
-					p_entry->MaxWrite = LASTDEFAULT;
+					exp_list->MaxWrite = LASTDEFAULT;
 			}
 			LogFullDebug(COMPONENT_INIT,
 				     "Set MaxRead MaxWrite for Path=%s Options = 0x%x MaxRead = 0x%llX MaxWrite = 0x%llX",
-				     p_entry->fullpath,
-				     p_entry->export_perms.options,
-				     (long long)p_entry->MaxRead,
-				     (long long)p_entry->MaxWrite);
+				     exp_list->fullpath,
+				     exp_list->export_perms.options,
+				     (long long)exp_list->MaxRead,
+				     (long long)exp_list->MaxWrite);
 		}
 
 		fsal_hdl->ops->put(fsal_hdl);
@@ -2385,17 +2381,17 @@ static int BuildExportEntry(config_item_t block)
 	}
 
 	/* Append the default Access list to the export so someone owns them */
-	glist_add_list_tail(&p_entry->clients.client_list,
+	glist_add_list_tail(&exp_list->clients.client_list,
 			    &p_access_list->client_list);
-	p_entry->clients.num_clients += p_access_list->num_clients;
+	exp_list->clients.num_clients += p_access_list->num_clients;
 
 	/* check if there had any error.
-	 * if so, free the p_entry and return an error.
+	 * if so, free the exp_list and return an error.
 	 */
 	if (err_flag) {
 		LogCrit(COMPONENT_CONFIG,
 			"NFS READ %s: Export %d (%s) had errors, ignoring entry",
-			label, p_entry->id, p_entry->fullpath);
+			label, exp_list->id, exp_list->fullpath);
 		put_gsh_export(exp);
 		remove_gsh_export(export_id);
 		return -1;
@@ -2404,7 +2400,7 @@ static int BuildExportEntry(config_item_t block)
 
 	LogEvent(COMPONENT_CONFIG,
 		 "NFS READ %s: Export %d (%s) successfully parsed", label,
-		 p_entry->id, p_entry->fullpath);
+		 exp_list->id, exp_list->fullpath);
 
 	if (isFullDebug(COMPONENT_CONFIG)) {
 		char perms[1024];
@@ -2471,77 +2467,77 @@ void free_export_resources(exportlist_t *export)
 
 exportlist_t *BuildDefaultExport()
 {
-	exportlist_t *p_entry;
+	exportlist_t *exp_list;
 	bool rc;
 	struct client_args args;
 
 	/* allocates new export entry */
-	p_entry = gsh_calloc(1, sizeof(exportlist_t));
+	exp_list = gsh_calloc(1, sizeof(exportlist_t));
 
-	if (p_entry == NULL)
+	if (exp_list == NULL)
 		return NULL;
 
   /** @todo set default values here */
 
-	p_entry->export_perms.anonymous_uid = (uid_t) ANON_UID;
+	exp_list->export_perms.anonymous_uid = (uid_t) ANON_UID;
 
 	/* By default, export is RW */
-	p_entry->export_perms.options |= EXPORT_OPTION_RW_ACCESS;
+	exp_list->export_perms.options |= EXPORT_OPTION_RW_ACCESS;
 
 	/* by default, we support auth_none and auth_sys */
-	p_entry->export_perms.options |=
+	exp_list->export_perms.options |=
 	    EXPORT_OPTION_AUTH_NONE | EXPORT_OPTION_AUTH_UNIX;
 
 	/* by default, we support all NFS versions supported
 	 * by the core and both transport protocols
 	 */
 	if ((nfs_param.core_param.core_options & CORE_OPTION_NFSV3) != 0)
-		p_entry->export_perms.options |= EXPORT_OPTION_NFSV3;
+		exp_list->export_perms.options |= EXPORT_OPTION_NFSV3;
 	if ((nfs_param.core_param.core_options & CORE_OPTION_NFSV4) != 0)
-		p_entry->export_perms.options |= EXPORT_OPTION_NFSV4;
-	p_entry->export_perms.options |= EXPORT_OPTION_TRANSPORTS;
+		exp_list->export_perms.options |= EXPORT_OPTION_NFSV4;
+	exp_list->export_perms.options |= EXPORT_OPTION_TRANSPORTS;
 
-	p_entry->filesystem_id.major = 101;
-	p_entry->filesystem_id.minor = 101;
+	exp_list->filesystem_id.major = 101;
+	exp_list->filesystem_id.minor = 101;
 
-	p_entry->MaxWrite = 0x100000;
-	p_entry->MaxRead = 0x100000;
-	p_entry->PrefWrite = 0x100000;
-	p_entry->PrefRead = 0x100000;
-	p_entry->PrefReaddir = 0x100000;
+	exp_list->MaxWrite = 0x100000;
+	exp_list->MaxRead = 0x100000;
+	exp_list->PrefWrite = 0x100000;
+	exp_list->PrefRead = 0x100000;
+	exp_list->PrefReaddir = 0x100000;
 
-	p_entry->FS_tag = gsh_strdup("ganesha");
+	exp_list->FS_tag = gsh_strdup("ganesha");
 
-	p_entry->id = 1;
+	exp_list->id = 1;
 
-	p_entry->fullpath = gsh_strdup("/");
-	p_entry->pseudopath = gsh_strdup("/");
+	exp_list->fullpath = gsh_strdup("/");
+	exp_list->pseudopath = gsh_strdup("/");
 
-	p_entry->UseCookieVerifier = true;
+	exp_list->UseCookieVerifier = true;
 
-	glist_init(&p_entry->clients.client_list);
-	glist_init(&p_entry->exp_state_list);
-	glist_init(&p_entry->exp_lock_list);
+	glist_init(&exp_list->clients.client_list);
+	glist_init(&exp_list->exp_state_list);
+	glist_init(&exp_list->exp_lock_list);
 
   /**
    * Grant root access to all clients
    */
-	args.client = &p_entry->clients;
+	args.client = &exp_list->clients;
 	args.option = EXPORT_OPTION_ROOT;
 	args.var_name = CONF_EXPORT_ROOT;
 	rc = add_export_client("*", &args);
 	if (!rc) {
 		LogCrit(COMPONENT_CONFIG,
 			"NFS READ EXPORT: Invalid client \"*\"");
-		gsh_free(p_entry);
+		gsh_free(exp_list);
 		return NULL;
 	}
 
 	LogEvent(COMPONENT_CONFIG,
 		 "NFS READ_EXPORT: Export %d (%s) successfully parsed",
-		 p_entry->id, p_entry->fullpath);
+		 exp_list->id, exp_list->fullpath);
 
-	return p_entry;
+	return exp_list;
 
 }
 

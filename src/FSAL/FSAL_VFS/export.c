@@ -47,8 +47,58 @@
 #include "FSAL/fsal_config.h"
 #include "fsal_handle_syscalls.h"
 #include "vfs_methods.h"
-
+#include "nfs_exports.h"
+#include "cache_inode_hash.h"
 #include "pnfs_panfs/mds.h"
+
+/* export cache lookup table mappings
+ */
+static pthread_mutex_t avl_mtx = PTHREAD_MUTEX_INITIALIZER;
+static struct avltree avl_fsid;
+
+static inline int
+fsid_cmpf(const struct avltree_node *lhs,
+	  const struct avltree_node *rhs)
+{
+       struct vfs_fsal_export *lk, *rk;
+
+       lk = avltree_container_of(lhs, struct vfs_fsal_export, avl_fsid);
+       rk = avltree_container_of(rhs, struct vfs_fsal_export, avl_fsid);
+
+       if (lk->fsid < rk->fsid)
+               return -1;
+
+       if (lk->fsid == rk->fsid)
+               return 0;
+
+       return 1;
+}
+
+static inline struct avltree_node *
+avltree_inline_fsid_lookup(
+       const struct avltree_node *key,
+       const struct avltree *tree)
+{
+       struct avltree_node *node = tree->root;
+       int res = 0;
+
+       while (node) {
+               res = fsid_cmpf(node, key);
+               if (res == 0)
+                       return node;
+               if (res > 0)
+                       node = node->left;
+               else
+                       node = node->right;
+       }
+       return NULL;
+}
+
+/* Package init */
+void vfs_export_init()
+{
+	avltree_init(&avl_fsid, fsid_cmpf, 0 /* flags */);
+}
 
 /* helpers to/from other VFS objects
  */
@@ -538,6 +588,7 @@ fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl,
 	struct vfs_fsal_export *myself;
 	FILE *fp;
 	struct mntent *p_mnt;
+	struct statvfs buffstatvfs;
 	size_t pathlen, outlen = 0;
 	char mntdir[MAXPATHLEN + 1]; /* there has got to be a better way... */
 	char fs_spec[MAXPATHLEN + 1];
@@ -739,11 +790,40 @@ fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl,
 			goto errout;
 		}
 	}
+
+	/* associate a cache inode lookup table unique to the
+	 * underlying fsid */
+	retval = fstatvfs(myself->root_fd, &buffstatvfs);
+	if (retval < 0) {
+		fsal_error = posix2fsal_error(errno);
+		retval = errno;
+		goto errout;
+	} else {
+		struct avltree_node *node;
+		myself->fsid = buffstatvfs.f_fsid;
+		pthread_mutex_lock(&avl_mtx);
+		node = avltree_inline_fsid_lookup(&myself->avl_fsid, &avl_fsid);
+		if (node) {
+			struct vfs_fsal_export *fsid_export =
+				avltree_container_of(
+					node, struct vfs_fsal_export,
+					avl_fsid);
+			myself->export.exp_entry->cih_fhcache =
+				fsid_export->export.exp_entry->cih_fhcache;
+			(void) cih_ref_fhcache(
+				myself->export.exp_entry->cih_fhcache);
+		} else {
+			myself->export.exp_entry->cih_fhcache =
+				cih_alloc_fhcache(7, 32767);
+			avltree_insert(&myself->avl_fsid, &avl_fsid);
+		}
+		pthread_mutex_unlock(&avl_mtx);
+	}
 	myself->fstype = gsh_strdup(type);
 	myself->fs_spec = gsh_strdup(fs_spec);
 	myself->mntdir = gsh_strdup(mntdir);
 	myself->vex_ops = *hops;
-	*export = &myself->export;
+	*export = &myself->export;	
 	pthread_mutex_unlock(&myself->export.lock);
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 

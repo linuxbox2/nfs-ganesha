@@ -65,6 +65,7 @@ struct cih_lookup_table *cih_fhcache_temp; /* XXX going away */
 static bool initialized;
 
 static pthread_rwlockattr_t rwlock_attr;
+static pthread_mutex_t cih_fhcache_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 /**
  * @brief Initialize the package.
@@ -116,8 +117,41 @@ cih_alloc_fhcache(uint32_t npart, uint32_t cache_sz)
 		cih_fhcache->cache_sz = cache_sz;
 		cp->cache = gsh_calloc(cache_sz, sizeof(struct avltree_node *));
 	}
+	cih_fhcache->refcnt = 1;
 
 	return (cih_fhcache);
+}
+
+uint32_t
+cih_ref_fhcache(struct cih_lookup_table *cih_fhcache)
+{
+	uint32_t refcnt;
+	pthread_mutex_lock(&cih_fhcache_mtx);
+	refcnt = ++(cih_fhcache->refcnt);
+	pthread_mutex_lock(&cih_fhcache_mtx);
+
+	return (refcnt);
+}
+
+uint32_t
+cih_release_fhcache(struct cih_lookup_table *cih_fhcache)
+{
+	uint32_t refcnt;
+	pthread_mutex_lock(&cih_fhcache_mtx);
+	refcnt = --(cih_fhcache->refcnt);
+	pthread_mutex_lock(&cih_fhcache_mtx);
+
+	if (refcnt == 0) {
+		cih_partition_t *cp;
+		int ix, npart = cih_fhcache->npart;
+		for (ix = 0; ix < npart; ++ix) {
+			cp = &cih_fhcache->partition[ix];
+			gsh_free(cp->cache);
+		}
+		gsh_free(cih_fhcache);
+	}
+
+	return (refcnt);
 }
 
 /** @} */

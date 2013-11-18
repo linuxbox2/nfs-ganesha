@@ -2,6 +2,8 @@
  */
 
 #include "fsal_handle_syscalls.h"
+#include "avltree.h"
+
 struct vfs_fsal_obj_handle;
 
 struct vfs_exp_handle_ops {
@@ -19,9 +21,11 @@ struct vfs_exp_handle_ops {
  */
 struct vfs_fsal_export {
 	struct fsal_export export;
+	struct avltree_node avl_fsid;
 	char *mntdir;
 	char *fs_spec;
 	char *fstype;
+	uint64_t fsid;
 	int root_fd;
 	dev_t root_dev;
 	vfs_file_handle_t *root_handle;

@@ -108,6 +108,28 @@ struct cih_lookup_table *
 cih_alloc_fhcache(uint32_t npart, uint32_t cache_sz);
 
 /**
+ * @brief Increment the refcnt on a cache inode hash table
+ *
+ * @param cih_fhcache The table
+ *
+ * @return The new refcnt
+ */
+uint32_t
+cih_ref_fhcache(struct cih_lookup_table *cih_fhcache);
+
+/**
+ * @brief Decrement the refcnt on a cache inode hash table
+ *
+ * If cih_fhcache->refcnt reaches 0, the table is freed.
+ *
+ * @param cih_fhcache The table
+ *
+ * @return The new refcnt
+ */
+uint32_t
+cih_release_fhcache(struct cih_lookup_table *cih_fhcache);
+
+/**
  * @brief Find the correct partition for a pointer
  *
  * To lower thread contention, the table is composed of multiple
