@@ -43,6 +43,7 @@
 #include "sal_functions.h"
 #include "nfs_core.h"
 #include "nfs_tools.h"
+#include "export_mgr.h"
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -225,13 +226,16 @@ cache_inode_set_time_current(struct timespec *time)
  * @return CACHE_INODE_SUCCESS or errors.
  */
 cache_inode_status_t
-cache_inode_new_entry(struct fsal_obj_handle *new_obj,
+cache_inode_new_entry(const struct req_op_context *req_ctx,
+		      struct fsal_obj_handle *new_obj,
 		      uint32_t flags,
 		      cache_entry_t **entry)
 {
 	cache_inode_status_t status;
 	fsal_status_t fsal_status;
 	cache_entry_t *oentry, *nentry;
+	struct cih_lookup_table *cih_fhcache =
+		req_ctx->export->export.cih_fhcache;
 	struct gsh_buffdesc fh_desc;
 	cih_latch_t latch;
 	bool lrurefed = false;
@@ -245,7 +249,7 @@ cache_inode_new_entry(struct fsal_obj_handle *new_obj,
 	 * because cache_inode_lru_get has a slow path, and the latch is a
 	 * shared lock. */
 	oentry =
-		cih_get_by_fh_latched(cih_fhcache_temp, &fh_desc, &latch,
+		cih_get_by_fh_latched(cih_fhcache, &fh_desc, &latch,
 				      CIH_GET_RLOCK | CIH_GET_UNLOCK_ON_MISS,
 				      __func__, __LINE__);
 	if (oentry) {
@@ -275,7 +279,7 @@ cache_inode_new_entry(struct fsal_obj_handle *new_obj,
 
 	/* See if someone raced us. */
 	oentry =
-		cih_get_by_fh_latched(cih_fhcache_temp, &fh_desc, &latch,
+		cih_get_by_fh_latched(cih_fhcache, &fh_desc, &latch,
 				      CIH_GET_WLOCK, __func__, __LINE__);
 	if (oentry) {
 		/* Entry is already in the cache, do not add it. */
@@ -303,7 +307,7 @@ cache_inode_new_entry(struct fsal_obj_handle *new_obj,
 	/* Set cache key */
 	cih_hash_entry(nentry, &fh_desc, CIH_HASH_NONE);
 
-	/* Set export id (unhashed, uncompared key component) */
+	/* Set export id (unhashed, uncompared key component) XXX */
 	nentry->fh_hk.key.exportid = new_obj->export->exp_entry->id;
 
 	/* Initialize common fields */

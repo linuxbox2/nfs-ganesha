@@ -3413,29 +3413,43 @@ cache_inode_status_t nfs_export_get_root_entry(exportlist_t *export,
 			msg_fsal_err(fsal_status.major), fsal_status.minor);
 		return cache_inode_error_convert(fsal_status);
 	}
-	/* Add this entry to the Cache Inode as a "root" entry */
 
-	cache_status =
-	    cache_inode_new_entry(root_handle, CACHE_INODE_FLAG_NONE, &entry);
-	if (entry != NULL) {
-		/* cache_inode_get returns a cache_entry with
-		 * reference count of 2, where 1 is the sentinel value of
-		 * a cache entry in the hash table.  The export list in
-		 * this case owns the extra reference.  In the future
-		 * if functionality is added to dynamically add and remove
-		 * export entries, then the function to remove an export
-		 * entry MUST put the extra reference.
-		 */
-		export->exp_root_cache_inode = entry;
-		LogInfo(COMPONENT_INIT,
-			"Added root entry for path %s on export_id=%d",
-			export->fullpath, export->id);
-		*entryp = export->exp_root_cache_inode;
-	} else {
-		LogCrit(COMPONENT_INIT,
-			"Error when creating root cached entry for %s, export_id=%d, cache_status=%d",
-			export->fullpath, export->id, cache_status);
-		*entryp = NULL;
+	/* Add this entry to the Cache Inode as a "root" entry */
+	{
+		struct gsh_export synthetic_export = {
+			.export = *export
+		};
+
+		struct req_op_context synthetic_ctx = {
+			.creds = NULL,
+			.caller_addr = NULL,
+			.clientid = NULL,
+			.export = &synthetic_export
+		};
+
+		cache_status =
+			cache_inode_new_entry(&synthetic_ctx, root_handle,
+					      CACHE_INODE_FLAG_NONE, &entry);
+		if (entry != NULL) {
+			/* cache_inode_get returns a cache_entry with
+			 * reference count of 2, where 1 is the sentinel value
+			 * of a cache entry in the hash table.  The export list
+			 * in this case owns the extra reference.  In the future
+			 * if functionality is added to dynamically add and
+			 * remove export entries, then the function to remove
+			 * an export entry MUST put the extra reference.
+			 */
+			export->exp_root_cache_inode = entry;
+			LogInfo(COMPONENT_INIT,
+				"Added root entry for path %s on export_id=%d",
+				export->fullpath, export->id);
+			*entryp = export->exp_root_cache_inode;
+		} else {
+			LogCrit(COMPONENT_INIT,
+				"Error when creating root cached entry for %s, export_id=%d, cache_status=%d",
+				export->fullpath, export->id, cache_status);
+			*entryp = NULL;
+		}
 	}
 	return cache_status;
 }

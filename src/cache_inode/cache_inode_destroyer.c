@@ -799,6 +799,9 @@ destroy_file_state(cache_entry_t *entry)
  */
 
 static void
+destroy_entry(cache_entry_t *entr) __attribute__ ((unused));
+
+static void
 destroy_entry(cache_entry_t *entry)
 {
 	/* FSAL Error Code */
@@ -834,6 +837,12 @@ destroy_entry(cache_entry_t *entry)
 void
 cache_inode_destroyer(void)
 {
+	/* XXXX this function must either itself traverse the list of
+	 * exports, or else take an exportlist as a parameter.  The
+	 * latter seems clearly more correct.  Ie., we'll need to 
+	 * have similar behavior when an export is being drained, which
+	 * may happen whenever an export is removed. */
+#if 0
 	/* Index over partitions */
 	uint32_t i = 0;
 
@@ -855,6 +864,7 @@ cache_inode_destroyer(void)
 			node = avltree_first(&cih_fhcache_temp->partition[i].t);
 		}
 	}
+#endif
 }
 
 /** @} */

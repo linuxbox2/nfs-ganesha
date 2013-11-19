@@ -454,6 +454,7 @@ lru_reap_impl(enum lru_q_id qid)
 	struct lru_q *lq;
 	cache_inode_lru_t *lru;
 	cache_entry_t *entry;
+	struct cih_lookup_table *cih_fhcache;
 	uint32_t refcnt;
 	cih_latch_t latch;
 	int ix;
@@ -476,8 +477,9 @@ lru_reap_impl(enum lru_q_id qid)
 		}
 		/* potentially reclaimable */
 		QUNLOCK(qlane);
+		cih_fhcache = entry->obj_handle->export->exp_entry->cih_fhcache;
 		/* entry must be unreachable from CIH when recycled */
-		if (cih_latch_entry(cih_fhcache_temp, entry, &latch,
+		if (cih_latch_entry(cih_fhcache, entry, &latch,
 				    CIH_GET_WLOCK, __func__, __LINE__)) {
 			QLOCK(qlane);
 			refcnt = atomic_fetch_int32_t(&entry->lru.refcnt);
@@ -490,7 +492,7 @@ lru_reap_impl(enum lru_q_id qid)
 			if (LRU_ENTRY_RECLAIMABLE(entry, refcnt)) {
 				/* it worked */
 				struct lru_q *q = lru_queue_of(entry);
-				cih_remove_latched(cih_fhcache_temp, entry,
+				cih_remove_latched(cih_fhcache, entry,
 						   &latch,
 						   CIH_REMOVE_QLOCKED);
 				LRU_DQ_SAFE(lru, q);

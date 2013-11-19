@@ -378,7 +378,7 @@ struct cache_inode_populate_cb_state {
  */
 
 static bool
-populate_dirent(const struct req_op_context *opctx,
+populate_dirent(const struct req_op_context *req_ctx,
 		const char *name, void *dir_state,
 		fsal_cookie_t cookie)
 {
@@ -390,7 +390,7 @@ populate_dirent(const struct req_op_context *opctx,
 	fsal_status_t fsal_status = { 0, 0 };
 	struct fsal_obj_handle *dir_hdl = state->directory->obj_handle;
 
-	fsal_status = dir_hdl->ops->lookup(dir_hdl, opctx, name, &entry_hdl);
+	fsal_status = dir_hdl->ops->lookup(dir_hdl, req_ctx, name, &entry_hdl);
 	if (FSAL_IS_ERROR(fsal_status)) {
 		*state->status = cache_inode_error_convert(fsal_status);
 		return false;
@@ -399,8 +399,8 @@ populate_dirent(const struct req_op_context *opctx,
 	LogFullDebug(COMPONENT_CACHE_INODE, "Creating entry for %s", name);
 
 	*state->status =
-	    cache_inode_new_entry(entry_hdl, CACHE_INODE_FLAG_NONE,
-				  &cache_entry);
+		cache_inode_new_entry(req_ctx, entry_hdl, CACHE_INODE_FLAG_NONE,
+				      &cache_entry);
 	if (cache_entry == NULL) {
 		*state->status = CACHE_INODE_NOT_FOUND;
 		/* we do not free entry_hdl because it is consumed by

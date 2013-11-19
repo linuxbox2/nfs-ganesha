@@ -53,6 +53,7 @@
 #include <pthread.h>
 #include <assert.h>
 #include "export_mgr.h"
+#include "nfs_exports.h"
 
 /**
  *
@@ -75,13 +76,15 @@ cache_inode_get(cache_inode_fsal_data_t *fsdata,
 {
 	fsal_status_t fsal_status = { 0, 0 };
 	struct fsal_export *exp_hdl = NULL;
+	struct cih_lookup_table *cih_fhcache =
+		req_ctx->export->export.cih_fhcache;
 	struct fsal_obj_handle *new_hdl;
 	cache_inode_status_t status = CACHE_INODE_SUCCESS;
 	cih_latch_t latch;
 
 	/* Do lookup */
 	*entry =
-		cih_get_by_fh_latched(cih_fhcache_temp, &fsdata->fh_desc,
+		cih_get_by_fh_latched(cih_fhcache, &fsdata->fh_desc,
 				      &latch,
 				      CIH_GET_RLOCK | CIH_GET_UNLOCK_ON_MISS,
 				      __func__, __LINE__);
@@ -136,7 +139,8 @@ cache_inode_get(cache_inode_fsal_data_t *fsdata,
 
 	LogFullDebug(COMPONENT_CACHE_INODE, "Creating entry");
 
-	status = cache_inode_new_entry(new_hdl, CACHE_INODE_FLAG_NONE, entry);
+	status = cache_inode_new_entry(req_ctx, new_hdl,
+				       CACHE_INODE_FLAG_NONE, entry);
 	if (*entry == NULL)
 		return status;
 
@@ -163,12 +167,14 @@ cache_inode_get_keyed(cache_inode_key_t *key,
 		      uint32_t flags,
 		      cache_inode_status_t *status)
 {
+	struct cih_lookup_table *cih_fhcache =
+		req_ctx->export->export.cih_fhcache;
 	cache_entry_t *entry = NULL;
 	cih_latch_t latch;
 
 	/* Check if the entry already exists */
 	entry =
-		cih_get_by_key_latched(cih_fhcache_temp, key, &latch,
+		cih_get_by_key_latched(cih_fhcache, key, &latch,
 				       CIH_GET_RLOCK | CIH_GET_UNLOCK_ON_MISS,
 				       __func__, __LINE__);
 	if (likely(entry)) {
@@ -205,8 +211,9 @@ cache_inode_get_keyed(cache_inode_key_t *key,
 
 		/* if all else fails, create a new entry */
 		*status =
-		    cache_inode_new_entry(new_hdl, CACHE_INODE_FLAG_NONE,
-					  &entry);
+			cache_inode_new_entry(req_ctx, new_hdl,
+					      CACHE_INODE_FLAG_NONE,
+					      &entry);
 		if (unlikely(!entry))
 			goto out;
 

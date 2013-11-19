@@ -50,6 +50,8 @@
 #include "cache_inode.h"
 #include "gsh_intrinsic.h"
 #include "cache_inode_lru.h"
+#include "nfs_exports.h"
+#include "export_mgr.h"
 #include "city.h"
 #include <libgen.h>
 
@@ -83,9 +85,6 @@ struct cih_lookup_table {
 	uint32_t cache_sz;
 	uint32_t refcnt;
 };
-
-/* Support inline lookups */
-extern struct cih_lookup_table *cih_fhcache_temp; /* XXX going away */
 
 /**
  * @brief Initialize the package.
@@ -529,8 +528,10 @@ cih_set_latched(cache_entry_t *entry, cih_latch_t *latch,
  * @return (void)
  */
 static inline void
-cih_remove_checked(struct cih_lookup_table *cih_fhcache, cache_entry_t *entry)
+cih_remove_checked(cache_entry_t *entry)
 {
+	struct cih_lookup_table *cih_fhcache =
+		entry->obj_handle->export->exp_entry->cih_fhcache;
 	struct avltree_node *node;
 	cih_partition_t *cp =
 		cih_partition_of_scalar(cih_fhcache, entry->fh_hk.key.hk);

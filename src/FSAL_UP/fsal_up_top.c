@@ -83,7 +83,7 @@ static cache_inode_status_t invalidate(struct fsal_export *export,
 	cache_entry_t *entry = NULL;
 	cache_inode_status_t rc = 0;
 
-	rc = up_get(key, &entry);
+	rc = up_get(export, key, &entry);
 	if (rc == 0) {
 		rc = cache_inode_invalidate(entry, flags);
 		cache_inode_put(entry);
@@ -92,13 +92,14 @@ static cache_inode_status_t invalidate(struct fsal_export *export,
 	return rc;
 }
 
-cache_inode_status_t fsal_invalidate(const struct gsh_buffdesc *key,
+cache_inode_status_t fsal_invalidate(struct fsal_export *export,
+				     const struct gsh_buffdesc *key,
 				     uint32_t flags)
 {
 	cache_entry_t *entry = NULL;
 	cache_inode_status_t rc = 0;
 
-	rc = up_get(key, &entry);
+	rc = up_get(export, key, &entry);
 	if (rc == 0) {
 		rc = cache_inode_invalidate(entry, flags);
 		cache_inode_put(entry);
@@ -146,7 +147,7 @@ static cache_inode_status_t update(struct fsal_export *export,
 		return CACHE_INODE_INVALID_ARGUMENT;
 	}
 
-	rc = up_get(obj, &entry);
+	rc = up_get(export, obj, &entry);
 	if (rc != 0)
 		return rc;
 
@@ -321,7 +322,7 @@ static state_status_t lock_grant(struct fsal_export *export,
 	cache_entry_t *entry = NULL;
 	int rc = 0;
 
-	rc = up_get(file, &entry);
+	rc = up_get(export, file, &entry);
 	if (rc == 0) {
 		grant_blocked_lock_upcall(entry, owner, lock_param);
 
@@ -353,7 +354,7 @@ static state_status_t lock_avail(struct fsal_export *export,
 	cache_entry_t *entry = NULL;
 	int rc = 0;
 
-	rc = up_get(file, &entry);
+	rc = up_get(export, file, &entry);
 	if (rc == 0) {
 		available_blocked_lock_upcall(entry, owner, lock_param);
 
@@ -393,7 +394,7 @@ cache_inode_status_t up_link(struct fsal_export *export,
 	/* Return code */
 	cache_inode_status_t rc = CACHE_INODE_SUCCESS;
 
-	rc = up_get(dirkey, &parent);
+	rc = up_get(export, dirkey, &parent);
 	if (rc != 0)
 		goto out;
 
@@ -410,7 +411,7 @@ cache_inode_status_t up_link(struct fsal_export *export,
 		goto out;
 	}
 
-	rc = up_get(tarkey, &entry);
+	rc = up_get(export, tarkey, &entry);
 	if (rc != CACHE_INODE_SUCCESS) {
 		cache_inode_invalidate(parent, CACHE_INODE_INVALIDATE_CONTENT);
 		goto out;
@@ -463,8 +464,11 @@ cache_inode_status_t up_unlink(struct fsal_export *export,
 	cache_inode_status_t rc = CACHE_INODE_SUCCESS;
 	/* The looked up directory entry */
 	cache_inode_dir_entry_t *dirent = NULL;
+	/* The export cache inode lookup table */
+	struct cih_lookup_table *cih_fhcache =
+		export->exp_entry->cih_fhcache;
 
-	rc = up_get(dirkey, &parent);
+	rc = up_get(export, dirkey, &parent);
 	if (rc != CACHE_INODE_SUCCESS)
 		goto out;
 
@@ -473,7 +477,7 @@ cache_inode_status_t up_unlink(struct fsal_export *export,
 	if (dirent && ~(dirent->flags & DIR_ENTRY_FLAG_DELETED)) {
 		cih_latch_t latch;
 		cache_entry_t *entry = cih_get_by_key_latched(
-			cih_fhcache_temp,
+			cih_fhcache,
 			&dirent->ckey,
 			&latch,
 			CIH_GET_UNLOCK_ON_MISS,
@@ -490,7 +494,7 @@ cache_inode_status_t up_unlink(struct fsal_export *export,
 				}
 				if (entry->obj_handle->attributes.numlinks
 				    == 0)
-					cih_remove_latched(cih_fhcache_temp,
+					cih_remove_latched(cih_fhcache,
 							   entry, &latch,
 							   CIH_REMOVE_UNLOCK);
 			}
@@ -532,7 +536,7 @@ cache_inode_status_t move_from(struct fsal_export *export,
 	/* Return code */
 	cache_inode_status_t rc = CACHE_INODE_SUCCESS;
 
-	rc = up_get(dirkey, &parent);
+	rc = up_get(export, dirkey, &parent);
 	if (rc != 0)
 		goto out;
 
@@ -574,7 +578,7 @@ cache_inode_status_t move_to(struct fsal_export *export,
 	/* The entry to look up */
 	cache_entry_t *entry = NULL;
 
-	rc = up_get(dirkey, &parent);
+	rc = up_get(export, dirkey, &parent);
 
 	if (rc != CACHE_INODE_SUCCESS)
 		goto out;
@@ -594,7 +598,7 @@ cache_inode_status_t move_to(struct fsal_export *export,
 		}
 		goto out;
 	}
-	rc = up_get(tarkey, &entry);
+	rc = up_get(export, tarkey, &entry);
 	if (rc != CACHE_INODE_SUCCESS) {
 		cache_inode_invalidate(parent, CACHE_INODE_INVALIDATE_CONTENT);
 		goto out;
@@ -639,7 +643,7 @@ cache_inode_status_t up_rename(struct fsal_export *export,
 	/* Return code */
 	cache_inode_status_t rc = CACHE_INODE_SUCCESS;
 
-	rc = up_get(dirkey, &parent);
+	rc = up_get(export, dirkey, &parent);
 	if (rc != 0)
 		goto out;
 
@@ -872,7 +876,7 @@ state_status_t layoutrecall(struct fsal_export *export,
 	/* Iterator over the work list */
 	struct glist_head *wi = NULL;
 
-	rc = cache_inode_status_to_state_status(up_get(handle, &entry));
+	rc = cache_inode_status_to_state_status(up_get(export, handle, &entry));
 	if (rc != STATE_SUCCESS)
 		return rc;
 
@@ -1457,7 +1461,7 @@ state_status_t delegrecall(struct fsal_export *export,
 	state_lock_entry_t *found_entry = NULL;
 	state_status_t rc = 0;
 
-	rc = cache_inode_status_to_state_status(up_get(handle, &entry));
+	rc = cache_inode_status_to_state_status(up_get(export, handle, &entry));
 	if (rc != STATE_SUCCESS) {
 		LogDebug(COMPONENT_FSAL_UP,
 			 "FSAL_UP_DELEG: cache inode get failed, rc %d", rc);

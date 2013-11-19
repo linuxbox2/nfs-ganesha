@@ -61,9 +61,8 @@
  * implementation.
  */
 
-struct cih_lookup_table *cih_fhcache_temp; /* XXX going away */
-static bool initialized;
 
+static bool initialized;
 static pthread_rwlockattr_t rwlock_attr;
 static pthread_mutex_t cih_fhcache_mtx = PTHREAD_MUTEX_INITIALIZER;
 
@@ -73,8 +72,6 @@ static pthread_mutex_t cih_fhcache_mtx = PTHREAD_MUTEX_INITIALIZER;
 void
 cih_pkginit(void)
 {
-	uint32_t cache_sz = 32767;	/* XXX */
-
 	/* avoid writer starvation */
 	pthread_rwlockattr_init(&rwlock_attr);
 #ifdef GLIBC
@@ -82,8 +79,6 @@ cih_pkginit(void)
 		&rwlock_attr,
 		PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
 #endif
-	cih_fhcache_temp = cih_alloc_fhcache(nfs_param.cache_param.nparts,
-					     cache_sz);
 	initialized = true;
 }
 

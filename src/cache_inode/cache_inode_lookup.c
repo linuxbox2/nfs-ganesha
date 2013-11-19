@@ -179,7 +179,8 @@ cache_inode_lookup_impl(cache_entry_t *parent,
 
 	/* Allocation of a new entry in the cache */
 	status =
-	    cache_inode_new_entry(object_handle, CACHE_INODE_FLAG_NONE, entry);
+		cache_inode_new_entry(req_ctx, object_handle,
+				      CACHE_INODE_FLAG_NONE, entry);
 
 	if (unlikely(!*entry))
 		goto out;

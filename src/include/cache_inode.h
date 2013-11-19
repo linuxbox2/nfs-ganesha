@@ -698,9 +698,11 @@ cache_inode_status_t cache_inode_setattr(cache_entry_t *entry,
 
 cache_inode_status_t cache_inode_error_convert(fsal_status_t fsal_status);
 
-cache_inode_status_t cache_inode_new_entry(struct fsal_obj_handle *new_obj,
-					   uint32_t flags,
-					   cache_entry_t **entry);
+cache_inode_status_t cache_inode_new_entry(
+	const struct req_op_context *req_ctx,
+	struct fsal_obj_handle *new_obj,
+	uint32_t flags,
+	cache_entry_t **entry);
 
 cache_inode_status_t cache_inode_rdwr(cache_entry_t *entry,
 				      cache_inode_io_direction_t io_direction,

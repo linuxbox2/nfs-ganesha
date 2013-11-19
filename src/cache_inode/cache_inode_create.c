@@ -202,8 +202,9 @@ cache_inode_create(cache_entry_t *parent,
 		goto out;
 	}
 	status =
-	    cache_inode_new_entry(object_handle, CACHE_INODE_FLAG_CREATE,
-				  entry);
+		cache_inode_new_entry(req_ctx, object_handle,
+				      CACHE_INODE_FLAG_CREATE,
+				      entry);
 	if (*entry == NULL) {
 		LogFullDebug(COMPONENT_CACHE_INODE,
 			     "create failed because insert new entry failed");
