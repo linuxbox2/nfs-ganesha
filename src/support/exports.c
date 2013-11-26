@@ -2679,7 +2679,7 @@ cache_inode_status_t nfs_export_get_root_entry(struct gsh_export *exp,
 	exportlist_t *export = &exp->export;
 	cache_inode_status_t status = CACHE_INODE_FSAL_ESTALE;
 
-	pthread_mutex_lock(&exp->lock);
+	PTHREAD_RWLOCK_wrlock(&exp->lock);
 
 	*entry = export->exp_root_cache_inode;
 
@@ -2689,7 +2689,7 @@ cache_inode_status_t nfs_export_get_root_entry(struct gsh_export *exp,
 		status = CACHE_INODE_SUCCESS;
 	}
 
-	pthread_mutex_unlock(&exp->lock);
+	PTHREAD_RWLOCK_unlock(&exp->lock);
 
 	return status;
 }
@@ -2757,7 +2757,7 @@ bool init_export_root(struct gsh_export *exp)
 	}
 
 	PTHREAD_RWLOCK_wrlock(&entry->attr_lock);
-	pthread_mutex_lock(&exp->lock);
+	PTHREAD_RWLOCK_wrlock(&exp->lock);
 
 	export->exp_root_cache_inode = entry;
 
@@ -2767,7 +2767,7 @@ bool init_export_root(struct gsh_export *exp)
 	/* Protect this entry from removal (unlink) */
 	atomic_inc_int32_t(&entry->exp_root_refcount);
 
-	pthread_mutex_unlock(&exp->lock);
+	PTHREAD_RWLOCK_unlock(&exp->lock);
 	PTHREAD_RWLOCK_unlock(&entry->attr_lock);
 
 	LogInfo(COMPONENT_INIT,
