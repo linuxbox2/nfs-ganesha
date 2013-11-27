@@ -122,7 +122,8 @@ int nfs_Lookup(nfs_arg_t *arg, exportlist_t *export,
 		else {
 			if (nfs3_FSALToFhandle
 			    (&(res->res_lookup3.LOOKUP3res_u.resok.object),
-			     entry_file->obj_handle)) {
+			     entry_file->obj_handle,
+			      req_ctx->export)) {
 				/* Build entry attributes */
 				nfs_SetPostOpAttr(entry_file, req_ctx,
 						  &(res->res_lookup3.

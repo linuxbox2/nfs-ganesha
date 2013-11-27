@@ -194,7 +194,8 @@ int mnt_Mnt(nfs_arg_t *arg, exportlist_t *export,
 	switch (req->rq_vers) {
 	case MOUNT_V1:
 		if (!nfs2_FSALToFhandle
-		    (&(res->res_mnt1.fhstatus2_u.directory), pfsal_handle)) {
+		    (&(res->res_mnt1.fhstatus2_u.directory), pfsal_handle,
+		    exp)) {
 			res->res_mnt1.status = NFSERR_IO;
 		} else {
 			res->res_mnt1.status = NFS_OK;
@@ -212,7 +213,7 @@ int mnt_Mnt(nfs_arg_t *arg, exportlist_t *export,
 			if (!nfs3_FSALToFhandle
 			    ((nfs_fh3 *) &
 			     (res->res_mnt3.mountres3_u.mountinfo.fhandle),
-			     pfsal_handle)) {
+			     pfsal_handle, exp)) {
 				res->res_mnt3.fhs_status = MNT3ERR_INVAL;
 			} else {
 				if (isDebug(COMPONENT_NFSPROTO))
