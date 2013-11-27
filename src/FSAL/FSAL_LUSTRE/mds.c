@@ -367,7 +367,7 @@ lustre_layoutget(struct fsal_obj_handle *obj_hdl,
 			util,
 			0,
 			0,
-			obj_hdl->export->exp_entry->id,
+			req_ctx->export->export.id,
 			1,
 			&ds_desc);
 	if (nfs_status) {
