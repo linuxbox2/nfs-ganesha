@@ -748,6 +748,34 @@ request_data_t *nfs_rpc_get_nfsreq(uint32_t __attribute__ ((unused)) flags)
 	return nfsreq;
 }
 
+uint32_t nfs_rpc_outstanding_reqs_p(void)
+{
+	struct req_q_pair *qpair;
+	uint32_t treqs;
+	int ix;
+
+	treqs = 0;
+	for (ix = 0; ix < N_REQ_QUEUES; ++ix) {
+		qpair = &(nfs_req_st.reqs.nfs_request_q.qset[ix]);
+
+		pthread_spin_lock(&qpair->producer.sp);
+		treqs += qpair->producer.size;
+		pthread_spin_unlock(&qpair->producer.sp);
+
+		if (treqs)
+			break;
+
+		pthread_spin_lock(&qpair->consumer.sp);
+		treqs += qpair->consumer.size;
+		pthread_spin_unlock(&qpair->consumer.sp);
+
+		if (treqs)
+			break;
+	}
+
+	return (treqs);
+}
+
 uint32_t nfs_rpc_outstanding_reqs_est(void)
 {
 	static uint32_t ctr;
@@ -986,8 +1014,9 @@ void nfs_rpc_enqueue_req(request_data_t *req)
 	++(q->size);
 	pthread_spin_unlock(&q->sp);
 
+#if defined(REQ_QUEUE_VERIFY)
 	atomic_inc_uint32_t(&enqueued_reqs);
-
+#endif
 	LogDebug(COMPONENT_DISPATCH,
 		 "enqueued req, q %p (%s %p:%p) " "size is %d (enq %u deq %u)",
 		 q, qpair->s, &qpair->producer, &qpair->consumer, q->size,
@@ -1134,7 +1163,9 @@ request_data_t *nfs_rpc_dequeue_req(nfs_worker_data_t *worker)
 		/* anything? */
 		nfsreq = nfs_rpc_consume_req(qpair);
 		if (nfsreq) {
+#if defined(REQ_QUEUE_VERIFY)
 			atomic_inc_uint32_t(&dequeued_reqs);
+#endif
 			break;
 		}
 
@@ -1150,8 +1181,17 @@ request_data_t *nfs_rpc_dequeue_req(nfs_worker_data_t *worker)
 		pthread_mutex_lock(&wqe->lwe.mtx);
 		wqe->flags = Wqe_LFlag_WaitSync;
 		wqe->waiters = 1;
-		/* XXX functionalize */
 		pthread_spin_lock(&nfs_req_st.reqs.sp);
+
+		/* do a reliable check under nfs_req_st.reqs.sp */
+		if (nfs_rpc_outstanding_reqs_p()) {
+			pthread_spin_unlock(&nfs_req_st.reqs.sp);
+			wqe->flags &= ~(Wqe_LFlag_WaitSync|Wqe_LFlag_SyncDone);
+			wqe->waiters = 0;
+			pthread_mutex_unlock(&wqe->lwe.mtx);
+			goto retry_deq;
+		}
+
 		glist_add_tail(&nfs_req_st.reqs.wait_list, &wqe->waitq);
 		++(nfs_req_st.reqs.waiters);
 		pthread_spin_unlock(&nfs_req_st.reqs.sp);
