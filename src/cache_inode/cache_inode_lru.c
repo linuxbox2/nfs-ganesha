@@ -569,6 +569,48 @@ cache_inode_lru_cleanup_push(cache_entry_t *entry)
 }
 
 /**
+ * @brief Push an entry to the cleanup queue that may be unexported
+ * for out-of-line cleanup
+ *
+ * This function appends entry to the appropriate lane of the
+ * global cleanup queue, and marks the entry.
+ *
+ * @param[in] entry  The entry to clean
+ */
+void cache_inode_lru_cleanup_try_push(cache_entry_t *entry)
+{
+	cache_inode_lru_t *lru = &entry->lru;
+	struct lru_q_lane *qlane = &LRU[lru->lane];
+	cih_latch_t latch;
+
+	QLOCK(qlane);
+
+	if (cih_latch_entry(entry, &latch, CIH_GET_WLOCK,
+			    __func__, __LINE__)) {
+		uint32_t refcnt;
+		refcnt = atomic_fetch_int32_t(&entry->lru.refcnt);
+		/* there are two cases which permit reclaim,
+		 * entry is:
+		 * 1. reachable but unref'd (refcnt==2)
+		 * 2. unreachable, being removed (plus refcnt==0)
+		 *    for safety, take only the former
+		 */
+		if (LRU_ENTRY_RECLAIMABLE(entry, refcnt)) {
+			/* it worked */
+			struct lru_q *q = lru_queue_of(entry);
+			cih_remove_latched(entry, &latch,
+					   CIH_REMOVE_QLOCKED);
+			LRU_DQ_SAFE(lru, q);
+			entry->lru.qid = LRU_ENTRY_CLEANUP;
+		}
+
+		cih_latch_rele(&latch);
+	}
+
+	QUNLOCK(qlane);
+}
+
+/**
  * @brief Function that executes in the lru thread
  *
  * This function performs long-term reorganization, compaction, and
