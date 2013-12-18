@@ -1256,8 +1256,7 @@ cache_inode_inc_pin_ref(cache_entry_t *entry)
 	/* Pin if not pinned already */
 	cond_pin_entry(entry, LRU_FLAG_NONE /* future */);
 
-	/* take pin and ref counts */
-	atomic_inc_int32_t(&entry->lru.refcnt);
+	/* take pin ref count */
 	entry->lru.pin_refcnt++;
 
 	QUNLOCK(qlane);		/* !LOCKED (lane) */
@@ -1311,9 +1310,6 @@ void cache_inode_dec_pin_ref(cache_entry_t *entry, bool closefile)
 	}
 
 	QUNLOCK(qlane);
-
-	/* Also release an LRU reference */
-	atomic_dec_int32_t(&entry->lru.refcnt);
 }
 
 /**
@@ -1438,10 +1434,11 @@ cache_inode_lru_ref(cache_entry_t *entry, uint32_t flags)
 void
 cache_inode_lru_unref(cache_entry_t *entry, uint32_t flags)
 {
-	uint64_t refcnt;
+	int32_t refcnt;
 	enum lru_q_id qid;
 
 	refcnt = atomic_dec_int32_t(&entry->lru.refcnt);
+
 	if (unlikely(refcnt == 0)) {
 
 		uint32_t lane = entry->lru.lane;
