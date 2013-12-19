@@ -246,6 +246,27 @@ int nfs_read_ip_name_conf(config_file_t in_config,
 }
 
 #ifdef _HAVE_GSSAPI
+static struct config_item krb5_params[] = {
+	CONF_ITEM_STR("PrincipalName", 1, MAXPATHLEN,
+		      DEFAULT_NFS_PRINCIPAL,
+		      nfs_krb5_param, svc.principal),
+	CONF_ITEM_PATH("KeytabPath", 1, MAXPATHLEN,
+		       DEFAULT_NFS_KEYTAB,
+		       nfs_krb5_param, keytab),
+	CONF_ITEM_PATH("CCacheDir", 1, MAXPATHLEN,
+		       DEFAULT_NFS_CCACHE_DIR,
+		       nfs_krb5_param, ccache_dir),
+	CONF_ITEM_BOOL("Active_krb5", true,
+		       nfs_krb5_param, active_krb5),
+	CONFIG_EOL
+};
+
+struct config_block krb5_param = {
+	.name = "NFS_KRB5",
+	.dbus_interface_name = "org.ganesha.nfsd.config.krb5",
+	.params = krb5_params
+};
+
 /**
  *
  * @brief Read the configuration for krb5 stuff
@@ -257,69 +278,17 @@ int nfs_read_ip_name_conf(config_file_t in_config,
  */
 int nfs_read_krb5_conf(config_file_t in_config, nfs_krb5_parameter_t *pparam)
 {
-	int var_max;
-	int var_index;
-	int err;
-	char *key_name;
-	char *key_value;
-	config_item_t block;
+	int rc;
 
-	/* Get the config BLOCK */
-	block = config_FindItemByName(in_config, CONF_LABEL_NFS_KRB5);
+	rc = load_config_from_parse(in_config,
+				    &krb5_param,
+				    pparam,
+				    true);
+	return rc ? 1 : 0;
+}
+#endif
 
-	if (block == NULL) {
-		LogDebug(COMPONENT_CONFIG,
-			 "Cannot read item \"%s\" from configuration file",
-			 CONF_LABEL_NFS_KRB5);
-		return 1;
-	} else if (config_ItemType(block) != CONFIG_ITEM_BLOCK) {
-		/* Expected to be a block */
-		LogDebug(COMPONENT_CONFIG,
-			 "Item \"%s\" is expected to be a block",
-			 CONF_LABEL_NFS_KRB5);
-		return 1;
-	}
 
-	var_max = config_GetNbItems(block);
-
-	for (var_index = 0; var_index < var_max; var_index++) {
-		config_item_t item;
-
-		item = config_GetItemByIndex(block, var_index);
-
-		/* Get key's name */
-		err = config_GetKeyValue(item, &key_name, &key_value);
-
-		if (err != 0) {
-			LogCrit(COMPONENT_CONFIG,
-				"Error reading key[%d] from section \"%s\" of configuration file.",
-				var_index, CONF_LABEL_NFS_KRB5);
-			return -1;
-		}
-
-		if (!strcasecmp(key_name, "PrincipalName")) {
-			if (strmaxcpy
-			    (pparam->svc.principal, key_value,
-			     sizeof(pparam->svc.principal)) == -1) {
-				LogCrit(COMPONENT_CONFIG, "%s=\"%s\" too long",
-					key_name, key_value);
-			}
-		} else if (!strcasecmp(key_name, "KeytabPath")) {
-			if (strmaxcpy
-			    (pparam->keytab, key_value,
-			     sizeof(pparam->keytab)) == -1) {
-				LogCrit(COMPONENT_CONFIG, "%s=\"%s\" too long",
-					key_name, key_value);
-			}
-		} else if (!strcasecmp(key_name, "Active_krb5")) {
-			pparam->active_krb5 = str_to_bool(key_value);
-		} else {
-			LogCrit(COMPONENT_CONFIG,
-				"Unknown or unsettable key: %s (item %s)",
-				key_name, CONF_LABEL_NFS_KRB5);
-			return -1;
-		}
-	}
 
 	return 0;
 }
