@@ -546,9 +546,7 @@ struct fsal_ops {
  * used by nfs_main to initialize fsal modules.
  */
 
-int start_fsals(config_file_t config);
-int load_fsal(const char *path, const char *name,
-	      struct fsal_module **fsal_hdl);
+int load_fsals(void);
 int init_fsals(config_file_t config);
 
 /* Called only within MODULE_INIT and MODULE_FINI functions of a fsal

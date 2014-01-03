@@ -379,7 +379,15 @@ int main(int argc, char *argv[])
 	/* We need all the fsal modules loaded so we can have
 	 * the list available at exports parsing time.
 	 */
-	start_fsals(config_struct);
+
+	if (load_fsals() != 0)
+#if 0
+		LogFatal(COMPONENT_INIT,
+			 "Cannot run if any fsals failed to load!");
+#else
+		LogCrit(COMPONENT_INIT,
+			 "Continuing in spite of not loading some fsals!");
+#endif
 
 	/* parse configuration file */
 

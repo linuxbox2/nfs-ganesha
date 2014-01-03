@@ -45,6 +45,8 @@
 #include <string.h>
 #include <pthread.h>
 #include <dlfcn.h>
+#include <dirent.h>
+#include <fnmatch.h>
 #include "log.h"
 #include "fsal.h"
 #include "nfs_core.h"
@@ -77,98 +79,10 @@ static enum load_state {
 	error		/* signal by registration that all is not well */
 } load_state = init;
 
-/* start_fsals
- * Called at server initialization
- * probe config file and install fsal modules
- * return 1 on error, 0 on success.  Maybe TRUE/FALSE???
- */
 
-int start_fsals(config_file_t config)
-{
-	config_item_t fsal_block, block;
-	config_item_t item;
-	char *key, *value;
-	int fb, fsal_cnt, item_cnt;
-
-	fsal_block = config_FindItemByName(config, CONF_LABEL_FSAL);
-	if (fsal_block == NULL) {
-		LogFatal(COMPONENT_INIT,
-			 "Cannot find item \"%s\" in configuration",
-			 CONF_LABEL_FSAL);
-		return 1;
-	}
-	if (config_ItemType(fsal_block) != CONFIG_ITEM_BLOCK) {
-		LogFatal(COMPONENT_INIT, "\"%s\" is not a block",
-			 CONF_LABEL_FSAL);
-		return 1;
-	}
-	load_state = idle;	/* .init was a long time ago... */
-
-	fsal_cnt = config_GetNbItems(fsal_block);
-	for (fb = 0; fb < fsal_cnt; fb++) {
-		block = config_GetItemByIndex(fsal_block, fb);
-		if (config_ItemType(block) == CONFIG_ITEM_BLOCK) {
-			char *fsal_name;
-			int i;
-
-			fsal_name = config_GetBlockName(block);
-			item_cnt = config_GetNbItems(block);
-			for (i = 0; i < item_cnt; i++) {
-				item = config_GetItemByIndex(block, i);
-				if (config_GetKeyValue(item,
-						       &key, &value) != 0) {
-					LogFatal(COMPONENT_INIT,
-						 "Error fetching [%d]"
-						 " from config section \"%s\"",
-						 i, CONF_LABEL_NFS_CORE);
-					return 1;
-				}
-				if (strcasecmp(key,
-					       "FSAL_Shared_Library") == 0) {
-					struct fsal_module *fsal_hdl;
-					int rc;
-
-					LogDebug(COMPONENT_INIT,
-						 "Loading module w/ name=%s"
-						 " and library=%s", fsal_name,
-						 value);
-					rc = load_fsal(value, fsal_name,
-						       &fsal_hdl);
-					if (rc < 0) {
-						LogCrit(COMPONENT_INIT,
-							"Failed to load (%s)"
-							" because: %s", value,
-							strerror(rc));
-					}
-				}
-			}
-		} else {	/* a FSAL global parameter */
-			item = block;
-			if (config_GetKeyValue(item, &key, &value) != 0) {
-				LogFatal(COMPONENT_INIT,
-					 "Error fetching [%d]"
-					 " from config section \"%s\"", fb,
-					 CONF_LABEL_NFS_CORE);
-				return 1;
-			}
-			if (strcasecmp(key, "LogLevel") == 0) {
-				LogDebug(COMPONENT_INIT, "LogLevel = %s",
-					 value);
-			} else {
-				LogDebug(COMPONENT_INIT,
-					 "Some odd key/value: %s = %s", key,
-					 value);
-			}
-		}
-	}
-	if (glist_empty(&fsal_list))
-		LogFatal(COMPONENT_INIT, "No fsal modules loaded");
-	return 1;
-}
-
-/* load_fsal
- * Load the fsal's shared object and name it if the fsal
- * has not already done so.
+/**
+ * @brief Load the fsal's shared object.
+ *
  * The dlopen() will trigger a .init constructor which will
  * do the actual registration.
  * after a successful load, the returned handle needs to be "put"
@@ -188,14 +102,16 @@ int start_fsals(config_file_t config)
  *	other general dlopen errors are possible, all of them bad
  */
 
-int load_fsal(const char *path, const char *name,
-	      struct fsal_module **fsal_hdl_p)
+static int load_fsal(const char *name,
+		     struct fsal_module **fsal_hdl_p)
 {
 	void *dl;
 	int retval = EBUSY;	/* already loaded */
 	char *dl_path;
 	struct fsal_module *fsal;
+	char *path = alloca(strlen(FSAL_MODULE_LOC) + strlen(name) + 2);
 
+	sprintf(path, "%s/%s", FSAL_MODULE_LOC, name);
 	dl_path = gsh_strdup(path);
 	if (dl_path == NULL)
 		return ENOMEM;
@@ -291,29 +207,10 @@ int load_fsal(const char *path, const char *name,
 
 	fsal = new_fsal;	/* recover handle from .ctor and poison again */
 	new_fsal = NULL;
+	fsal->refs++; /* take initial ref so we can pass it back... */
 	fsal->path = dl_path;
 	fsal->dl_handle = dl;
 	so_error = 0;
-	if (name != NULL) {	/* does config want to set name? */
-		char *oldname = NULL;
-
-		if (fsal->name != NULL) {
-			if (strlen(fsal->name) >= strlen(name)) {
-				strcpy(fsal->name, name);
-			} else {
-				oldname = fsal->name;
-				fsal->name = gsh_strdup(name);
-			}
-		} else {
-			fsal->name = gsh_strdup(name);
-		}
-		if (fsal->name == NULL) {
-			fsal->name = oldname;
-			oldname = NULL;
-		}
-		if (oldname != NULL)
-			gsh_free(oldname);
-	}
 	*fsal_hdl_p = fsal;
 	load_state = idle;
 	pthread_mutex_unlock(&fsal_lock);
@@ -326,6 +223,74 @@ int load_fsal(const char *path, const char *name,
 		 strerror(retval));
 	gsh_free(dl_path);
 	return retval;
+}
+
+/**
+ * Filter the scandir stream for fsals
+ *
+ * This implies that FSAL_MODULE_LOC files that match
+ * are indeed fsals.  If there are libs needed by a fsal
+ * they should be named otherwise.  See how XFS does this...
+ */
+
+static int match_fsal_name(const struct dirent *entry)
+{
+	return fnmatch("libfsal*.so",
+		       entry->d_name,
+		       FNM_PATHNAME|FNM_PERIOD) == 0;
+}
+
+/**
+ * @brief Load fsal modules from the install location
+ *
+ * This is hardwired by the build for probing fsal modules
+ * early in server init.
+ *
+ * NOTE: A fsal can be loaded at any time post-init but no
+ * provision at this time.
+ */
+
+int load_fsals(void)
+{
+	struct dirent **namelist;
+	struct fsal_module *fsal_hdl;
+	int ents, ent;
+	int rc, errs = 0;
+
+	ents = scandir(FSAL_MODULE_LOC,
+		       &namelist,
+		       match_fsal_name,
+		       alphasort);
+	if (ents <= 0) {   /* we die here */
+		if (ents == 0)
+			LogCrit(COMPONENT_INIT,
+				 "No FSAL modules found!");
+		else 
+			LogCrit(COMPONENT_INIT,
+				 "Cannot find any FSALs, error = %s",
+				 strerror(errno));
+		return 1;
+	}
+	for (ent = 0; ent < ents; ent++) {
+
+		rc = load_fsal(namelist[ent]->d_name,
+			       &fsal_hdl);
+		if (rc == 0) {
+			LogEvent(COMPONENT_INIT,
+				 "Loaded fsal %s from %s",
+				 fsal_hdl->ops->get_name(fsal_hdl),
+				 fsal_hdl->ops->get_lib_name(fsal_hdl));
+			fsal_hdl->ops->put(fsal_hdl);
+		} else {
+			LogCrit(COMPONENT_INIT,
+				"Failed to load fsal module (%s) because: %s",
+				namelist[ent]->d_name,
+				strerror(rc));
+			errs++;
+		}
+	}
+	free(namelist);  /* we get this from glibc so use its free */
+	return errs;
 }
 
 /* Initialize all the loaded FSALs now that the config file
@@ -344,13 +309,13 @@ int init_fsals(config_file_t config_struct)
 		fsal = glist_entry(entry, struct fsal_module, fsals);
 
 		pthread_mutex_lock(&fsal->lock);
-		fsal->refs++;	/* reference it */
+		fsal->refs++;	/* reference it by faking a lookup_fsal */
 		pthread_mutex_unlock(&fsal->lock);
 
 		fsal_status = fsal->ops->init_config(fsal, config_struct);
 
 		pthread_mutex_lock(&fsal->lock);
-		fsal->refs--;	/* now 'put_fsal' on it */
+		fsal->ops->put(fsal);
 		pthread_mutex_unlock(&fsal->lock);
 
 		if (!FSAL_IS_ERROR(fsal_status)) {
