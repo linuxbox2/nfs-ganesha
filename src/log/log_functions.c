@@ -2126,6 +2126,173 @@ struct gsh_dbus_interface log_interface = {
 
 #define CONF_LABEL_LOG "LOG"
 
+#if 0
+static struct config_item_list log_levels[] = {
+	CONF_LIST_TOK("NIV_NULL", NIV_NULL),
+	CONF_LIST_TOK("NULL", NIV_NULL),
+	CONF_LIST_TOK("NIV_FATAL", NIV_FATAL),
+	CONF_LIST_TOK("FATAL", NIV_FATAL),
+	CONF_LIST_TOK("NIV_MAJ", NIV_MAJ),
+	CONF_LIST_TOK("MAJ", NIV_MAJ),
+	CONF_LIST_TOK("NIV_CRIT", NIV_CRIT),
+	CONF_LIST_TOK("CRIT", NIV_CRIT),
+	CONF_LIST_TOK("NIV_WARN", NIV_WARN),
+	CONF_LIST_TOK("WARN", NIV_WARN),
+	CONF_LIST_TOK("NIV_EVENT", NIV_EVENT),
+	CONF_LIST_TOK("EVENT", NIV_EVENT),
+	CONF_LIST_TOK("NIV_INFO", NIV_INFO),
+	CONF_LIST_TOK("INFO", NIV_INFO),
+	CONF_LIST_TOK("NIV_DEBUG", NIV_DEBUG),
+	CONF_LIST_TOK("DEBUG", NIV_DEBUG),
+	CONF_LIST_TOK("NIV_MID_DEBUG, "NIV_MID_DEBUG),
+	CONF_LIST_TOK("M_DBG", NIV_MID_DEBUG),
+	CONF_LIST_TOK("NIV_FULL_DEBUG", NIV_FULL_DEBUG),
+	CONF_LIST_TOK("F_DBG", NIV_FULL_DEBUG),
+	CONFIG_LIST_EOL
+};
+
+static struct config_item_list timefmt[] = {
+	CONF_LIST_TOK("ganesha", TD_GANESHA),
+	CONF_LIST_TOK("true", TD_GANESHA),
+	CONF_LIST_TOK("local", TD_LOCAL),
+	CONF_LIST_TOK("8601", TD_8601),
+	CONF_LIST_TOK("ISO-8601", TD_8601),
+	CONF_LIST_TOK("ISO 8601", TD_8601),
+	CONF_LIST_TOK("ISO", TD_8601),
+	CONF_LIST_TOK("syslog", TD_SYSLOG),
+	CONF_LIST_TOK("syslog_usec",TD_SYSLOG_USEC),
+	CONF_LIST_TOK("false", TD_NONE),
+	CONF_LIST_TOK("none", TD_NONE),
+	CONFIG_LIST_EOL
+};
+
+
+static struct config_item logging_params[] = {
+	CONF_ITEM_PROC("Facility", create_null_facility),
+	CONF_ITEM_PROC("LogFile", SetLogFile),
+	CONF_UNIQ_ENUM("time", TD_GANESHA, timefmt,
+		       log_flag, lf_ext),
+	CONF_UNIQ_ENUM("date", TD_GANESHA, timefmt,
+		       log_flag, lf_ext),
+	CONF_ITEM_BOOL("EPOCH", true,
+		       log_flag, lf_ext),
+	CONF_ITEM_BOOL("HOSTNAME", true,
+		       log_flag, lf_ext),
+	CONF_ITEM_BOOL("PROGNAME", true,
+		       log_flag, lf_ext),
+	CONF_ITEM_BOOL("PID", true,
+		       log_flag, lf_ext),
+	CONF_ITEM_BOOL("THREAD_NAME", true,
+		       log_flag, lf_ext),
+	CONF_ITEM_BOOL("FILE_NAME", true,
+		       log_flag, lf_ext),
+	CONF_ITEM_BOOL("LINE_NUM", true,
+		       log_flag, lf_ext),
+	CONF_ITEM_BOOL("FUNCTION_NAME", true,
+		       log_flag, lf_ext),
+	CONF_ITEM_BOOL("COMPONENT", true,
+		       log_flag, lf_ext),
+	CONF_ITEM_BOOL("LEVEL", true,
+		       log_flag, lf_ext),
+	CONF_ITEM_PROC("COMPONENT_ALL", set_all),
+	CONF_ITEM_ENUM("COMPONENT_LOG", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_LOG_EMERG", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_MEMALLOC", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_MEMLEAKS", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_FSAL", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_NFSPROTO", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_NFS_V4", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_NFS_V4_PSEUDO", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_FILEHANDLE", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_NFS_SHELL", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_DISPATCH", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_CACHE_INODE", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_CACHE_INODE_GC", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_CACHE_INODE_LRU", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_HASHTABLE", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_HASHTABLE_CACHE", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_LRU", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_DUPREQ", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_RPCSEC_GSS", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_INIT", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_MAIN", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_IDMAPPER", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_NFS_READDIR", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_NFS_V4_LOCK", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_NFS_V4_XATTR", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_NFS_V4_REFERRAL", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_MEMCORRUPT", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_CONFIG", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_CLIENTID", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_STDOUT", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_SESSIONS", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_PNFS", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_RPC_CACHE", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_RW_LOCK", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_NLM", "NLM", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_RPC", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_NFS_CB", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_THREAD", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_NFS_V4_ACL", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_STATE", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_9P", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_9P_DISPATCH", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_FSAL_UP", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONF_ITEM_ENUM("COMPONENT_DBUS", NIV_EVENT, log_levels,
+		       log_component_info, comp_log_level),
+	CONFIG_EOL
+};
+
+struct config_block logging_param = {
+	.name = "LOG",
+	.dbus_interface_name = "org.ganesha.nfsd.config.log",
+	.params = logging_params
+};
+#endif
+
 /**
  *
  * read_log_config: Read the configuration ite; for the logging component.
@@ -2140,6 +2307,14 @@ struct gsh_dbus_interface log_interface = {
  */
 int read_log_config(config_file_t in_config)
 {
+/* 	int rc; */
+
+/* 	rc = load_config_from_parse(config, */
+/* 				    &cache_inode_param, */
+/* 				    param, */
+/* 				    true); */
+/* 	return rc ? 1 : 0; */
+/* #if 0 */
 	int var_max;
 	int var_index;
 	int err;
@@ -2338,6 +2513,7 @@ int read_log_config(config_file_t in_config)
 	set_const_log_str();
 
 	return 0;
+/* #endif */
 }				/* read_log_config */
 
 void reread_log_config()
