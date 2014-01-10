@@ -128,7 +128,7 @@ struct layoutrecall_spec {
  * @brief Possible upcall functions
  *
  * This structure holds pointers to upcall functions.  Each FSAL
- * should call through the vector in its export.
+ * should call through the vector in its namespace.
  *
  * For FSAL stacking, the 'higher' FSAL should copy its vector,
  * over-ride whatever methods it wishes, and pass the new vector to
@@ -144,14 +144,14 @@ struct layoutrecall_spec {
 struct fsal_up_vector {
 	/** Invalidate some or all of a cache entry */
 	cache_inode_status_t(*invalidate)(
-		struct fsal_export *export, /*< FSAL export */
+		struct fsal_namespace *namespace, /*< FSAL namespace */
 		const struct gsh_buffdesc *obj,	/*< The file to invalidate */
 		uint32_t flags /*< Flags governing invalidation */
 		);
 
 	/** Update cached attributes */
 	cache_inode_status_t(*update)(
-		struct fsal_export *export, /*< FSAL export */
+		struct fsal_namespace *namespace, /*< FSAL namespace */
 		const struct gsh_buffdesc *obj,	/*< The file to update */
 		struct attrlist *attr, /*< List of attributes to
 					   update.  Note that the @c
@@ -166,7 +166,7 @@ struct fsal_up_vector {
 
 	/** Grant a lock to a client */
 	state_status_t(*lock_grant)(
-		struct fsal_export *export, /*< FSAL export */
+		struct fsal_namespace *namespace, /*< FSAL namespace */
 		const struct gsh_buffdesc *file, /*< The file in question */
 		void *owner, /*< The lock owner */
 		fsal_lock_param_t *lock_param /*< A description of the lock */
@@ -174,7 +174,7 @@ struct fsal_up_vector {
 
 	/** Signal lock availability */
 	state_status_t(*lock_avail)(
-		struct fsal_export *export, /*< FSAL export */
+		struct fsal_namespace *namespace, /*< FSAL namespace */
 		const struct gsh_buffdesc *file, /*< The file in question */
 		void *owner, /*< The lock owner */
 		fsal_lock_param_t *lock_param /*< A description of the lock */
@@ -182,7 +182,7 @@ struct fsal_up_vector {
 
 	/** Add a new link to an existing file */
 	cache_inode_status_t(*link)(
-		struct fsal_export *export, /*< FSAL export */
+		struct fsal_namespace *namespace, /*< FSAL namespace */
 		const struct gsh_buffdesc *dir, /*< The directory holding the
 						    new link */
 		const char *name, /*< The name of the newly created link */
@@ -192,7 +192,7 @@ struct fsal_up_vector {
 
 	/** Remove a name from a directory*/
 	cache_inode_status_t(*unlink)(
-		struct fsal_export *export, /*< FSAL export */
+		struct fsal_namespace *namespace, /*< FSAL namespace */
 		const struct gsh_buffdesc *dir, /*< Directory holding the
 						    link */
 		const char *name /*< The name to be removed */
@@ -201,7 +201,7 @@ struct fsal_up_vector {
 	/** Move of a name out of a directory. (This does not
 	    decrement the target link count.) */
 	cache_inode_status_t(*move_from)(
-		struct fsal_export *export, /*< FSAL export */
+		struct fsal_namespace *namespace, /*< FSAL namespace */
 		const struct gsh_buffdesc *dir, /*< Directory holding the
 						    link */
 		const char *name /*< The name to be moved */
@@ -210,7 +210,7 @@ struct fsal_up_vector {
 	/** Move a link into a directory (this does not increment the
 	    target link count.) */
 	cache_inode_status_t(*move_to)(
-		struct fsal_export *export, /*< FSAL export */
+		struct fsal_namespace *namespace, /*< FSAL namespace */
 		const struct gsh_buffdesc *dir, /*< Directory receiving the
 						    link */
 		const char *name, /*< The name of the link */
@@ -220,7 +220,7 @@ struct fsal_up_vector {
 
 	/** Rename a file within a directory */
 	cache_inode_status_t(*rename)(
-		struct fsal_export *export, /*< FSAL export */
+		struct fsal_namespace *namespace, /*< FSAL namespace */
 		const struct gsh_buffdesc *dir, /*< Directory holding the
 						    name */
 		const char *old, /*< The original name */
@@ -229,7 +229,7 @@ struct fsal_up_vector {
 
 	/** Perform a layoutrecall on a single file */
 	state_status_t(*layoutrecall)(
-		struct fsal_export *export, /*< FSAL export */
+		struct fsal_namespace *namespace, /*< FSAL namespace */
 		const struct gsh_buffdesc *handle, /*< Handle on which the
 						       layout is held */
 		layouttype4 layout_type, /*< The type of layout to recall */
@@ -245,19 +245,19 @@ struct fsal_up_vector {
 
 	/** Remove or change a deviceid */
 	state_status_t(*notify_device)(
-		struct fsal_export *export, /*< Export responsible for the
-						device ID */
+		struct fsal_namespace *namespace, /*< Namespace responsible for
+						      the device ID */
 		notify_deviceid_type4 notify_type, /*< Change or remove */
 		layouttype4 layout_type, /*< The layout type affected */
 		uint64_t devid,	 /*< The lower quad of the device id, unique
-				     within this export. */
+				     within this namespace. */
 		bool immediate /*< Whether the change is immediate
 				   (in the case of a change.) */
 		);
 
 	/** Recall a delegation */
 	state_status_t(*delegrecall)(
-		struct fsal_export *export, /*< FSAL export */
+		struct fsal_namespace *namespace, /*< FSAL namespace */
 		const struct gsh_buffdesc *handle /*< Handle on which the
 						    delegation is held */
 		);
@@ -270,51 +270,51 @@ extern struct fsal_up_vector fsal_up_top;
  * @brief Asynchronous upcall wrappers
  */
 
-int up_async_invalidate(struct fridgethr *, struct fsal_export *,
+int up_async_invalidate(struct fridgethr *, struct fsal_namespace *,
 			const struct gsh_buffdesc *, uint32_t,
 			void (*)(void *, cache_inode_status_t),
 			void *);
-int up_async_update(struct fridgethr *, struct fsal_export *,
+int up_async_update(struct fridgethr *, struct fsal_namespace *,
 		    const struct gsh_buffdesc *, struct attrlist *, uint32_t,
 		    void (*)(void *, cache_inode_status_t), void *);
-int up_async_lock_grant(struct fridgethr *, struct fsal_export *,
+int up_async_lock_grant(struct fridgethr *, struct fsal_namespace *,
 			const struct gsh_buffdesc *, void *,
 			fsal_lock_param_t *, void (*)(void *, state_status_t),
 			void *);
-int up_async_lock_avail(struct fridgethr *, struct fsal_export *,
+int up_async_lock_avail(struct fridgethr *, struct fsal_namespace *,
 			const struct gsh_buffdesc *, void *,
 			fsal_lock_param_t *, void (*)(void *, state_status_t),
 			void *);
-int up_async_link(struct fridgethr *, struct fsal_export *,
+int up_async_link(struct fridgethr *, struct fsal_namespace *,
 		  const struct gsh_buffdesc *, const char *,
 		  const struct gsh_buffdesc *, void (*)(void *,
 							cache_inode_status_t),
 		  void *);
-int up_async_unlink(struct fridgethr *, struct fsal_export *,
+int up_async_unlink(struct fridgethr *, struct fsal_namespace *,
 		    const struct gsh_buffdesc *, const char *,
 		    void (*)(void *, cache_inode_status_t),
 		    void *);
-int up_async_move_from(struct fridgethr *, struct fsal_export *,
+int up_async_move_from(struct fridgethr *, struct fsal_namespace *,
 		       const struct gsh_buffdesc *, const char *,
 		       void (*)(void *, cache_inode_status_t), void *);
-int up_async_move_to(struct fridgethr *, struct fsal_export *,
+int up_async_move_to(struct fridgethr *, struct fsal_namespace *,
 		     const struct gsh_buffdesc *, const char *,
 		     const struct gsh_buffdesc *,
 		     void (*)(void *, cache_inode_status_t),
 		     void *);
-int up_async_rename(struct fridgethr *, struct fsal_export *,
+int up_async_rename(struct fridgethr *, struct fsal_namespace *,
 		    const struct gsh_buffdesc *, const char *, const char *,
 		    void (*)(void *, cache_inode_status_t), void *);
-int up_async_layoutrecall(struct fridgethr *, struct fsal_export *,
+int up_async_layoutrecall(struct fridgethr *, struct fsal_namespace *,
 			  const struct gsh_buffdesc *, layouttype4, bool,
 			  const struct pnfs_segment *, void *,
 			  struct layoutrecall_spec *,
 			  void (*)(void *, state_status_t),
 			  void *);
-int up_async_notify_device(struct fridgethr *, struct fsal_export *,
+int up_async_notify_device(struct fridgethr *, struct fsal_namespace *,
 			   notify_deviceid_type4, layouttype4, uint64_t, bool,
 			   void (*)(void *, state_status_t), void *);
-int up_async_delegrecall(struct fridgethr *, struct fsal_export *,
+int up_async_delegrecall(struct fridgethr *, struct fsal_namespace *,
 			 const struct gsh_buffdesc *, void (*)(void *,
 							       state_status_t),
 			 void *);

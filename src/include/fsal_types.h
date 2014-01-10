@@ -87,7 +87,7 @@ typedef struct fsal_init_info__ {
  *  FS dependant :
  * --------------*/
 
-/* export object
+/* namespace object
  * Created by fsal and referenced by the export list
  */
 

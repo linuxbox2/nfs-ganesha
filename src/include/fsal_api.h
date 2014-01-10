@@ -26,6 +26,16 @@
  * -------------
  */
 
+/** @todo: Backwards compatibility #defines to be removed when
+ *         all code uses the new identifier.
+ *         When these are removed, rename all instances of
+ *         NAMESPACE to namespace across the code
+ */
+#define fsal_namespace fsal_export
+#define namespace_ops export_ops
+#define namespaces exports
+#define namespace export
+
 /**
  * @defgroup FSAL File-System Abstraction Layer
  * @{
@@ -89,20 +99,29 @@
  *
  * Since we cannot create objects out of thin air, there is an order
  * based on one object being the "context" in which the other is
- * created.  In other words, a @c fsal_export is created from the @c
+ * created.  In other words, a @c fsal_namespace is created from the @c
  * fsal_module that connects it to the backing store (filesystem). The
  * same applies to a @c fsal_obj_handle that only makes sense for a
- * specific 'fsal_export'.
+ * specific 'fsal_namespace'.
+ *
+ *  Some key requirements of a namespace:
+ *
+ *  - All handle keys within a namespace are expected to be unique.
+ *
+ *  - If a file is visible to more than one export, all of those exports
+ *    MUST utilize the same namespace for cache inode to work properly
+ *    should an export be removed (unexport).
  *
  * When an object is created, it is returned with a reference already
  * taken.  The callee of the creating method must then either keep a
  * persistent reference to it or @c put it back.  For example, a @c
- * fsal_export gets created for each export in the configuration.  A
- * pointer to it gets saved in @c exportlist and it has a reference
- * to reflect this.  It is now safe to use it to do a @c lookup which
- * will return a @c fsal_obj_handle which can then be kept in a cache
- * inode entry.  If we had done a @c put on the export, it could be
- * freed at any point and make a @c lookup using it unsafe.
+ * fsal_namespace gets created that is associated with one or more
+ * exports from the configuration.  A pointer to it gets saved in @c
+ * exportlist and it has a reference to reflect this.  It is now safe
+ * to use it to do a @c lookup which will return a @c fsal_obj_handle
+ * which can then be kept in a cache inode entry.  If we had done a @c
+ * put on the export, it could be freed at any point and make a @c
+ * lookup using it unsafe.
  *
  * In addition to a reference count, object that create other objects
  * have a list of all the objects they create.  This serves two
@@ -139,17 +158,17 @@
  *
  * Each structure carries with it an @c ops pointer.  Default
  * operation vectors are created at FSAL moduel initialziation time,
- * and may be overridden there.  Individual exports or handles may
+ * and may be overridden there.  Individual namespaces or handles may
  * have different operations vectors, but they should all be derived
  * from the module operations vector.
  *
  *	This vector is used to access methodsm e.g.:
  *
  * @code{.c}
- * exp_hdl->ops->lookup(exp_hdl, name, ...);
+ * namespace->ops->lookup(namespace, name, ...);
  * @endcode
  *
- * Note that exp_hdl is used to dereference the method and it is also
+ * Note that namespace is used to dereference the method and it is also
  * *always* the first argument to the method/function.  Think of it as
  * the 'this' argument.
  */
@@ -171,15 +190,14 @@
  * purged from cache or Ganesha has restarted from nothing.  There may
  * be multiple wire-handles per @c fsal_obj_handle.  The wire-handle
  * is produced by the @c handle_digest method on @c fsal_obj_handle.
- * The @c create_handle on @c fsal_export produces a new
+ * The @c create_handle on @c fsal_namespace produces a new
  * @c fsal_obj_handle from a wire-handle.
  *
  * There is the handle-key, the portion of the handle that contains
  * all and only information that uniquely identifies the handle within
- * the entire FSAL (it is insufficient if it only identifies it within
- * the export or within a filesystem.)  There are two functions that
+ * the entire namespace.  There are two functions that
  * generate a handle-key, one is the @c extract_handle method on @c
- * fsal_export.  It is used to get the key from a wire-handle so that
+ * fsal_namespace.  It is used to get the key from a wire-handle so that
  * it can be looked up in the cache.  The other is @c handle_to_key on
  * @c fsal_obj_handle.  This is used after lookup or some other
  * operation that produces a @c fsal_obj_handle so that it can be
@@ -211,7 +229,7 @@
  *
  * 2. The purpose of the @c export_id in the protocol "handle" is to
  *    locate the FSAL that knows what is inside the opaque.  The @c
- *    extract_handle is an export method for that purpose.  It should
+ *    extract_handle is an namespace method for that purpose.  It should
  *    be able to take the protocol handle opaque and translate it into
  *    a handle-key that @c cache_inode_get can use to find an entry.
  *
@@ -240,9 +258,9 @@
  *    member of this public structure.  The bits necessary to both
  *    create a wire handle and use a filesystem handle go into this
  *    private structure. You can put whatever you is required into the
- *    private part.  Since both @c fsal_export and @c fsal_obj_handle
+ *    private part.  Since both @c fsal_namespace and @c fsal_obj_handle
  *    have private object storage, you could even do things like have
- *    a container anchored in the export object that maps the
+ *    a container anchored in the namespace object that maps the
  *    FSAL-external handle to the filesystem data needed to talk to
  *    the filesystem.  If you need more info to deal with handles
  *    differing due to hard-links, this is where you would put
@@ -293,8 +311,8 @@
 
 /* Forward references for object methods */
 
-struct fsal_export;
-struct export_ops;
+struct fsal_namespace;
+struct namespace_ops;
 struct fsal_obj_handle;
 struct fsal_obj_ops;
 struct exportlist;		/* We just need a pointer, not all of
@@ -346,9 +364,9 @@ struct fsal_module {
 	pthread_mutex_t lock;	/*< Lock to be held when
 				   incrementing/decrementing the
 				   reference count or manipulating the
-				   list of exports. */
+				   list of namespaces. */
 	int refs;		/*< Reference count */
-	struct glist_head exports;	/*< Head of list of exports from
+	struct glist_head namespaces;	/*< Head of list of namespaces from
 					   this FSAL */
 	char *name;		/*< Name set from .so and/or config */
 	char *path;		/*< Path to .so file */
@@ -375,7 +393,7 @@ struct fsal_ops {
  * @param[in] fsal_hdl The module to unload.
  *
  * @retval 0     On success.
- * @retval EBUSY If there are outstanding references or exports.
+ * @retval EBUSY If there are outstanding references or namespaces.
  */
 	int (*unload) (struct fsal_module *fsal_hdl);
 
@@ -455,34 +473,42 @@ struct fsal_ops {
 /**
  * @brief Create a new export
  *
- * This function creates a new export in the FSAL using the supplied
- * path and options.  The function is expected to allocate its own
- * export (the full, private structure).  It must then initialize the
- * public portion like so:
+ * This function signals the FSAL a new export is being created. The
+ * FSAL is responsible for determining if that export needs a new
+ * namespace, of if the export belongs to an already existing namespace.
+ * The upper layers do not really know how exports and namespaces are
+ * organized (though the exportlist structure will point to the
+ * namespace it belongs to). Details of the export such as the path
+ * are passed to facilitate the FSAL's decision.
+ *
+ * The function is expected to either allocate a new namespace or
+ * reference an already existing one. If it allocates a new one, it must
+ * initialize the full, private structure and then initialize the public
+ * portion like so:
  *
  * @code{.c}
- *         fsal_export_init(&private_export_handle->pub,
- *                          fsal_hdl->exp_ops,
- *                          exp_entry);
+ *         fsal_namespace_init(&private_namespace_handle->pub,
+ *                             fsal_hdl->exp_ops,
+ *                             exp_entry);
  * @endcode
  *
- * After doing other private initialization, it must attach the export
+ * After doing other private initialization, it must attach the namespace
  * to the module, like so:
  *
  *
  * @code{.c}
- *         fsal_attach_export(fsal_hdl,
- *                            &private_export->pub.exports);
+ *         fsal_attach_namespace(fsal_hdl,
+ *                               &private_namespace->pub.namespaces);
  *
  * @endcode
  *
  * And create the parent link with:
  *
  * @code{.c}
- * private_export->pub.fsal = fsal_hdl;
+ * private_namespace->pub.fsal = fsal_hdl;
  * @endcode
  *
- * @note This seems like something that fsal_attach_export should
+ * @note This seems like something that fsal_attach_namespace should
  * do. -- ACE.
  *
  * @param[in]     fsal_hdl    FSAL module
@@ -490,7 +516,7 @@ struct fsal_ops {
  * @param[in]     fs_options  String buffer of export options (unparsed)
  * @param[in,out] exp_entry   Entry in the Ganesha export list
  * @param[in]     next_fsal   Next FSAL in list, for stacking
- * @param[out]    export      Public export handle
+ * @param[out]    namespace   Public namespace handle
  *
  * @return FSAL status.
  */
@@ -500,7 +526,7 @@ struct fsal_ops {
 					struct exportlist *exp_entry,
 					struct fsal_module *next_fsal,
 					const struct fsal_up_vector *up_ops,
-					struct fsal_export **export);
+					struct fsal_namespace **namespace);
 
 /**
  * @brief Minimal emergency cleanup on error
@@ -584,7 +610,7 @@ int register_fsal(struct fsal_module *fsal_hdl, const char *name,
  * @param[in] fsal_hdl The FSAL to unregister
  *
  * @return 0 on success.
- * @return EBUSY if outstanding references or exports exist.
+ * @return EBUSY if outstanding references or namespaces exist.
  */
 
 int unregister_fsal(struct fsal_module *fsal_hdl);
@@ -599,15 +625,15 @@ int unregister_fsal(struct fsal_module *fsal_hdl);
 struct fsal_module *lookup_fsal(const char *name);
 
 /**
- * @brief Export object
+ * @brief Namespace object
  *
  * This structure is created by the @c create_export method on the
  * FSAL module.  It is stored as part of the export list and is used
- * to manage individual exports, interrogate properties of the
+ * to manage individual namespaces, interrogate properties of the
  * filesystem, and create individual file handle objects.
  */
 
-struct fsal_export {
+struct fsal_namespace {
 	struct fsal_module *fsal;	/*< Link back to the FSAL module */
 	pthread_mutex_t lock;	/*< A lock, to be held when
 				   taking/yielding references and
@@ -615,85 +641,86 @@ struct fsal_export {
 	int refs;			/*< Reference count */
 	struct glist_head handles;	/*< Head of list of object handles */
 	struct glist_head ds_handles;	/*< Head of list of DS handles */
-	struct glist_head exports;	/*< Link in list of exports from
+	struct glist_head namespaces;	/*< Link in list of namespaces from
 					   the same FSAL. */
+	/** @todo deprecate the following field when possible */
 	struct exportlist *exp_entry;	/*< Pointer to the export
 					   list. */
-	struct export_ops *ops;	/*< Vector of operations */
+	struct namespace_ops *ops;	/*< Vector of operations */
 	struct fsal_obj_ops *obj_ops;	/*< Shared handle methods vector */
 	struct fsal_ds_ops *ds_ops;	/*< Shared handle methods vector */
 	const struct fsal_up_vector *up_ops;	/*< Upcall operations */
 };
 
 /**
- * @brief Export operations
+ * @brief Namespace operations
  */
 
-struct export_ops {
+struct namespace_ops {
 /*@{*/
 
 /**
-* Export lifecycle management.
+* Namespace lifecycle management.
 */
 
 /**
  * @brief Get a reference
  *
- * This function gets a reference on this export.  This function
+ * This function gets a reference on this namespace.  This function
  * should not be overridden.
  *
- * @param[in] exp_hdl The export to reference.
+ * @param[in] namespace The namespace to reference.
  */
-	void (*get) (struct fsal_export *exp_hdl);
+	void (*get) (struct fsal_namespace *namespace);
 
 /**
  * @brief Relinquish a reference
  *
- * This function relinquishes a reference on the given export.  One
- * should make no attempt to access the export or even dereference
+ * This function relinquishes a reference on the given namespace.  One
+ * should make no attempt to access the namespace or even dereference
  * the handle after relinquishing the reference.  This function should
  * not be overridden.
  *
- * @param[in] exp_hdl The export handle to relinquish.
+ * @param[in] namespace The namespace handle to relinquish.
  *
  * @retval 0 on success.
  * @retval EINVAL if no reference exists.
  */
-	int (*put) (struct fsal_export *exp_hdl);
+	int (*put) (struct fsal_namespace *namespace);
 
 /**
- * @brief Finalize an export
+ * @brief Finalize an namespace
  *
  * This function is called as part of cleanup when the last reference to
- * an export is released and it is no longer part of the list.  It
+ * an namespace is released and it is no longer part of the list.  It
  * should clean up all private resources and destroy the object.
  *
- * @param[in] exp_hdl The export to release.
+ * @param[in] namespace The namespace to release.
  *
  * @return FSAL status.
  */
-	 fsal_status_t(*release) (struct fsal_export *exp_hdl);
+	 fsal_status_t(*release) (struct fsal_namespace *namespace);
 /*@}*/
 
 /*@{*/
 /**
- * Create an object handles within this export
+ * Create an object handles within this namespace
  */
 
 /**
  * @brief Look up a path
  *
- * This function looks up a path within the export, it is typically
- * used to get a handle for the root directory of the export.
+ * This function looks up a path within the namespace, it is typically
+ * used to get a handle for the root directory of an export.
  *
- * @param[in]  exp_hdl The export in which to look up
+ * @param[in]  namespace The namespace in which to look up
  * @param[in]  opctx   Request context (user creds, client address)
  * @param[in]  path    The path to look up
  * @param[out] handle  The object found
  *
  * @return FSAL status.
  */
-	 fsal_status_t(*lookup_path) (struct fsal_export *exp_hdl,
+	 fsal_status_t(*lookup_path) (struct fsal_namespace *namespace,
 				      const struct req_op_context *opctx,
 				      const char *path,
 				      struct fsal_obj_handle **handle);
@@ -709,13 +736,13 @@ struct export_ops {
  * as part of the PseudoFSAL work.  Its argument structure will almost
  * certainly change.
  *
- * @param[in]  exp_hdl  Export in which to look up
+ * @param[in]  namespace  The namespace in which to look up
  * @param[in]  junction The junction object
  * @param[out] handle   The underlying directory handle
  *
  * @return FSAL status.
  */
-	 fsal_status_t(*lookup_junction) (struct fsal_export *exp_hdl,
+	 fsal_status_t(*lookup_junction) (struct fsal_namespace *namespace,
 					  struct fsal_obj_handle *junction,
 					  struct fsal_obj_handle **handle);
 /**
@@ -725,7 +752,7 @@ struct export_ops {
  * is, when given a handle as passed to a client, this method will
  * extract the unique bits used to index the inode cache.
  *
- * @param[in]     exp_hdl Export in which to look up handle
+ * @param[in]     namespace The namespace in which to look up handle
  * @param[in]     in_type Protocol through which buffer was received.  One
  *                        special case, FSAL_DIGEST_SIZEOF, simply
  *                        requests that fh_desc.len be set to the proper
@@ -741,7 +768,7 @@ struct export_ops {
  *
  * @return FSAL type.
  */
-	 fsal_status_t(*extract_handle) (struct fsal_export *exp_hdl,
+	 fsal_status_t(*extract_handle) (struct fsal_namespace *namespace,
 					 fsal_digesttype_t in_type,
 					 struct gsh_buffdesc *fh_desc);
 /**
@@ -751,14 +778,14 @@ struct export_ops {
  * "wire" handle (when an object is no longer in cache but the client
  * still remembers the nandle).
  *
- * @param[in]  exp_hdl  The export in which to create the handle
+ * @param[in]  namespace  The namespace in which to create the handle
  * @param[in]  opctx    Request context (user creds, client address)
  * @param[in]  hdl_desc Buffer descriptor for the "wire" handle
  * @param[out] handle   FSAL object handle
  *
  * @return FSAL status.
  */
-	 fsal_status_t(*create_handle) (struct fsal_export *exp_hdl,
+	 fsal_status_t(*create_handle) (struct fsal_namespace *namespace,
 					const struct req_op_context *opctx,
 					struct gsh_buffdesc *hdl_desc,
 					struct fsal_obj_handle **handle);
@@ -769,13 +796,13 @@ struct export_ops {
  * This function creates a FSAL data server handle from a client
  * supplied "wire" handle.
  *
- * @param[in]  exp_hdl  The export in which to create the handle
+ * @param[in]  namespace  The namespace in which to create the handle
  * @param[in]  hdl_desc Buffer from which to creat the file
  * @param[out] handle   FSAL object handle
  *
  * @return NFSv4.1 error codes.
  */
-	 nfsstat4(*create_ds_handle) (struct fsal_export *const exp_hdl,
+	 nfsstat4(*create_ds_handle) (struct fsal_namespace *const namespace,
 				      const struct gsh_buffdesc *
 				      const hdl_desc,
 				      struct fsal_ds_handle **const handle);
@@ -792,84 +819,84 @@ struct export_ops {
  * for a filesystem.  See @c fsal_dynamicinfo_t for details of what to
  * fill out.
  *
- * @param[in]  exp_hdl Export handle to interrogate
+ * @param[in]  namespace The namespace handle to interrogate
  * @param[in]  opctx   Request context (user creds, client address)
  * @param[out] info    Buffer to fill with information
  *
  * @retval FSAL status.
  */
-	 fsal_status_t(*get_fs_dynamic_info) (struct fsal_export *exp_hdl,
+	 fsal_status_t(*get_fs_dynamic_info) (struct fsal_namespace *namespace,
 					      const struct req_op_context *
 					      opctx,
 					      fsal_dynamicfsinfo_t *info);
 /**
- * @brief Export feature test
+ * @brief Namespace feature test
  *
  * This function checks whether a feature is supported on this
  * filesystem.  The features that can be interrogated are given in the
  * @c fsal_fsinfo_options_t enumeration.
  *
- * @param[in] exp_hdl The export to interrogate
+ * @param[in] namespace The namespace to interrogate
  * @param[in] option  The feature to query
  *
  * @retval true if the feature is supported.
  * @retval false if the feature is unsupported or unknown.
  */
-	 bool(*fs_supports) (struct fsal_export *exp_hdl,
+	 bool(*fs_supports) (struct fsal_namespace *namespace,
 			     fsal_fsinfo_options_t option);
 /**
  * @brief Get the greatest file size supported
  *
- * @param[in] exp_hdl Filesystem to interrogate
+ * @param[in] namespace Filesystem to interrogate
  *
  * @return Greatest file size supported.
  */
-	 uint64_t(*fs_maxfilesize) (struct fsal_export *exp_hdl);
+	 uint64_t(*fs_maxfilesize) (struct fsal_namespace *namespace);
 
 /**
  * @brief Get the greatest read size supported
  *
- * @param[in] exp_hdl Filesystem to interrogate
+ * @param[in] namespace Filesystem to interrogate
  *
  * @return Greatest read size supported.
  */
-	 uint32_t(*fs_maxread) (struct fsal_export *exp_hdl);
+	 uint32_t(*fs_maxread) (struct fsal_namespace *namespace);
 
 /**
  * @brief Get the greatest write size supported
  *
- * @param[in] exp_hdl Filesystem to interrogate
+ * @param[in] namespace Filesystem to interrogate
  *
  * @return Greatest write size supported.
  */
-	 uint32_t(*fs_maxwrite) (struct fsal_export *exp_hdl);
+	 uint32_t(*fs_maxwrite) (struct fsal_namespace *namespace);
 
 /**
  * @brief Get the greatest link count supported
  *
- * @param[in] exp_hdl Filesystem to interrogate
+ * @param[in] namespace Filesystem to interrogate
  *
  * @return Greatest link count supported.
  */
-	 uint32_t(*fs_maxlink) (struct fsal_export *exp_hdl);
+	 uint32_t(*fs_maxlink) (struct fsal_namespace *namespace);
 
 /**
  * @brief Get the greatest name length supported
  *
- * @param[in] exp_hdl Filesystem to interrogate
+ * @param[in] namespace Filesystem to interrogate
  *
  * @return Greatest name length supported.
  */
-	 uint32_t(*fs_maxnamelen) (struct fsal_export *exp_hdl);
+	 uint32_t(*fs_maxnamelen) (struct fsal_namespace *namespace);
 
 /**
  * @brief Get the greatest path length supported
  *
- * @param[in] exp_hdl Filesystem to interrogate
+ * @param[in] namespace Filesystem to interrogate
  *
  * @return Greatest path length supported.
  */
-	 uint32_t(*fs_maxpathlen) (struct fsal_export *exp_hdl);
+	 uint32_t(*fs_maxpathlen) (struct fsal_namespace *namespace);
 
 /**
  * @brief Get the lease time for this filesystem
@@ -877,11 +904,11 @@ struct export_ops {
  * @note Currently this value has no effect, with lease time being
  * configured globally for all filesystems at once.
  *
- * @param[in] exp_hdl Filesystem to interrogate
+ * @param[in] namespace Filesystem to interrogate
  *
  * @return Lease time.
  */
-	struct timespec (*fs_lease_time) (struct fsal_export *exp_hdl);
+	struct timespec (*fs_lease_time) (struct fsal_namespace *namespace);
 
 /**
  * @brief Get supported ACL types
@@ -894,11 +921,11 @@ struct export_ops {
  * or just DENY without supporting the other?  It seems fishy to
  * me. -- ACE
  *
- * @param[in] exp_hdl Filesystem to interrogate
+ * @param[in] namespace Filesystem to interrogate
  *
  * @return supported ACL types.
  */
-	 fsal_aclsupp_t(*fs_acl_support) (struct fsal_export *exp_hdl);
+	 fsal_aclsupp_t(*fs_acl_support) (struct fsal_namespace *namespace);
 
 /**
  * @brief Get supported attributes
@@ -908,11 +935,11 @@ struct export_ops {
  * struct attrlist, other NFS attributes (fileid and so forth) are
  * supported through other means.
  *
- * @param[in] exp_hdl Filesystem to interrogate
+ * @param[in] namespace Filesystem to interrogate
  *
  * @return supported attributes.
  */
-	 attrmask_t(*fs_supported_attrs) (struct fsal_export *exp_hdl);
+	 attrmask_t(*fs_supported_attrs) (struct fsal_namespace *namespace);
 
 /**
  * @brief Get umask applied to created files
@@ -921,31 +948,31 @@ struct export_ops {
  * And is it something we want the FSAL being involved in?  We already
  * have the functions in Protocol/NFS specifying a default mode. -- ACE
  *
- * @param[in] exp_hdl Filesystem to interrogate
+ * @param[in] namespace Filesystem to interrogate
  *
  * @return creation umask.
  */
-	 uint32_t(*fs_umask) (struct fsal_export *exp_hdl);
+	 uint32_t(*fs_umask) (struct fsal_namespace *namespace);
 
 /**
  * @brief Get permissions applied to names attributes
  *
- * @note This doesn't make sense to me as an export-level parameter.
+ * @note This doesn't make sense to me as an namespace-level parameter.
  * Permissions on named attributes could reasonably vary with
  * permission and ownership of the associated file, and some
  * attributes may be read/write while others are read-only. -- ACE
  *
- * @param[in] exp_hdl Filesystem to interrogate
+ * @param[in] namespace Filesystem to interrogate
  *
  * @return permissions on named attributes.
  */
-	 uint32_t(*fs_xattr_access_rights) (struct fsal_export *exp_hdl);
+	 uint32_t(*fs_xattr_access_rights) (struct fsal_namespace *namespace);
 /*@}*/
 
 /*@{*/
 
 /**
- * Quotas are managed at the file system (export) level.  Someone who
+ * Quotas are managed at the file system (namespace) level.  Someone who
  * uses quotas, please look over these comments to check/expand them.
  */
 
@@ -956,14 +983,14 @@ struct export_ops {
  * should be disallowed from performing an operation that would
  * consume blocks or inodes.
  *
- * @param[in] exp_hdl    The export to interrogate
- * @param[in] filepath   The path within the export to check
+ * @param[in] namespace    The namespace to interrogate
+ * @param[in] filepath   The path within the namespace to check
  * @param[in] quota_type Whether we are checking inodes or blocks
  * @param[in] req_ctx    Request context, giving credentials
  *
  * @return FSAL types.
  */
-	 fsal_status_t(*check_quota) (struct fsal_export *exp_hdl,
+	 fsal_status_t(*check_quota) (struct fsal_namespace *namespace,
 				      const char *filepath, int quota_type,
 				      struct req_op_context *req_ctx);
 
@@ -972,15 +999,15 @@ struct export_ops {
  *
  * This function retrieves a given user's quota.
  *
- * @param[in]  exp_hdl    The export to interrogate
- * @param[in]  filepath   The path within the export to check
+ * @param[in]  namespace    The namespace to interrogate
+ * @param[in]  filepath   The path within the namespace to check
  * @param[in]  quota_type Whether we are checking inodes or blocks
  * @param[in]  req_ctx    Request context, giving credentials
  * @param[out] quota      The user's quota
  *
  * @return FSAL types.
  */
-	 fsal_status_t(*get_quota) (struct fsal_export *exp_hdl,
+	 fsal_status_t(*get_quota) (struct fsal_namespace *namespace,
 				    const char *filepath, int quota_type,
 				    struct req_op_context *req_ctx,
 				    fsal_quota_t *quota);
@@ -990,8 +1017,8 @@ struct export_ops {
  *
  * This function sets a user's quota.
  *
- * @param[in]  exp_hdl    The export to interrogate
- * @param[in]  filepath   The path within the export to check
+ * @param[in]  namespace    The namespace to interrogate
+ * @param[in]  filepath   The path within the namespace to check
  * @param[in]  quota_type Whether we are checking inodes or blocks
  * @param[in]  req_ctx    Request context, giving credentials
  * @param[in]  quota      The values to set for the quota
@@ -999,7 +1026,7 @@ struct export_ops {
  *
  * @return FSAL types.
  */
-	 fsal_status_t(*set_quota) (struct fsal_export *exp_hdl,
+	 fsal_status_t(*set_quota) (struct fsal_namespace *namespace,
 				    const char *filepath, int quota_type,
 				    struct req_op_context *req_ctx,
 				    fsal_quota_t *quota,
@@ -1017,7 +1044,7 @@ struct export_ops {
  * When this function is called, the FSAL should write device
  * information to the @c da_addr_body stream.
  *
- * @param[in]  exp_hdl      Export handle
+ * @param[in]  namespace      The namespace handle
  * @param[out] da_addr_body An XDR stream to which the FSAL is to
  *                          write the layout type-specific information
  *                          corresponding to the deviceid.
@@ -1027,7 +1054,7 @@ struct export_ops {
  *
  * @return Valid error codes in RFC 5661, p. 365.
  */
-	 nfsstat4(*getdeviceinfo) (struct fsal_export *exp_hdl,
+	 nfsstat4(*getdeviceinfo) (struct fsal_namespace *namespace,
 				   XDR * da_addr_body,
 				   const layouttype4 type,
 				   const struct pnfs_deviceid *deviceid);
@@ -1046,35 +1073,35 @@ struct export_ops {
  * If it wishes to return no deviceids, it may set @c res->eof to true
  * without calling @c cb at all.
  *
- * @param[in]     exp_hdl Export handle
+ * @param[in]     namespace The namespace handle
  * @param[in]     type    Type of layout to get devices for
  * @param[in]     cb      Function taking device ID halves
  * @param[in,out] res     In/out and output arguments of the function
  *
  * @return Valid error codes in RFC 5661, pp. 365-6.
  */
-	 nfsstat4(*getdevicelist) (struct fsal_export *exp_hdl,
+	 nfsstat4(*getdevicelist) (struct fsal_namespace *namespace,
 				   layouttype4 type, void *opaque,
 				   bool(*cb) (void *opaque, const uint64_t id),
 				   struct fsal_getdevicelist_res *res);
 
 /**
- * @brief Get layout types supported by export
+ * @brief Get layout types supported by namespace
  *
  * This function is the handler of the NFS4.1 FATTR4_FS_LAYOUT_TYPES file
  * attribute. (See RFC)
  *
- * @param[in]  exp_hdl Filesystem to interrogate
+ * @param[in]  namespace Filesystem to interrogate
  * @param[out] count   Number of layout types in array
  * @param[out] types   Static array of layout types that must not be
  *                     freed or modified and must not be dereferenced
- *                     after export reference is relinquished
+ *                     after namespace reference is relinquished
  */
-	void (*fs_layouttypes) (struct fsal_export *exp_hdl, size_t *count,
+	void (*fs_layouttypes) (struct fsal_namespace *namespace, size_t *count,
 				const layouttype4 **types);
 
 /**
- * @brief Get layout block size for export
+ * @brief Get layout block size for namespace
  *
  * This function is the handler of the NFS4.1 FATTR4_LAYOUT_BLKSIZE f-attribute.
  *
@@ -1084,11 +1111,11 @@ struct export_ops {
  * NOTE: The linux client only asks for this in blocks-layout, where this is the
  * filesystem wide block-size. (Minimum write size and alignment)
  *
- * @param[in] exp_hdl Filesystem to interrogate
+ * @param[in] namespace Filesystem to interrogate
  *
  * @return The preferred layout block size.
  */
-	 uint32_t(*fs_layout_blocksize) (struct fsal_export *exp_hdl);
+	 uint32_t(*fs_layout_blocksize) (struct fsal_namespace *namespace);
 
 /**
  * @brief Maximum number of segments we will use
@@ -1097,11 +1124,11 @@ struct export_ops {
  * used to construct the response to any single layoutget call.  Bear
  * in mind that current clients only support 1 segment.
  *
- * @param[in] exp_hdl Filesystem to interrogate
+ * @param[in] namespace Filesystem to interrogate
  *
  * @return The Maximum number of layout segments in a campound layoutget.
  */
-	 uint32_t(*fs_maximum_segments) (struct fsal_export *exp_hdl);
+	 uint32_t(*fs_maximum_segments) (struct fsal_namespace *namespace);
 
 /**
  * @brief Size of the buffer needed for loc_body at layoutget
@@ -1111,11 +1138,11 @@ struct export_ops {
  * what the client can take return ~0UL. In any case the buffer allocated will
  * not be bigger than client's requested maximum.
  *
- * @param[in] exp_hdl Filesystem to interrogate
+ * @param[in] namespace Filesystem to interrogate
  *
  * @return Max size of the buffer needed for a loc_body
  */
-	 size_t(*fs_loc_body_size) (struct fsal_export *exp_hdl);
+	 size_t(*fs_loc_body_size) (struct fsal_namespace *namespace);
 
 /**
  * @brief Max Size of the buffer needed for da_addr_body in getdeviceinfo
@@ -1125,11 +1152,11 @@ struct export_ops {
  * what the client can take return ~0UL. In any case the buffer allocated will
  * not be bigger than client's requested maximum.
  *
- * @param[in] exp_hdl Filesystem to interrogate
+ * @param[in] namespace Filesystem to interrogate
  *
  * @return Max size of the buffer needed for a da_addr_body
  */
-	 size_t(*fs_da_addr_size) (struct fsal_export *exp_hdl);
+	 size_t(*fs_da_addr_size) (struct fsal_namespace *namespace);
 
 /**
  * @brief Get write verifier
@@ -1155,7 +1182,7 @@ struct export_ops {
  * private initialization.  They should fill the
  * @c fsal_obj_handle::attributes structure.  They should also call the
  * @c fsal_obj_handle_init function with the public object handle,
- * object handle operations vector, public export, and file type.
+ * object handle operations vector, public namespace, and file type.
  *
  * @note Do we actually need a lock and ref count on the fsal object
  * handle, since cache_inode is managing life cycle and concurrency?
@@ -1166,10 +1193,10 @@ struct export_ops {
 struct fsal_obj_handle {
 	pthread_mutex_t lock;	/*< Lock on handle */
 	struct glist_head handles;	/*< Link in list of handles under
-					   an export */
+					   an namespace */
 	int refs;		/*< Reference count */
 	object_file_type_t type;	/*< Object file type */
-	struct fsal_export *export;	/*< Link back to export */
+	struct fsal_namespace *namespace;	/*< Link back to namespace */
 	struct attrlist attributes;	/*< Cached attributes */
 	struct fsal_obj_ops *ops;	/*< Operations vector */
 };
@@ -1246,7 +1273,7 @@ struct fsal_obj_ops {
  *
  * @note The old version of the FSAL had a special case for this
  * function, such that if the directory handle and path were both
- * NULL, a handle to the root of the export was returned.  This
+ * NULL, a handle to the root of the namespace was returned.  This
  * special case is no longer supported and should not be implemented.
  *
  * @param[in]  dir_hdl Directory to search
@@ -2102,9 +2129,9 @@ struct fsal_obj_ops {
 struct fsal_ds_handle {
 	pthread_mutex_t lock;	/*< Lock on handle */
 	struct glist_head ds_handles;	/*< Link in list of DS handles under
-					   an export */
+					   an namespace */
 	int refs;		/*< Reference count */
-	struct fsal_export *export;	/*< Link back to export */
+	struct fsal_namespace *namespace;	/*< Link back to namespace */
 	struct fsal_ds_ops *ops;	/*< Operations vector */
 };
 

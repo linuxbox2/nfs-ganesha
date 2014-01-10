@@ -46,7 +46,7 @@
  * that the @c fs_supports method returns @c true when queried with
  * @c fso_pnfs_mds_supported.
  *
- * You must implement @c getdeviceinfo on the export and may impelment
+ * You must implement @c getdeviceinfo on the namespace and may impelment
  * @c getdevicelist, if you wish.  To let clients know what layouts
  * they may request, be sure to implement @c fs_layouttypes.  You
  * should implement @c fs_maximum_segments to inform the protocol
@@ -75,7 +75,7 @@
  * operations.  Ensure that the @c fs_supports method returns @c true
  * when queried with @c fso_pnfs_ds_supported.
  *
- * You must implement the @c create_ds_handle method on the export.
+ * You must implement the @c create_ds_handle method on the namespace.
  * This must create an object of type @c fsal_ds_handle from the NFS
  * handle supplied as part of your layout.  See the @c fsal_ds_handle
  * documentation for details.  You must implement the @c release, @c
@@ -108,6 +108,7 @@ struct pnfs_segment {
  */
 
 struct pnfs_deviceid {
+	/** @todo work may be necessary here */
 	/** Identifier for the given export.  Currently ganesha uses an
 	 *  unsigned short as the export identifier, but we want room for
 	 *  whatever the multi-FSAL work ends up needing. */
@@ -130,6 +131,7 @@ struct fsal_layoutget_arg {
 	/** The minimum length that must be granted if a layout is to be
 	 *  granted at all. */
 	uint64_t minlength;
+	/** @todo work may be necessary here */
 	/** Ths FSAL must use this value (in network byte order) as the
 	 *  high quad of any deviceid4 it returns in the loc_body. */
 	uint64_t export_id;
