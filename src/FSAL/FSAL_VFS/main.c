@@ -90,7 +90,7 @@ static struct fsal_staticfsinfo_t default_posix_info = {
 	.xattr_access_rights = 0400,	/* root=RW, owner=R */
 };
 
-/* private helper for export object
+/* private helper for namespace object
  */
 
 struct fsal_staticfsinfo_t *vfs_staticinfo(struct fsal_module *hdl)
@@ -141,7 +141,7 @@ static fsal_status_t init_config(struct fsal_module *fsal_hdl,
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
-/* Internal VFS method linkage to export object
+/* Internal VFS method linkage to namespace object
  */
 
 fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl,
@@ -149,7 +149,7 @@ fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl,
 				struct exportlist *exp_entry,
 				struct fsal_module *next_fsal,
 				const struct fsal_up_vector *up_ops,
-				struct fsal_export **export);
+				struct fsal_namespace **namespace);
 
 /* Module initialization.
  * Called by dlopen() to register the module
@@ -161,7 +161,7 @@ fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl,
 
 static struct vfs_fsal_module VFS;
 
-/* linkage to the exports and handle ops initializers
+/* linkage to the namespaces and handle ops initializers
  */
 
 MODULE_INIT void vfs_init(void)

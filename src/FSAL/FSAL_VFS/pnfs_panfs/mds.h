@@ -34,8 +34,8 @@
 #include "fsal.h"
 
 /*============================== initialization ==============================*/
-/* Need to call this to initialize export_ops for pnfs */
-void export_ops_pnfs(struct export_ops *ops);
+/* Need to call this to initialize namespace_ops for pnfs */
+void namespace_ops_pnfs(struct namespace_ops *ops);
 /* Need to call this to initialize obj_ops for pnfs */
 void handle_ops_pnfs(struct fsal_obj_ops *ops);
 

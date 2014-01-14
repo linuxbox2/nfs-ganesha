@@ -26,8 +26,8 @@
  * -------------
  */
 
-/* export.c
- * VFS FSAL export object
+/* namespace.c
+ * VFS FSAL namespace object
  */
 
 #include "config.h"
@@ -55,18 +55,20 @@
 
 struct fsal_staticfsinfo_t *vfs_staticinfo(struct fsal_module *hdl);
 
-int vfs_get_root_fd(struct fsal_export *exp_hdl)
+int vfs_get_root_fd(struct fsal_namespace *namespace)
 {
-	struct vfs_fsal_export *myself;
+	struct vfs_fsal_namespace *myself;
 
-	myself = container_of(exp_hdl, struct vfs_fsal_export, export);
+	myself = container_of(namespace, struct vfs_fsal_namespace, namespace);
 	return myself->root_fd;
 }
 
-static int vfs_fsal_open_exp(struct fsal_export *exp, vfs_file_handle_t *fh,
-			     int openflags, fsal_errors_t *fsal_error)
+static int vfs_fsal_open_namespace(struct fsal_namespace *namespace,
+				   vfs_file_handle_t *fh,
+				   int openflags,
+				   fsal_errors_t *fsal_error)
 {
-	int mount_fd = vfs_get_root_fd(exp);
+	int mount_fd = vfs_get_root_fd(namespace);
 	int fd = vfs_open_by_handle(mount_fd, fh, openflags);
 	if (fd < 0) {
 		fd = -errno;
@@ -81,41 +83,41 @@ static int vfs_fsal_open_exp(struct fsal_export *exp, vfs_file_handle_t *fh,
 	return fd;
 }
 
-static int vfs_exp_fd_to_handle(int fd, vfs_file_handle_t *fh)
+static int vfs_namespace_fd_to_handle(int fd, vfs_file_handle_t *fh)
 {
 	int mntid;
 	return vfs_fd_to_handle(fd, fh, &mntid);
 }
 
-static struct vfs_exp_handle_ops defops = {
-	.vex_open_by_handle = vfs_fsal_open_exp,
+static struct vfs_namespace_handle_ops defops = {
+	.vex_open_by_handle = vfs_fsal_open_namespace,
 	.vex_name_to_handle = vfs_name_to_handle_at,
-	.vex_fd_to_handle = vfs_exp_fd_to_handle,
+	.vex_fd_to_handle = vfs_namespace_fd_to_handle,
 	.vex_readlink = vfs_fsal_readlink
 };
 
-/* export object methods
+/* namespace object methods
  */
 
-static fsal_status_t release(struct fsal_export *exp_hdl)
+static fsal_status_t release(struct fsal_namespace *namespace)
 {
-	struct vfs_fsal_export *myself;
+	struct vfs_fsal_namespace *myself;
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 	int retval = 0;
 
-	myself = container_of(exp_hdl, struct vfs_fsal_export, export);
+	myself = container_of(namespace, struct vfs_fsal_namespace, namespace);
 
 	pnfs_panfs_fini(myself->pnfs_data);
-	pthread_mutex_lock(&exp_hdl->lock);
-	if (exp_hdl->refs > 0 || !glist_empty(&exp_hdl->handles)) {
-		LogMajor(COMPONENT_FSAL, "VFS release: export (0x%p)busy",
-			 exp_hdl);
+	pthread_mutex_lock(&namespace->lock);
+	if (namespace->refs > 0 || !glist_empty(&namespace->handles)) {
+		LogMajor(COMPONENT_FSAL, "VFS release: namespace (0x%p)busy",
+			 namespace);
 		fsal_error = posix2fsal_error(EBUSY);
 		retval = EBUSY;
 		goto errout;
 	}
-	fsal_detach_export(exp_hdl->fsal, &exp_hdl->exports);
-	free_export_ops(exp_hdl);
+	fsal_detach_namespace(namespace->fsal, &namespace->namespaces);
+	free_namespace_ops(namespace);
 	if (myself->root_fd >= 0)
 		close(myself->root_fd);
 	if (myself->root_handle != NULL)
@@ -126,22 +128,22 @@ static fsal_status_t release(struct fsal_export *exp_hdl)
 		gsh_free(myself->mntdir);
 	if (myself->fs_spec != NULL)
 		gsh_free(myself->fs_spec);
-	pthread_mutex_unlock(&exp_hdl->lock);
+	pthread_mutex_unlock(&namespace->lock);
 
-	pthread_mutex_destroy(&exp_hdl->lock);
+	pthread_mutex_destroy(&namespace->lock);
 	gsh_free(myself);	/* elvis has left the building */
 	return fsalstat(fsal_error, retval);
 
  errout:
-	pthread_mutex_unlock(&exp_hdl->lock);
+	pthread_mutex_unlock(&namespace->lock);
 	return fsalstat(fsal_error, retval);
 }
 
-static fsal_status_t get_dynamic_info(struct fsal_export *exp_hdl,
+static fsal_status_t get_dynamic_info(struct fsal_namespace *namespace,
 				      const struct req_op_context *opctx,
 				      fsal_dynamicfsinfo_t *infop)
 {
-	struct vfs_fsal_export *myself;
+	struct vfs_fsal_namespace *myself;
 	struct statvfs buffstatvfs;
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 	int retval = 0;
@@ -150,7 +152,7 @@ static fsal_status_t get_dynamic_info(struct fsal_export *exp_hdl,
 		fsal_error = ERR_FSAL_FAULT;
 		goto out;
 	}
-	myself = container_of(exp_hdl, struct vfs_fsal_export, export);
+	myself = container_of(namespace, struct vfs_fsal_namespace, namespace);
 	retval = fstatvfs(myself->root_fd, &buffstatvfs);
 	if (retval < 0) {
 		fsal_error = posix2fsal_error(errno);
@@ -170,125 +172,125 @@ static fsal_status_t get_dynamic_info(struct fsal_export *exp_hdl,
 	return fsalstat(fsal_error, retval);
 }
 
-static bool fs_supports(struct fsal_export *exp_hdl,
+static bool fs_supports(struct fsal_namespace *namespace,
 			fsal_fsinfo_options_t option)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = vfs_staticinfo(exp_hdl->fsal);
+	info = vfs_staticinfo(namespace->fsal);
 	return fsal_supports(info, option);
 }
 
-static uint64_t fs_maxfilesize(struct fsal_export *exp_hdl)
+static uint64_t fs_maxfilesize(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = vfs_staticinfo(exp_hdl->fsal);
+	info = vfs_staticinfo(namespace->fsal);
 	return fsal_maxfilesize(info);
 }
 
-static uint32_t fs_maxread(struct fsal_export *exp_hdl)
+static uint32_t fs_maxread(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = vfs_staticinfo(exp_hdl->fsal);
+	info = vfs_staticinfo(namespace->fsal);
 	return fsal_maxread(info);
 }
 
-static uint32_t fs_maxwrite(struct fsal_export *exp_hdl)
+static uint32_t fs_maxwrite(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = vfs_staticinfo(exp_hdl->fsal);
+	info = vfs_staticinfo(namespace->fsal);
 	return fsal_maxwrite(info);
 }
 
-static uint32_t fs_maxlink(struct fsal_export *exp_hdl)
+static uint32_t fs_maxlink(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = vfs_staticinfo(exp_hdl->fsal);
+	info = vfs_staticinfo(namespace->fsal);
 	return fsal_maxlink(info);
 }
 
-static uint32_t fs_maxnamelen(struct fsal_export *exp_hdl)
+static uint32_t fs_maxnamelen(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = vfs_staticinfo(exp_hdl->fsal);
+	info = vfs_staticinfo(namespace->fsal);
 	return fsal_maxnamelen(info);
 }
 
-static uint32_t fs_maxpathlen(struct fsal_export *exp_hdl)
+static uint32_t fs_maxpathlen(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = vfs_staticinfo(exp_hdl->fsal);
+	info = vfs_staticinfo(namespace->fsal);
 	return fsal_maxpathlen(info);
 }
 
-static struct timespec fs_lease_time(struct fsal_export *exp_hdl)
+static struct timespec fs_lease_time(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = vfs_staticinfo(exp_hdl->fsal);
+	info = vfs_staticinfo(namespace->fsal);
 	return fsal_lease_time(info);
 }
 
-static fsal_aclsupp_t fs_acl_support(struct fsal_export *exp_hdl)
+static fsal_aclsupp_t fs_acl_support(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = vfs_staticinfo(exp_hdl->fsal);
+	info = vfs_staticinfo(namespace->fsal);
 	return fsal_acl_support(info);
 }
 
-static attrmask_t fs_supported_attrs(struct fsal_export *exp_hdl)
+static attrmask_t fs_supported_attrs(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = vfs_staticinfo(exp_hdl->fsal);
+	info = vfs_staticinfo(namespace->fsal);
 	return fsal_supported_attrs(info);
 }
 
-static uint32_t fs_umask(struct fsal_export *exp_hdl)
+static uint32_t fs_umask(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = vfs_staticinfo(exp_hdl->fsal);
+	info = vfs_staticinfo(namespace->fsal);
 	return fsal_umask(info);
 }
 
-static uint32_t fs_xattr_access_rights(struct fsal_export *exp_hdl)
+static uint32_t fs_xattr_access_rights(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = vfs_staticinfo(exp_hdl->fsal);
+	info = vfs_staticinfo(namespace->fsal);
 	return fsal_xattr_access_rights(info);
 }
 
 /* get_quota
- * return quotas for this export.
+ * return quotas for this namespace.
  * path could cross a lower mount boundary which could
- * mask lower mount values with those of the export root
+ * mask lower mount values with those of the namespace root
  * if this is a real issue, we can scan each time with setmntent()
  * better yet, compare st_dev of the file with st_dev of root_fd.
  * on linux, can map st_dev -> /proc/partitions name -> /dev/<name>
  */
 
-static fsal_status_t get_quota(struct fsal_export *exp_hdl,
+static fsal_status_t get_quota(struct fsal_namespace *namespace,
 			       const char *filepath, int quota_type,
 			       struct req_op_context *req_ctx,
 			       fsal_quota_t *pquota)
 {
-	struct vfs_fsal_export *myself;
+	struct vfs_fsal_namespace *myself;
 	struct dqblk fs_quota;
 	struct stat path_stat;
 	uid_t id;
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 	int retval;
 
-	myself = container_of(exp_hdl, struct vfs_fsal_export, export);
+	myself = container_of(namespace, struct vfs_fsal_namespace, namespace);
 	retval = stat(filepath, &path_stat);
 	if (retval < 0) {
 		LogMajor(COMPONENT_FSAL,
@@ -336,19 +338,19 @@ static fsal_status_t get_quota(struct fsal_export *exp_hdl,
  * same lower mount restriction applies
  */
 
-static fsal_status_t set_quota(struct fsal_export *exp_hdl,
+static fsal_status_t set_quota(struct fsal_namespace *namespace,
 			       const char *filepath, int quota_type,
 			       struct req_op_context *req_ctx,
 			       fsal_quota_t *pquota, fsal_quota_t *presquota)
 {
-	struct vfs_fsal_export *myself;
+	struct vfs_fsal_namespace *myself;
 	struct dqblk fs_quota;
 	struct stat path_stat;
 	uid_t id;
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 	int retval;
 
-	myself = container_of(exp_hdl, struct vfs_fsal_export, export);
+	myself = container_of(namespace, struct vfs_fsal_namespace, namespace);
 	retval = stat(filepath, &path_stat);
 	if (retval < 0) {
 		LogMajor(COMPONENT_FSAL,
@@ -402,7 +404,7 @@ static fsal_status_t set_quota(struct fsal_export *exp_hdl,
 		goto err;
 	}
 	if (presquota != NULL)
-		return get_quota(exp_hdl, filepath, quota_type, req_ctx,
+		return get_quota(namespace, filepath, quota_type, req_ctx,
 				 presquota);
 
  err:
@@ -424,7 +426,7 @@ static fsal_status_t set_quota(struct fsal_export *exp_hdl,
  * comes from us anyway, it's up to us to get it right elsewhere).
  */
 
-static fsal_status_t extract_handle(struct fsal_export *exp_hdl,
+static fsal_status_t extract_handle(struct fsal_namespace *namespace,
 				    fsal_digesttype_t in_type,
 				    struct gsh_buffdesc *fh_desc)
 {
@@ -447,11 +449,11 @@ static fsal_status_t extract_handle(struct fsal_export *exp_hdl,
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
-/* vfs_export_ops_init
+/* vfs_namespace_ops_init
  * overwrite vector entries with the methods that we support
  */
 
-void vfs_export_ops_init(struct export_ops *ops)
+void vfs_namespace_ops_init(struct namespace_ops *ops)
 {
 	ops->release = release;
 	ops->lookup_path = vfs_lookup_path;
@@ -521,10 +523,10 @@ static bool fs_specific_has(const char *fs_specific, const char *key, char *val,
 }
 
 /* create_export
- * Create an export point and return a handle to it to be kept
+ * Create an namespace point and return a handle to it to be kept
  * in the export list.
- * First lookup the fsal, then create the export and then put the fsal back.
- * returns the export with one reference taken.
+ * First lookup the fsal, then create the namespace and then put the fsal back.
+ * returns the namespace with one reference taken.
  */
 
 fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl,
@@ -533,9 +535,9 @@ fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl,
 				struct exportlist *exp_entry,
 				struct fsal_module *next_fsal,
 				const struct fsal_up_vector *up_ops,
-				struct fsal_export **export)
+				struct fsal_namespace **namespace)
 {
-	struct vfs_fsal_export *myself;
+	struct vfs_fsal_namespace *myself;
 	FILE *fp;
 	struct mntent *p_mnt;
 	size_t pathlen, outlen = 0;
@@ -544,16 +546,16 @@ fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl,
 #ifdef LINUX
 	char hdllib[MAXPATHLEN + 1];
 #endif
-	struct vfs_exp_handle_ops *hops = &defops;
+	struct vfs_namespace_handle_ops *hops = &defops;
 	char type[MAXNAMLEN + 1];
 	int retval = 0;
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 
-	*export = NULL;		/* poison it first */
+	*namespace = NULL;		/* poison it first */
 	if (export_path == NULL || strlen(export_path) == 0
 	    || strlen(export_path) > MAXPATHLEN) {
 		LogMajor(COMPONENT_FSAL,
-			 "vfs_create_export: export path empty or too big");
+			 "export path empty or too big");
 		return fsalstat(ERR_FSAL_INVAL, 0);
 	}
 	if (next_fsal != NULL) {
@@ -561,44 +563,44 @@ fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl,
 		return fsalstat(ERR_FSAL_INVAL, 0);
 	}
 
-	myself = gsh_calloc(1, sizeof(struct vfs_fsal_export));
+	myself = gsh_calloc(1, sizeof(struct vfs_fsal_namespace));
 	if (myself == NULL) {
 		LogMajor(COMPONENT_FSAL,
-			 "vfs_fsal_create: out of memory for object");
+			 "out of memory for object");
 		return fsalstat(posix2fsal_error(errno), errno);
 	}
 	myself->root_fd = -1;
 
-	retval = fsal_export_init(&myself->export, exp_entry);
+	retval = fsal_namespace_init(&myself->namespace, exp_entry);
 	if (retval != 0) {
 		LogMajor(COMPONENT_FSAL,
-			 "vfs_fsal_create: out of memory for object");
+			 "out of memory for object");
 		gsh_free(myself);
 		return fsalstat(posix2fsal_error(retval), retval);
 	}
-	vfs_export_ops_init(myself->export.ops);
-	vfs_handle_ops_init(myself->export.obj_ops);
-	myself->export.up_ops = up_ops;
+	vfs_namespace_ops_init(myself->namespace.ops);
+	vfs_handle_ops_init(myself->namespace.obj_ops);
+	myself->namespace.up_ops = up_ops;
 
 	myself->pnfs_panfs_enabled =
 	    fs_specific_has(fs_specific, "pnfs_panfs", NULL, 0);
 	if (myself->pnfs_panfs_enabled) {
 		LogInfo(COMPONENT_FSAL,
-			"vfs_fsal_create: pnfs_panfs was enabled for [%s]",
+			"pnfs_panfs was enabled for [%s]",
 			export_path);
-		export_ops_pnfs(myself->export.ops);
-		handle_ops_pnfs(myself->export.obj_ops);
+		namespace_ops_pnfs(myself->namespace.ops);
+		handle_ops_pnfs(myself->namespace.obj_ops);
 	}
 
 	/* lock myself before attaching to the fsal.
 	 * keep myself locked until done with creating myself.
 	 */
 
-	pthread_mutex_lock(&myself->export.lock);
-	retval = fsal_attach_export(fsal_hdl, &myself->export.exports);
+	pthread_mutex_lock(&myself->namespace.lock);
+	retval = fsal_attach_namespace(fsal_hdl, &myself->namespace.namespaces);
 	if (retval != 0)
 		goto errout;	/* seriously bad */
-	myself->export.fsal = fsal_hdl;
+	myself->namespace.fsal = fsal_hdl;
 
 	/* start looking for the mount point */
 	fp = setmntent(MOUNTED, "r");
@@ -673,7 +675,8 @@ fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl,
 			fsal_error = ERR_FSAL_NOENT;
 			goto errout;
 		}
-		hops = ((struct vfs_exp_handle_ops * (*)(char *))sym) (mntdir);
+		hops = ((struct vfs_namespace_handle_ops * (*)(char *))sym)
+								(mntdir);
 		if (hops == NULL) {
 			LogCrit(COMPONENT_FSAL,
 				"%s - cannot bootstrap handle module '%s' "
@@ -743,8 +746,8 @@ fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl,
 	myself->fs_spec = gsh_strdup(fs_spec);
 	myself->mntdir = gsh_strdup(mntdir);
 	myself->vex_ops = *hops;
-	*export = &myself->export;
-	pthread_mutex_unlock(&myself->export.lock);
+	*namespace = &myself->namespace;
+	pthread_mutex_unlock(&myself->namespace.lock);
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 
  errout:
@@ -758,9 +761,9 @@ fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl,
 		gsh_free(myself->mntdir);
 	if (myself->fs_spec != NULL)
 		gsh_free(myself->fs_spec);
-	free_export_ops(&myself->export);
-	pthread_mutex_unlock(&myself->export.lock);
-	pthread_mutex_destroy(&myself->export.lock);
+	free_namespace_ops(&myself->namespace);
+	pthread_mutex_unlock(&myself->namespace.lock);
+	pthread_mutex_destroy(&myself->namespace.lock);
 	gsh_free(myself);	/* elvis has left the building */
 	return fsalstat(fsal_error, retval);
 }

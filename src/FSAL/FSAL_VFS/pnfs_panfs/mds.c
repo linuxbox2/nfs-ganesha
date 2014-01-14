@@ -37,8 +37,9 @@
  * This file implements the layoutget, layoutreturn, layoutcommit,
  * getdeviceinfo operations support for the PanFS FSAL.
  *
- * In general all this file does is Translates from export_pub / fsal_obj_handle
- * Into an "fd" and calles the appropreate panfs_um_pnfs.h function.
+ * In general all this file does is Translates from namespace_pub /
+ * fsal_obj_handle Into an "fd" and calles the appropreate
+ * panfs_um_pnfs.h function.
  *
  * This file is edited with the LINUX coding style: (Will be enforced)
  *	- Tab characters of 8 spaces wide
@@ -93,11 +94,12 @@ static void _XDR_2_ioctlxdr_write(XDR *xdr, struct pan_ioctl_xdr *pixdr)
 }
 
 /*
- * Given a PanFS fsal_export. Return the export's root directory file-descriptor
+ * Given a PanFS fsal_namespace. Return the namespace's root directory
+ * file-descriptor
  */
-static inline int _get_root_fd(struct fsal_export *exp_hdl)
+static inline int _get_root_fd(struct fsal_namespace *namespace)
 {
-	return vfs_get_root_fd(exp_hdl);
+	return vfs_get_root_fd(namespace);
 }
 
 /*
@@ -116,24 +118,24 @@ static inline int _get_obj_fd(struct fsal_obj_handle *obj_hdl)
 		return -1;
 }
 
-/*================================= export ops ===============================*/
+/*=============================== namespace ops =============================*/
 /*
  * @return ~0UL means client's maximum
  */
 static
-size_t fs_da_addr_size(struct fsal_export *exp_hdl)
+size_t fs_da_addr_size(struct fsal_namespace *namespace)
 {
 	DBG_PRNT("\n");
 	return ~0UL;
 }
 
 static
-nfsstat4 getdeviceinfo(struct fsal_export *exp_hdl, XDR *da_addr_body,
+nfsstat4 getdeviceinfo(struct fsal_namespace *namespace, XDR *da_addr_body,
 		       const layouttype4 type,
 		       const struct pnfs_deviceid *deviceid)
 {
 	struct pan_ioctl_xdr pixdr;
-	int fd = _get_root_fd(exp_hdl);
+	int fd = _get_root_fd(namespace);
 	nfsstat4 ret;
 
 	_XDR_2_ioctlxdr_read_begin(da_addr_body, &pixdr);
@@ -146,7 +148,7 @@ nfsstat4 getdeviceinfo(struct fsal_export *exp_hdl, XDR *da_addr_body,
 }
 
 static
-nfsstat4 getdevicelist(struct fsal_export *exp_hdl, layouttype4 type,
+nfsstat4 getdevicelist(struct fsal_namespace *namespace, layouttype4 type,
 		       void *opaque, bool(*cb) (void *opaque,
 						const uint64_t id),
 		       struct fsal_getdevicelist_res *res)
@@ -157,7 +159,7 @@ nfsstat4 getdevicelist(struct fsal_export *exp_hdl, layouttype4 type,
 }
 
 static
-void fs_layouttypes(struct fsal_export *exp_hdl, size_t *count,
+void fs_layouttypes(struct fsal_namespace *namespace, size_t *count,
 		    const layouttype4 **types)
 {
 	static const layouttype4 supported_layout_type = LAYOUT4_OSD2_OBJECTS;
@@ -167,14 +169,14 @@ void fs_layouttypes(struct fsal_export *exp_hdl, size_t *count,
 	DBG_PRNT2("\n");
 }
 
-uint32_t fs_layout_blocksize(struct fsal_export *exp_hdl)
+uint32_t fs_layout_blocksize(struct fsal_namespace *namespace)
 {
 	DBG_PRNT2("\n");	/* Should not be called */
 	return 9 * 64 * 1024;
 }
 
 static
-uint32_t fs_maximum_segments(struct fsal_export *exp_hdl)
+uint32_t fs_maximum_segments(struct fsal_namespace *namespace)
 {
 	DBG_PRNT2("\n");
 	return 1;
@@ -184,7 +186,7 @@ uint32_t fs_maximum_segments(struct fsal_export *exp_hdl)
  * @return ~0UL means client's maximum
  */
 static
-size_t fs_loc_body_size(struct fsal_export *exp_hdl)
+size_t fs_loc_body_size(struct fsal_namespace *namespace)
 {
 	DBG_PRNT2("\n");
 	return ~0UL;
@@ -257,7 +259,7 @@ nfsstat4 layoutcommit(struct fsal_obj_handle *obj_hdl,
 static void initiate_recall(struct vfs_fsal_obj_handle *myself,
 			    struct pnfs_segment *seg, void *r_cookie)
 {
-	struct fsal_export *export = myself->obj_handle.export;
+	struct fsal_namespace *namespace = myself->obj_handle.namespace;
 	struct pnfs_segment up_segment = *seg;
 	struct gsh_buffdesc handle = {
 		.addr = myself->handle,
@@ -268,8 +270,10 @@ static void initiate_recall(struct vfs_fsal_obj_handle *myself,
 	/* For layoutrecall up_ops are probably set to default recieved at
 	 * vfs_create_export
 	 */
-	export->up_ops->layoutrecall(export, &handle, LAYOUT4_OSD2_OBJECTS,
-				     false, &up_segment, r_cookie, NULL);
+	namespace->up_ops->layoutrecall(namespace, &handle,
+					LAYOUT4_OSD2_OBJECTS,
+					false, &up_segment,
+					r_cookie, NULL);
 
 }
 
@@ -357,7 +361,7 @@ static void _stop_callback_thread(void *td)
 }
 
 /*============================== initialization ==============================*/
-void export_ops_pnfs(struct export_ops *ops)
+void namespace_ops_pnfs(struct namespace_ops *ops)
 {
 	ops->getdeviceinfo = getdeviceinfo;
 	ops->getdevicelist = getdevicelist;

@@ -16,7 +16,7 @@ endif(USE_FSAL_XFS)
 SET(fsalvfs_LIB_SRCS
    fsal_convert.c
    main.c
-   export.c
+   namespace.c
    handle.c
    file.c
    xattrs.c

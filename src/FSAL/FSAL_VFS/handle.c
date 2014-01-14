@@ -50,27 +50,32 @@
 int vfs_fsal_open(struct vfs_fsal_obj_handle *myself, int openflags,
 		  fsal_errors_t *fsal_error)
 {
-	struct vfs_fsal_export *ve = container_of(myself->obj_handle.export,
-						  struct vfs_fsal_export,
-						  export);
-	return ve->vex_ops.vex_open_by_handle(myself->obj_handle.export,
+	struct vfs_fsal_namespace *ve;
+
+	ve = container_of(myself->obj_handle.namespace,
+			  struct vfs_fsal_namespace,
+			  namespace);
+
+	return ve->vex_ops.vex_open_by_handle(myself->obj_handle.namespace,
 					      myself->handle, openflags,
 					      fsal_error);
 }
 
-static int vfs_fsal_fd_to_handle(struct fsal_export *exp, int dirfd,
+static int vfs_fsal_fd_to_handle(struct fsal_namespace *namespace, int dirfd,
 				 vfs_file_handle_t *fh)
 {
-	struct vfs_fsal_export *ve = container_of(exp, struct vfs_fsal_export,
-						  export);
+	struct vfs_fsal_namespace *ve = container_of(namespace,
+						     struct vfs_fsal_namespace,
+						     namespace);
 	return ve->vex_ops.vex_fd_to_handle(dirfd, fh);
 }
 
-static int vfs_fsal_name_to_handle(struct fsal_export *exp, int dirfd,
+static int vfs_fsal_name_to_handle(struct fsal_namespace *namespace, int dirfd,
 				   const char *path, vfs_file_handle_t *fh)
 {
-	struct vfs_fsal_export *ve = container_of(exp, struct vfs_fsal_export,
-						  export);
+	struct vfs_fsal_namespace *ve = container_of(namespace,
+						     struct vfs_fsal_namespace,
+						     namespace);
 	return ve->vex_ops.vex_name_to_handle(dirfd, path, fh);
 }
 
@@ -78,12 +83,13 @@ static int vfs_fsal_name_to_handle(struct fsal_export *exp, int dirfd,
  * allocate and fill in a handle
  */
 
-static struct vfs_fsal_obj_handle *alloc_handle(int dirfd,
-						vfs_file_handle_t *fh,
-						struct stat *stat,
-						vfs_file_handle_t *dir_fh,
-						const char *path,
-						struct fsal_export *exp_hdl)
+static
+struct vfs_fsal_obj_handle *alloc_handle(int dirfd,
+					 vfs_file_handle_t *fh,
+					 struct stat *stat,
+					 vfs_file_handle_t *dir_fh,
+					 const char *path,
+					 struct fsal_namespace *namespace)
 {
 	struct vfs_fsal_obj_handle *hdl;
 	fsal_status_t st;
@@ -120,7 +126,8 @@ static struct vfs_fsal_obj_handle *alloc_handle(int dirfd,
 		if (dir_fh == NULL) {
 			int retval;
 			vfs_alloc_handle(dir_fh);
-			retval = vfs_fsal_fd_to_handle(exp_hdl, dirfd, dir_fh);
+			retval =
+				vfs_fsal_fd_to_handle(namespace, dirfd, dir_fh);
 			if (retval < 0)
 				goto spcerr;
 		}
@@ -133,14 +140,14 @@ static struct vfs_fsal_obj_handle *alloc_handle(int dirfd,
 		if (hdl->u.unopenable.name == NULL)
 			goto spcerr;
 	}
-	hdl->obj_handle.export = exp_hdl;
+	hdl->obj_handle.namespace = namespace;
 	hdl->obj_handle.attributes.mask =
-	    exp_hdl->ops->fs_supported_attrs(exp_hdl);
+	    namespace->ops->fs_supported_attrs(namespace);
 	st = posix2fsal_attributes(stat, &hdl->obj_handle.attributes);
 	if (FSAL_IS_ERROR(st))
 		goto spcerr;
 	if (!fsal_obj_handle_init
-	    (&hdl->obj_handle, exp_hdl, posix2fsal_type(stat->st_mode)))
+	    (&hdl->obj_handle, namespace, posix2fsal_type(stat->st_mode)))
 		return hdl;
 
 	hdl->obj_handle.ops = NULL;
@@ -189,7 +196,7 @@ static fsal_status_t lookup(struct fsal_obj_handle *parent,
 	dirfd = vfs_fsal_open(parent_hdl, O_PATH | O_NOACCESS, &fsal_error);
 	if (dirfd < 0)
 		return fsalstat(fsal_error, -dirfd);
-	retval = vfs_fsal_name_to_handle(parent->export, dirfd, path, fh);
+	retval = vfs_fsal_name_to_handle(parent->namespace, dirfd, path, fh);
 	if (retval < 0) {
 		retval = errno;
 		goto direrr;
@@ -203,7 +210,7 @@ static fsal_status_t lookup(struct fsal_obj_handle *parent,
 	/* allocate an obj_handle and fill it up */
 	hdl =
 	    alloc_handle(dirfd, fh, &stat, parent_hdl->handle, path,
-			 parent->export);
+			 parent->namespace);
 	close(dirfd);
 	if (hdl == NULL) {
 		retval = ENOMEM;
@@ -251,7 +258,7 @@ static inline int make_file_safe(struct vfs_fsal_obj_handle *dir_hdl,
 	if (retval < 0)
 		goto fileerr;
 	retval =
-	    vfs_fsal_name_to_handle(dir_hdl->obj_handle.export, dir_fd, name,
+	    vfs_fsal_name_to_handle(dir_hdl->obj_handle.namespace, dir_fd, name,
 				    fh);
 	if (retval < 0)
 		goto fileerr;
@@ -261,7 +268,7 @@ static inline int make_file_safe(struct vfs_fsal_obj_handle *dir_hdl,
 
 	/* allocate an obj_handle and fill it up */
 	*hdl = alloc_handle(dir_fd, fh, &stat, dir_hdl->handle, name,
-			    dir_hdl->obj_handle.export);
+			    dir_hdl->obj_handle.namespace);
 	if (*hdl == NULL)
 		return ENOMEM;
 	return 0;
@@ -301,7 +308,7 @@ static fsal_status_t create(struct fsal_obj_handle *dir_hdl,
 	}
 	myself = container_of(dir_hdl, struct vfs_fsal_obj_handle, obj_handle);
 	unix_mode = fsal2unix_mode(attrib->mode)
-	    & ~dir_hdl->export->ops->fs_umask(dir_hdl->export);
+	    & ~dir_hdl->namespace->ops->fs_umask(dir_hdl->namespace);
 	dir_fd = vfs_fsal_open(myself, flags, &fsal_error);
 	if (dir_fd < 0)
 		return fsalstat(fsal_error, -dir_fd);
@@ -322,7 +329,7 @@ static fsal_status_t create(struct fsal_obj_handle *dir_hdl,
 	}
 	fsal_restore_ganesha_credentials();
 	retval =
-	    vfs_fsal_name_to_handle(myself->obj_handle.export, dir_fd, name,
+	    vfs_fsal_name_to_handle(myself->obj_handle.namespace, dir_fd, name,
 				    fh);
 	if (retval < 0) {
 		retval = errno;
@@ -336,7 +343,7 @@ static fsal_status_t create(struct fsal_obj_handle *dir_hdl,
 	/* allocate an obj_handle and fill it up */
 	hdl =
 	    alloc_handle(dir_fd, fh, &stat, myself->handle, name,
-			 myself->obj_handle.export);
+			 myself->obj_handle.namespace);
 	if (hdl == NULL) {
 		retval = ENOMEM;
 		goto fileerr;
@@ -381,7 +388,7 @@ static fsal_status_t makedir(struct fsal_obj_handle *dir_hdl,
 	}
 	myself = container_of(dir_hdl, struct vfs_fsal_obj_handle, obj_handle);
 	unix_mode = fsal2unix_mode(attrib->mode)
-	    & ~dir_hdl->export->ops->fs_umask(dir_hdl->export);
+	    & ~dir_hdl->namespace->ops->fs_umask(dir_hdl->namespace);
 	dir_fd = vfs_fsal_open(myself, flags, &fsal_error);
 	if (dir_fd < 0)
 		return fsalstat(fsal_error, -dir_fd);
@@ -401,7 +408,7 @@ static fsal_status_t makedir(struct fsal_obj_handle *dir_hdl,
 	}
 	fsal_restore_ganesha_credentials();
 	retval =
-	    vfs_fsal_name_to_handle(myself->obj_handle.export, dir_fd, name,
+	    vfs_fsal_name_to_handle(myself->obj_handle.namespace, dir_fd, name,
 				    fh);
 	if (retval < 0) {
 		retval = errno;
@@ -416,7 +423,7 @@ static fsal_status_t makedir(struct fsal_obj_handle *dir_hdl,
 	/* allocate an obj_handle and fill it up */
 	hdl =
 	    alloc_handle(dir_fd, fh, &stat, myself->handle, name,
-			 myself->obj_handle.export);
+			 myself->obj_handle.namespace);
 	if (hdl == NULL) {
 		retval = ENOMEM;
 		goto fileerr;
@@ -469,7 +476,7 @@ static fsal_status_t makenode(struct fsal_obj_handle *dir_hdl,
 	user = attrib->owner;
 	group = attrib->group;
 	unix_mode = fsal2unix_mode(attrib->mode)
-	    & ~dir_hdl->export->ops->fs_umask(dir_hdl->export);
+	    & ~dir_hdl->namespace->ops->fs_umask(dir_hdl->namespace);
 	switch (nodetype) {
 	case BLOCK_FILE:
 		create_mode = S_IFBLK;
@@ -577,7 +584,7 @@ static fsal_status_t makesymlink(struct fsal_obj_handle *dir_hdl,
 		goto direrr;
 	}
 	fsal_restore_ganesha_credentials();
-	retval = vfs_fsal_name_to_handle(dir_hdl->export, dir_fd, name, fh);
+	retval = vfs_fsal_name_to_handle(dir_hdl->namespace, dir_fd, name, fh);
 	if (retval < 0) {
 		retval = errno;
 		goto linkerr;
@@ -591,7 +598,7 @@ static fsal_status_t makesymlink(struct fsal_obj_handle *dir_hdl,
 	}
 
 	/* allocate an obj_handle and fill it up */
-	hdl = alloc_handle(dir_fd, fh, &stat, NULL, name, dir_hdl->export);
+	hdl = alloc_handle(dir_fd, fh, &stat, NULL, name, dir_hdl->namespace);
 	if (hdl == NULL) {
 		retval = ENOMEM;
 		goto linkerr;
@@ -679,9 +686,9 @@ static fsal_status_t readsymlink(struct fsal_obj_handle *obj_hdl,
 	}
 	myself = container_of(obj_hdl, struct vfs_fsal_obj_handle, obj_handle);
 	if (refresh) {		/* lazy load or LRU'd storage */
-		struct vfs_fsal_export *ve =
-		    container_of(obj_hdl->export, struct vfs_fsal_export,
-				 export);
+		struct vfs_fsal_namespace *ve =
+		    container_of(obj_hdl->namespace, struct vfs_fsal_namespace,
+				 namespace);
 		retval = ve->vex_ops.vex_readlink(myself, &fsal_error);
 		if (retval < 0) {
 			retval = -retval;
@@ -717,8 +724,8 @@ static fsal_status_t linkfile(struct fsal_obj_handle *obj_hdl,
 	int flags = O_PATH | O_NOACCESS | O_NOFOLLOW;
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 
-	if (!obj_hdl->export->ops->
-	    fs_supports(obj_hdl->export, fso_link_support)) {
+	if (!obj_hdl->namespace->ops->
+	    fs_supports(obj_hdl->namespace, fso_link_support)) {
 		fsal_error = ERR_FSAL_NOTSUPP;
 		goto out;
 	}
@@ -882,7 +889,7 @@ static struct closefd vfs_fsal_open_and_stat(struct vfs_fsal_obj_handle *myself,
 	struct fsal_obj_handle *obj_hdl = &myself->obj_handle;
 	struct closefd cfd  = { .fd = -1, .close_fd = false };
 	int retval = 0;
-	struct vfs_fsal_export *ve = NULL;
+	struct vfs_fsal_namespace *ve = NULL;
 	vfs_file_handle_t *fh = NULL;
 	vfs_alloc_handle(fh);
 	const char *func = "unknown";
@@ -891,9 +898,9 @@ static struct closefd vfs_fsal_open_and_stat(struct vfs_fsal_obj_handle *myself,
 	case SOCKET_FILE:
 	case CHARACTER_FILE:
 	case BLOCK_FILE:
-		ve = container_of(obj_hdl->export, struct vfs_fsal_export,
-				  export);
-		cfd.fd = ve->vex_ops.vex_open_by_handle(obj_hdl->export,
+		ve = container_of(obj_hdl->namespace, struct vfs_fsal_namespace,
+				  namespace);
+		cfd.fd = ve->vex_ops.vex_open_by_handle(obj_hdl->namespace,
 						    myself->u.unopenable.dir,
 						    O_PATH | O_NOACCESS,
 						    fsal_error);
@@ -1049,7 +1056,8 @@ static fsal_status_t setattrs(struct fsal_obj_handle *obj_hdl,
 
 	/* apply umask, if mode attribute is to be changed */
 	if (FSAL_TEST_MASK(attrs->mask, ATTR_MODE))
-		attrs->mode &= ~obj_hdl->export->ops->fs_umask(obj_hdl->export);
+		attrs->mode &= ~obj_hdl->namespace->ops->fs_umask(
+							obj_hdl->namespace);
 	myself = container_of(obj_hdl, struct vfs_fsal_obj_handle, obj_handle);
 
 	/* This is yet another "you can't get there from here".  If this object
@@ -1313,7 +1321,7 @@ static void handle_to_key(struct fsal_obj_handle *obj_hdl,
 
 /*
  * release
- * release our export first so they know we are gone
+ * release our namespace first so they know we are gone
  */
 
 static fsal_status_t release(struct fsal_obj_handle *obj_hdl)
@@ -1401,7 +1409,7 @@ void vfs_handle_ops_init(struct fsal_obj_ops *ops)
 
 }
 
-/* export methods that create object handles
+/* namespace methods that create object handles
  */
 
 /* lookup_path
@@ -1409,7 +1417,7 @@ void vfs_handle_ops_init(struct fsal_obj_ops *ops)
  * KISS
  */
 
-fsal_status_t vfs_lookup_path(struct fsal_export *exp_hdl,
+fsal_status_t vfs_lookup_path(struct fsal_namespace *namespace,
 			      const struct req_op_context *opctx,
 			      const char *path, struct fsal_obj_handle **handle)
 {
@@ -1450,7 +1458,7 @@ fsal_status_t vfs_lookup_path(struct fsal_export *exp_hdl,
 	if (!S_ISDIR(stat.st_mode))	/* this had better be a DIR! */
 		goto fileerr;
 	basepart++;
-	retval = vfs_fsal_name_to_handle(exp_hdl, dir_fd, basepart, fh);
+	retval = vfs_fsal_name_to_handle(namespace, dir_fd, basepart, fh);
 	if (retval < 0)
 		goto fileerr;
 
@@ -1460,7 +1468,7 @@ fsal_status_t vfs_lookup_path(struct fsal_export *exp_hdl,
 		goto fileerr;
 
 	/* allocate an obj_handle and fill it up */
-	hdl = alloc_handle(dir_fd, fh, &stat, NULL, basepart, exp_hdl);
+	hdl = alloc_handle(dir_fd, fh, &stat, NULL, basepart, namespace);
 	close(dir_fd);
 	if (hdl == NULL) {
 		fsal_error = ERR_FSAL_NOMEM;
@@ -1491,7 +1499,7 @@ fsal_status_t vfs_lookup_path(struct fsal_export *exp_hdl,
  * Ideas and/or clever hacks are welcome...
  */
 
-fsal_status_t vfs_create_handle(struct fsal_export *exp_hdl,
+fsal_status_t vfs_create_handle(struct fsal_namespace *namespace,
 				const struct req_op_context *opctx,
 				struct gsh_buffdesc *hdl_desc,
 				struct fsal_obj_handle **handle)
@@ -1502,7 +1510,7 @@ fsal_status_t vfs_create_handle(struct fsal_export *exp_hdl,
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 	int retval = 0;
 	int fd;
-	struct vfs_fsal_export *ve;
+	struct vfs_fsal_namespace *ve;
 	int flags = O_PATH | O_NOACCESS | O_NOFOLLOW;
 
 	vfs_alloc_handle(fh);
@@ -1513,9 +1521,9 @@ fsal_status_t vfs_create_handle(struct fsal_export *exp_hdl,
 		return fsalstat(ERR_FSAL_SERVERFAULT, 0);
 
 	memcpy(fh, hdl_desc->addr, hdl_desc->len);  /* struct aligned copy */
-	ve = container_of(exp_hdl, struct vfs_fsal_export, export);
+	ve = container_of(namespace, struct vfs_fsal_namespace, namespace);
 
-	fd = ve->vex_ops.vex_open_by_handle(exp_hdl, fh, flags, &fsal_error);
+	fd = ve->vex_ops.vex_open_by_handle(namespace, fh, flags, &fsal_error);
 	if (fd < 0) {
 		retval = -fd;
 		goto errout;
@@ -1528,7 +1536,7 @@ fsal_status_t vfs_create_handle(struct fsal_export *exp_hdl,
 		goto errout;
 	}
 
-	hdl = alloc_handle(fd, fh, &stat, NULL, "", exp_hdl);
+	hdl = alloc_handle(fd, fh, &stat, NULL, "", namespace);
 	close(fd);
 	if (hdl == NULL) {
 		fsal_error = ERR_FSAL_NOMEM;

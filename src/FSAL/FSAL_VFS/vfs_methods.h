@@ -4,8 +4,8 @@
 #include "fsal_handle_syscalls.h"
 struct vfs_fsal_obj_handle;
 
-struct vfs_exp_handle_ops {
-	int (*vex_open_by_handle) (struct fsal_export *exp,
+struct vfs_namespace_handle_ops {
+	int (*vex_open_by_handle) (struct fsal_namespace *namespace,
 				   vfs_file_handle_t *fh, int openflags,
 				   fsal_errors_t *fsal_error);
 	int (*vex_name_to_handle) (int fd, const char *name,
@@ -15,10 +15,10 @@ struct vfs_exp_handle_ops {
 };
 
 /*
- * VFS internal export
+ * VFS internal namespace
  */
-struct vfs_fsal_export {
-	struct fsal_export export;
+struct vfs_fsal_namespace {
+	struct fsal_namespace namespace;
 	char *mntdir;
 	char *fs_spec;
 	char *fstype;
@@ -26,24 +26,24 @@ struct vfs_fsal_export {
 	dev_t root_dev;
 	vfs_file_handle_t *root_handle;
 	bool pnfs_panfs_enabled;
-	struct vfs_exp_handle_ops vex_ops;
+	struct vfs_namespace_handle_ops vex_ops;
 	void *pnfs_data;
 };
 
-/* private helpers from export
+/* private helpers from namespace
  */
 
-int vfs_get_root_fd(struct fsal_export *exp_hdl);
+int vfs_get_root_fd(struct fsal_namespace *namespace);
 
-/* method proto linkage to handle.c for export
+/* method proto linkage to handle.c for namespace
  */
 
-fsal_status_t vfs_lookup_path(struct fsal_export *exp_hdl,
+fsal_status_t vfs_lookup_path(struct fsal_namespace *namespace,
 			      const struct req_op_context *opctx,
 			      const char *path,
 			      struct fsal_obj_handle **handle);
 
-fsal_status_t vfs_create_handle(struct fsal_export *exp_hdl,
+fsal_status_t vfs_create_handle(struct fsal_namespace *namespace,
 				const struct req_op_context *opctx,
 				struct gsh_buffdesc *hdl_desc,
 				struct fsal_obj_handle **handle);

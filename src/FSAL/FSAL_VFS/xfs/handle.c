@@ -256,7 +256,7 @@ static int p2fsal_error(int posix_errorcode)
 
 }
 
-static int vfs_xfs_open_by_handle(struct fsal_export *exp,
+static int vfs_xfs_open_by_handle(struct fsal_namespace *namespace,
 				  vfs_file_handle_t *fh, int openflags,
 				  fsal_errors_t *fsal_error)
 {
@@ -349,14 +349,14 @@ static int vfs_xfs_readlink(struct vfs_fsal_obj_handle *hdl,
 	return retval;
 }
 
-struct vfs_exp_handle_ops xfs_ops = {
+struct vfs_namespace_handle_ops xfs_ops = {
 	.vex_open_by_handle = vfs_xfs_open_by_handle,
 	.vex_name_to_handle = vfs_xfs_name_to_handle,
 	.vex_fd_to_handle = vfs_xfs_fd_to_handle,
 	.vex_readlink = vfs_xfs_readlink
 };
 
-struct vfs_exp_handle_ops *get_handle_ops(char *mntdir)
+struct vfs_namespace_handle_ops *get_handle_ops(char *mntdir)
 {
 	void *data;
 	size_t sz;
