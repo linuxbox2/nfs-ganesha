@@ -144,7 +144,7 @@ static int unload_fsal(struct fsal_module *fsal_hdl)
 
 	pthread_mutex_lock(&fsal_lock);
 	pthread_mutex_lock(&fsal_hdl->lock);
-	if (fsal_hdl->refs != 0 || !glist_empty(&fsal_hdl->exports))
+	if (fsal_hdl->refs != 0 || !glist_empty(&fsal_hdl->namespaces))
 		goto err;
 	if (fsal_hdl->dl_handle == NULL) {
 		retval = EACCES;	/* cannot unload static linked fsals */
@@ -194,7 +194,7 @@ static fsal_status_t create_export(struct fsal_module *fsal_hdl,
 				   struct exportlist *exp_entry,
 				   struct fsal_module *next_fsal,
 				   const struct fsal_up_vector *upops,
-				   struct fsal_export **export)
+				   struct fsal_namespace **namespace)
 {
 	return fsalstat(ERR_FSAL_NOTSUPP, 0);
 }
@@ -225,35 +225,35 @@ struct fsal_ops def_fsal_ops = {
 	.emergency_cleanup = emergency_cleanup
 };
 
-/* fsal_export common methods
+/* fsal_namespace common methods
  */
 
-static void export_get(struct fsal_export *exp_hdl)
+static void namespace_get(struct fsal_namespace *namespace)
 {
-	pthread_mutex_lock(&exp_hdl->lock);
-	exp_hdl->refs++;
-	pthread_mutex_unlock(&exp_hdl->lock);
+	pthread_mutex_lock(&namespace->lock);
+	namespace->refs++;
+	pthread_mutex_unlock(&namespace->lock);
 }
 
-static int export_put(struct fsal_export *exp_hdl)
+static int namespace_put(struct fsal_namespace *namespace)
 {
 	int retval = EINVAL;	/* too many 'puts" */
 
-	pthread_mutex_lock(&exp_hdl->lock);
-	if (exp_hdl->refs > 0) {
-		exp_hdl->refs--;
+	pthread_mutex_lock(&namespace->lock);
+	if (namespace->refs > 0) {
+		namespace->refs--;
 		retval = 0;
 	}
-	pthread_mutex_unlock(&exp_hdl->lock);
+	pthread_mutex_unlock(&namespace->lock);
 	return retval;
 }
 
-/* export_release
+/* namespace_release
  * default case is to throw a fault error.
- * creating an export is not supported so getting here is bad
+ * creating an namespace is not supported so getting here is bad
  */
 
-static fsal_status_t export_release(struct fsal_export *exp_hdl)
+static fsal_status_t namespace_release(struct fsal_namespace *namespace)
 {
 	return fsalstat(ERR_FSAL_FAULT, 0);
 }
@@ -262,14 +262,14 @@ static fsal_status_t export_release(struct fsal_export *exp_hdl)
  * default case is not supported
  */
 
-fsal_status_t lookup_path(struct fsal_export *exp_hdl,
+fsal_status_t lookup_path(struct fsal_namespace *namespace,
 			  const struct req_op_context *opctx, const char *path,
 			  struct fsal_obj_handle **handle)
 {
 	return fsalstat(ERR_FSAL_NOTSUPP, 0);
 }
 
-static fsal_status_t lookup_junction(struct fsal_export *exp_hdl,
+static fsal_status_t lookup_junction(struct fsal_namespace *namespace,
 				     struct fsal_obj_handle *junction,
 				     struct fsal_obj_handle **handle)
 {
@@ -280,7 +280,7 @@ static fsal_status_t lookup_junction(struct fsal_export *exp_hdl,
  * default case is not supported
  */
 
-static fsal_status_t extract_handle(struct fsal_export *exp_hdl,
+static fsal_status_t extract_handle(struct fsal_namespace *namespace,
 				    fsal_digesttype_t in_type,
 				    struct gsh_buffdesc *fh_desc)
 {
@@ -291,7 +291,7 @@ static fsal_status_t extract_handle(struct fsal_export *exp_hdl,
  * default case is not supported
  */
 
-static fsal_status_t create_handle(struct fsal_export *exp_hdl,
+static fsal_status_t create_handle(struct fsal_namespace *namespace,
 				   const struct req_op_context *opctx,
 				   struct gsh_buffdesc *hdl_desc,
 				   struct fsal_obj_handle **handle)
@@ -302,13 +302,13 @@ static fsal_status_t create_handle(struct fsal_export *exp_hdl,
 /**
  * @brief Fail to create a FSAL data server handle from a wire handle
  *
- * @param[in]  exp_hdl  The export in which to create the handle
+ * @param[in]  namespace  The namespace in which to create the handle
  * @param[out] handle   FSAL object handle
  *
  * @retval NFS4ERR_BADHANDLE.
  */
 
-static nfsstat4 create_ds_handle(struct fsal_export *const exp_hdl,
+static nfsstat4 create_ds_handle(struct fsal_namespace *const namespace,
 				 const struct gsh_buffdesc *const hdl_desc,
 				 struct fsal_ds_handle **const handle)
 {
@@ -319,7 +319,7 @@ static nfsstat4 create_ds_handle(struct fsal_export *const exp_hdl,
  * default case is not supported
  */
 
-static fsal_status_t get_dynamic_info(struct fsal_export *exp_hdl,
+static fsal_status_t get_dynamic_info(struct fsal_namespace *namespace,
 				      const struct req_op_context *opctx,
 				      fsal_dynamicfsinfo_t *infop)
 {
@@ -330,7 +330,7 @@ static fsal_status_t get_dynamic_info(struct fsal_export *exp_hdl,
  * default case is supports nothing
  */
 
-static bool fs_supports(struct fsal_export *exp_hdl,
+static bool fs_supports(struct fsal_namespace *namespace,
 			fsal_fsinfo_options_t option)
 {
 	return false;
@@ -340,7 +340,7 @@ static bool fs_supports(struct fsal_export *exp_hdl,
  * default case is zero size
  */
 
-static uint64_t fs_maxfilesize(struct fsal_export *exp_hdl)
+static uint64_t fs_maxfilesize(struct fsal_namespace *namespace)
 {
 	return 0;
 }
@@ -349,7 +349,7 @@ static uint64_t fs_maxfilesize(struct fsal_export *exp_hdl)
  * default case is zero length
  */
 
-static uint32_t fs_maxread(struct fsal_export *exp_hdl)
+static uint32_t fs_maxread(struct fsal_namespace *namespace)
 {
 	return 0;
 }
@@ -358,7 +358,7 @@ static uint32_t fs_maxread(struct fsal_export *exp_hdl)
  * default case is zero length
  */
 
-static uint32_t fs_maxwrite(struct fsal_export *exp_hdl)
+static uint32_t fs_maxwrite(struct fsal_namespace *namespace)
 {
 	return 0;
 }
@@ -367,7 +367,7 @@ static uint32_t fs_maxwrite(struct fsal_export *exp_hdl)
  * default case is zero links
  */
 
-static uint32_t fs_maxlink(struct fsal_export *exp_hdl)
+static uint32_t fs_maxlink(struct fsal_namespace *namespace)
 {
 	return 0;
 }
@@ -376,7 +376,7 @@ static uint32_t fs_maxlink(struct fsal_export *exp_hdl)
  * default case is zero length
  */
 
-static uint32_t fs_maxnamelen(struct fsal_export *exp_hdl)
+static uint32_t fs_maxnamelen(struct fsal_namespace *namespace)
 {
 	return 0;
 }
@@ -385,7 +385,7 @@ static uint32_t fs_maxnamelen(struct fsal_export *exp_hdl)
  * default case is zero length
  */
 
-static uint32_t fs_maxpathlen(struct fsal_export *exp_hdl)
+static uint32_t fs_maxpathlen(struct fsal_namespace *namespace)
 {
 	return 0;
 }
@@ -394,7 +394,7 @@ static uint32_t fs_maxpathlen(struct fsal_export *exp_hdl)
  * default case is zero interval time
  */
 
-static struct timespec fs_lease_time(struct fsal_export *exp_hdl)
+static struct timespec fs_lease_time(struct fsal_namespace *namespace)
 {
 	struct timespec lease_time = { 0, 0 };
 
@@ -405,7 +405,7 @@ static struct timespec fs_lease_time(struct fsal_export *exp_hdl)
  * default case is none, neither deny or allow
  */
 
-static fsal_aclsupp_t fs_acl_support(struct fsal_export *exp_hdl)
+static fsal_aclsupp_t fs_acl_support(struct fsal_namespace *namespace)
 {
 	return 0;
 }
@@ -414,7 +414,7 @@ static fsal_aclsupp_t fs_acl_support(struct fsal_export *exp_hdl)
  * default case is none
  */
 
-static attrmask_t fs_supported_attrs(struct fsal_export *exp_hdl)
+static attrmask_t fs_supported_attrs(struct fsal_namespace *namespace)
 {
 	return 0;
 }
@@ -423,7 +423,7 @@ static attrmask_t fs_supported_attrs(struct fsal_export *exp_hdl)
  * default case is no access
  */
 
-static uint32_t fs_umask(struct fsal_export *exp_hdl)
+static uint32_t fs_umask(struct fsal_namespace *namespace)
 {
 	return 0000;
 }
@@ -432,7 +432,7 @@ static uint32_t fs_umask(struct fsal_export *exp_hdl)
  * default case is no access
  */
 
-static uint32_t fs_xattr_access_rights(struct fsal_export *exp_hdl)
+static uint32_t fs_xattr_access_rights(struct fsal_namespace *namespace)
 {
 	return 0000;
 }
@@ -441,7 +441,7 @@ static uint32_t fs_xattr_access_rights(struct fsal_export *exp_hdl)
  * return happiness for now.
  */
 
-static fsal_status_t check_quota(struct fsal_export *exp_hdl,
+static fsal_status_t check_quota(struct fsal_namespace *namespace,
 				 const char *filepath, int quota_type,
 				 struct req_op_context *req_ctx)
 {
@@ -452,7 +452,7 @@ static fsal_status_t check_quota(struct fsal_export *exp_hdl,
  * default case not supported
  */
 
-static fsal_status_t get_quota(struct fsal_export *exp_hdl,
+static fsal_status_t get_quota(struct fsal_namespace *namespace,
 			       const char *filepath, int quota_type,
 			       struct req_op_context *req_ctx,
 			       fsal_quota_t *pquota)
@@ -464,7 +464,7 @@ static fsal_status_t get_quota(struct fsal_export *exp_hdl,
  * default case not supported
  */
 
-static fsal_status_t set_quota(struct fsal_export *exp_hdl,
+static fsal_status_t set_quota(struct fsal_namespace *namespace,
 			       const char *filepath, int quota_type,
 			       struct req_op_context *req_ctx,
 			       fsal_quota_t *pquota, fsal_quota_t *presquota)
@@ -476,7 +476,8 @@ static fsal_status_t set_quota(struct fsal_export *exp_hdl,
  * @brief Be uninformative about a device
  */
 
-static nfsstat4 getdeviceinfo(struct fsal_export *exp_hdl, XDR *da_addr_body,
+static nfsstat4 getdeviceinfo(struct fsal_namespace *namespace,
+			      XDR *da_addr_body,
 			      const layouttype4 type,
 			      const struct pnfs_deviceid *deviceid)
 {
@@ -487,7 +488,8 @@ static nfsstat4 getdeviceinfo(struct fsal_export *exp_hdl, XDR *da_addr_body,
  * @brief Be uninformative about all devices
  */
 
-static nfsstat4 getdevicelist(struct fsal_export *exp_hdl, layouttype4 type,
+static nfsstat4 getdevicelist(struct fsal_namespace *namespace,
+			      layouttype4 type,
 			      void *opaque, bool(*cb) (void *opaque,
 						       const uint64_t id),
 			      struct fsal_getdevicelist_res *res)
@@ -499,7 +501,7 @@ static nfsstat4 getdevicelist(struct fsal_export *exp_hdl, layouttype4 type,
  * @brief Support no layout types
  */
 
-static void fs_layouttypes(struct fsal_export *exp_hdl, size_t *count,
+static void fs_layouttypes(struct fsal_namespace *namespace, size_t *count,
 			   const layouttype4 **types)
 {
 	*count = 0;
@@ -510,7 +512,7 @@ static void fs_layouttypes(struct fsal_export *exp_hdl, size_t *count,
  * @brief Read no bytes through layouts
  */
 
-static uint32_t fs_layout_blocksize(struct fsal_export *exp_hdl)
+static uint32_t fs_layout_blocksize(struct fsal_namespace *namespace)
 {
 	return 0;
 }
@@ -519,7 +521,7 @@ static uint32_t fs_layout_blocksize(struct fsal_export *exp_hdl)
  * @brief No segments
  */
 
-static uint32_t fs_maximum_segments(struct fsal_export *exp_hdl)
+static uint32_t fs_maximum_segments(struct fsal_namespace *namespace)
 {
 	return 0;
 }
@@ -528,7 +530,7 @@ static uint32_t fs_maximum_segments(struct fsal_export *exp_hdl)
  * @brief No loc_body
  */
 
-static size_t fs_loc_body_size(struct fsal_export *exp_hdl)
+static size_t fs_loc_body_size(struct fsal_namespace *namespace)
 {
 	return 0;
 }
@@ -537,7 +539,7 @@ static size_t fs_loc_body_size(struct fsal_export *exp_hdl)
  * No da_addr.
  */
 
-static size_t fs_da_addr_size(struct fsal_export *exp_hdl)
+static size_t fs_da_addr_size(struct fsal_namespace *namespace)
 {
 	return 0;
 }
@@ -557,14 +559,14 @@ static void global_verifier(struct gsh_buffdesc *verf_desc)
 	memcpy(verf_desc->addr, &NFS4_write_verifier, verf_desc->len);
 };
 
-/* Default fsal export method vector.
+/* Default fsal namespace method vector.
  * copied to allocated vector at register time
  */
 
-struct export_ops def_export_ops = {
-	.get = export_get,
-	.put = export_put,
-	.release = export_release,
+struct namespace_ops def_namespace_ops = {
+	.get = namespace_get,
+	.put = namespace_put,
+	.release = namespace_release,
 	.lookup_path = lookup_path,
 	.lookup_junction = lookup_junction,
 	.extract_handle = extract_handle,

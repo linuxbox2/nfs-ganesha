@@ -29,7 +29,7 @@
 
 /* Define some externals for FSAL */
 extern struct fsal_ops def_fsal_ops;
-extern struct export_ops def_export_ops; /* freebsd gcc workaround */
+extern struct namespace_ops def_namespace_ops; /* freebsd gcc workaround */
 extern struct fsal_obj_ops def_handle_ops;
 extern struct fsal_ds_ops def_ds_ops;
 

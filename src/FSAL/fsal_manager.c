@@ -535,7 +535,7 @@ int register_fsal(struct fsal_module *fsal_hdl, const char *name,
 #endif
 	pthread_mutex_init(&fsal_hdl->lock, &attrs);
 	glist_init(&fsal_hdl->fsals);
-	glist_init(&fsal_hdl->exports);
+	glist_init(&fsal_hdl->namespaces);
 	glist_add_tail(&fsal_list, &fsal_hdl->fsals);
 	if (load_state == loading)
 		load_state = registered;

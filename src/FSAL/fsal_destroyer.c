@@ -42,10 +42,10 @@
 /**
  * @brief Dispose of lingering file handles
  *
- * @param[in] export Export to clean up
+ * @param[in] namespace The namespace to clean up
  */
 
-static void shutdown_handles(struct fsal_export *export)
+static void shutdown_handles(struct fsal_namespace *namespace)
 {
 	/* Handle iterator */
 	struct glist_head *hi = NULL;
@@ -54,11 +54,11 @@ static void shutdown_handles(struct fsal_export *export)
 	/* FSAL return code */
 	fsal_status_t fsal_status;
 
-	if (glist_empty(&export->handles))
+	if (glist_empty(&namespace->handles))
 		return;
 
 	LogDebug(COMPONENT_FSAL, "Extra file handles hanging around.");
-	glist_for_each_safe(hi, hn, &export->handles) {
+	glist_for_each_safe(hi, hn, &namespace->handles) {
 		struct fsal_obj_handle *h = glist_entry(hi,
 							struct fsal_obj_handle,
 							handles);
@@ -78,9 +78,9 @@ static void shutdown_handles(struct fsal_export *export)
 /**
  * @brief Dispose of lingering DS handles
  *
- * @paramp[in] export Export to clean up
+ * @paramp[in] namespace The namespace to clean up
  */
-static void shutdown_ds_handles(struct fsal_export *export)
+static void shutdown_ds_handles(struct fsal_namespace *namespace)
 {
 	/* Handle iterator */
 	struct glist_head *hi = NULL;
@@ -88,11 +88,11 @@ static void shutdown_ds_handles(struct fsal_export *export)
 	struct glist_head *hn = NULL;
 	/* FSAL return code */
 	nfsstat4 status = 0;
-	if (glist_empty(&export->ds_handles))
+	if (glist_empty(&namespace->ds_handles))
 		return;
 
 	LogDebug(COMPONENT_FSAL, "Extra DS file handles hanging around.");
-	glist_for_each_safe(hi, hn, &export->ds_handles) {
+	glist_for_each_safe(hi, hn, &namespace->ds_handles) {
 		struct fsal_ds_handle *h = glist_entry(hi,
 						       struct fsal_ds_handle,
 						       ds_handles);
@@ -111,27 +111,29 @@ static void shutdown_ds_handles(struct fsal_export *export)
 }
 
 /**
- * @brief Shut down an individual export
+ * @brief Shut down an individual namespace
  *
- * @param[in] export The export to shut down
+ * @param[in] namespace The namespace to shut down
  */
 
-static void shutdown_export(struct fsal_export *export)
+static void shutdown_namespace(struct fsal_namespace *namespace)
 {
 	fsal_status_t fsal_status;
 
-	shutdown_handles(export);
-	shutdown_ds_handles(export);
+	shutdown_handles(namespace);
+	shutdown_ds_handles(namespace);
 
-	if (export->refs != 0) {
+	if (namespace->refs != 0) {
 		LogDebug(COMPONENT_FSAL,
-			 "Extra references hanging around to export.");
-		export->refs = 0;
+			 "Extra references hanging around to namespace.");
+		namespace->refs = 0;
 	}
 
-	fsal_status = export->ops->release(export);
+	fsal_status = namespace->ops->release(namespace);
+
 	if (FSAL_IS_ERROR(fsal_status))
-		LogMajor(COMPONENT_FSAL, "Cannot release FSAL export object!");
+		LogMajor(COMPONENT_FSAL,
+			 "Cannot release FSAL namespace object!");
 }
 
 /**
@@ -150,21 +152,20 @@ void destroy_fsals(void)
 		struct fsal_module *m = glist_entry(mi,
 						    struct fsal_module,
 						    fsals);
-		/* Iterator over exports */
+		/* Iterator over namespaces */
 		struct glist_head *ei = NULL;
-		/* Next export */
+		/* Next namespace */
 		struct glist_head *en = NULL;
 
-		LogEvent(COMPONENT_FSAL, "Shutting down exports for FSAL %s",
+		LogEvent(COMPONENT_FSAL, "Shutting down namespaces for FSAL %s",
 			 m->name);
-		glist_for_each_safe(ei, en, &m->exports) {
+		glist_for_each_safe(ei, en, &m->namespaces) {
 			/* The module to destroy */
-			struct fsal_export *e = glist_entry(ei,
-							    struct fsal_export,
-							    exports);
-			shutdown_export(e);
+			struct fsal_namespace *e;
+			e = glist_entry(ei, struct fsal_namespace, namespaces);
+			shutdown_namespace(e);
 		}
-		LogEvent(COMPONENT_FSAL, "Exports for FSAL %s shut down",
+		LogEvent(COMPONENT_FSAL, "Namespaces for FSAL %s shut down",
 			 m->name);
 		if (m->refs != 0) {
 			LogDebug(COMPONENT_FSAL,
