@@ -13,7 +13,7 @@ SET(fsalpseudo_LIB_SRCS
    xattrs.c
    pseudofs_methods.h
    main.c
-   export.c
+   namespace.c
    fsal_convert.c
 )
 

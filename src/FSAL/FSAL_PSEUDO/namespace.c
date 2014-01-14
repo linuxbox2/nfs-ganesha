@@ -26,8 +26,8 @@
  * -------------
  */
 
-/* export.c
- * PSEUDO FSAL export object
+/* namespace.c
+ * PSEUDO FSAL namespace object
  */
 
 #include "config.h"
@@ -52,31 +52,32 @@
 
 struct fsal_staticfsinfo_t *pseudofs_staticinfo(struct fsal_module *hdl);
 
-/* export object methods
+/* namespace object methods
  */
 
-static fsal_status_t release(struct fsal_export *exp_hdl)
+static fsal_status_t release(struct fsal_namespace *namespace)
 {
-	struct pseudofs_fsal_export *myself;
+	struct pseudofs_fsal_namespace *myself;
 
-	myself = container_of(exp_hdl, struct pseudofs_fsal_export, export);
+	myself =
+	     container_of(namespace, struct pseudofs_fsal_namespace, namespace);
 
-	pthread_mutex_lock(&exp_hdl->lock);
+	pthread_mutex_lock(&namespace->lock);
 
-	if (exp_hdl->refs > 0 || !glist_empty(&exp_hdl->handles)) {
+	if (namespace->refs > 0 || !glist_empty(&namespace->handles)) {
 		LogMajor(COMPONENT_FSAL,
-			 "export %p - %s busy",
-			 exp_hdl, myself->export_path);
-		pthread_mutex_unlock(&exp_hdl->lock);
+			 "namespace %p - %s busy",
+			 namespace, myself->export_path);
+		pthread_mutex_unlock(&namespace->lock);
 		return fsalstat(posix2fsal_error(EBUSY), EBUSY);
 	}
 
-	fsal_detach_export(exp_hdl->fsal, &exp_hdl->exports);
-	free_export_ops(exp_hdl);
+	fsal_detach_namespace(namespace->fsal, &namespace->namespaces);
+	free_namespace_ops(namespace);
 
-	pthread_mutex_unlock(&exp_hdl->lock);
+	pthread_mutex_unlock(&namespace->lock);
 
-	pthread_mutex_destroy(&exp_hdl->lock);
+	pthread_mutex_destroy(&namespace->lock);
 
 	if (myself->export_path != NULL)
 		gsh_free(myself->export_path);
@@ -86,7 +87,7 @@ static fsal_status_t release(struct fsal_export *exp_hdl)
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
-static fsal_status_t get_dynamic_info(struct fsal_export *exp_hdl,
+static fsal_status_t get_dynamic_info(struct fsal_namespace *namespace,
 				      const struct req_op_context *opctx,
 				      fsal_dynamicfsinfo_t *infop)
 {
@@ -102,113 +103,113 @@ static fsal_status_t get_dynamic_info(struct fsal_export *exp_hdl,
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
-static bool fs_supports(struct fsal_export *exp_hdl,
+static bool fs_supports(struct fsal_namespace *namespace,
 			fsal_fsinfo_options_t option)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = pseudofs_staticinfo(exp_hdl->fsal);
+	info = pseudofs_staticinfo(namespace->fsal);
 	return fsal_supports(info, option);
 }
 
-static uint64_t fs_maxfilesize(struct fsal_export *exp_hdl)
+static uint64_t fs_maxfilesize(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = pseudofs_staticinfo(exp_hdl->fsal);
+	info = pseudofs_staticinfo(namespace->fsal);
 	return fsal_maxfilesize(info);
 }
 
-static uint32_t fs_maxread(struct fsal_export *exp_hdl)
+static uint32_t fs_maxread(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = pseudofs_staticinfo(exp_hdl->fsal);
+	info = pseudofs_staticinfo(namespace->fsal);
 	return fsal_maxread(info);
 }
 
-static uint32_t fs_maxwrite(struct fsal_export *exp_hdl)
+static uint32_t fs_maxwrite(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = pseudofs_staticinfo(exp_hdl->fsal);
+	info = pseudofs_staticinfo(namespace->fsal);
 	return fsal_maxwrite(info);
 }
 
-static uint32_t fs_maxlink(struct fsal_export *exp_hdl)
+static uint32_t fs_maxlink(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = pseudofs_staticinfo(exp_hdl->fsal);
+	info = pseudofs_staticinfo(namespace->fsal);
 	return fsal_maxlink(info);
 }
 
-static uint32_t fs_maxnamelen(struct fsal_export *exp_hdl)
+static uint32_t fs_maxnamelen(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = pseudofs_staticinfo(exp_hdl->fsal);
+	info = pseudofs_staticinfo(namespace->fsal);
 	return fsal_maxnamelen(info);
 }
 
-static uint32_t fs_maxpathlen(struct fsal_export *exp_hdl)
+static uint32_t fs_maxpathlen(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = pseudofs_staticinfo(exp_hdl->fsal);
+	info = pseudofs_staticinfo(namespace->fsal);
 	return fsal_maxpathlen(info);
 }
 
-static struct timespec fs_lease_time(struct fsal_export *exp_hdl)
+static struct timespec fs_lease_time(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = pseudofs_staticinfo(exp_hdl->fsal);
+	info = pseudofs_staticinfo(namespace->fsal);
 	return fsal_lease_time(info);
 }
 
-static fsal_aclsupp_t fs_acl_support(struct fsal_export *exp_hdl)
+static fsal_aclsupp_t fs_acl_support(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = pseudofs_staticinfo(exp_hdl->fsal);
+	info = pseudofs_staticinfo(namespace->fsal);
 	return fsal_acl_support(info);
 }
 
-static attrmask_t fs_supported_attrs(struct fsal_export *exp_hdl)
+static attrmask_t fs_supported_attrs(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = pseudofs_staticinfo(exp_hdl->fsal);
+	info = pseudofs_staticinfo(namespace->fsal);
 	return fsal_supported_attrs(info);
 }
 
-static uint32_t fs_umask(struct fsal_export *exp_hdl)
+static uint32_t fs_umask(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = pseudofs_staticinfo(exp_hdl->fsal);
+	info = pseudofs_staticinfo(namespace->fsal);
 	return fsal_umask(info);
 }
 
-static uint32_t fs_xattr_access_rights(struct fsal_export *exp_hdl)
+static uint32_t fs_xattr_access_rights(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = pseudofs_staticinfo(exp_hdl->fsal);
+	info = pseudofs_staticinfo(namespace->fsal);
 	return fsal_xattr_access_rights(info);
 }
 
 /* get_quota
- * return quotas for this export.
+ * return quotas for this namespace.
  * path could cross a lower mount boundary which could
- * mask lower mount values with those of the export root
+ * mask lower mount values with those of the namespace root
  * if this is a real issue, we can scan each time with setmntent()
  * better yet, compare st_dev of the file with st_dev of root_fd.
  * on linux, can map st_dev -> /proc/partitions name -> /dev/<name>
  */
 
-static fsal_status_t get_quota(struct fsal_export *exp_hdl,
+static fsal_status_t get_quota(struct fsal_namespace *namespace,
 			       const char *filepath, int quota_type,
 			       struct req_op_context *req_ctx,
 			       fsal_quota_t *pquota)
@@ -221,7 +222,7 @@ static fsal_status_t get_quota(struct fsal_export *exp_hdl,
  * same lower mount restriction applies
  */
 
-static fsal_status_t set_quota(struct fsal_export *exp_hdl,
+static fsal_status_t set_quota(struct fsal_namespace *namespace,
 			       const char *filepath, int quota_type,
 			       struct req_op_context *req_ctx,
 			       fsal_quota_t *pquota, fsal_quota_t *presquota)
@@ -245,7 +246,7 @@ static fsal_status_t set_quota(struct fsal_export *exp_hdl,
  * comes from us anyway, it's up to us to get it right elsewhere).
  */
 
-static fsal_status_t extract_handle(struct fsal_export *exp_hdl,
+static fsal_status_t extract_handle(struct fsal_namespace *namespace,
 				    fsal_digesttype_t in_type,
 				    struct gsh_buffdesc *fh_desc)
 {
@@ -270,11 +271,11 @@ static fsal_status_t extract_handle(struct fsal_export *exp_hdl,
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
-/* pseudofs_export_ops_init
+/* pseudofs_namespace_ops_init
  * overwrite vector entries with the methods that we support
  */
 
-void pseudofs_export_ops_init(struct export_ops *ops)
+void pseudofs_namespace_ops_init(struct namespace_ops *ops)
 {
 	ops->release = release;
 	ops->lookup_path = pseudofs_lookup_path;
@@ -298,10 +299,10 @@ void pseudofs_export_ops_init(struct export_ops *ops)
 }
 
 /* create_export
- * Create an export point and return a handle to it to be kept
+ * Create an namespace point and return a handle to it to be kept
  * in the export list.
- * First lookup the fsal, then create the export and then put the fsal back.
- * returns the export with one reference taken.
+ * First lookup the fsal, then create the namespace and then put the fsal back.
+ * returns the namespace with one reference taken.
  */
 
 fsal_status_t pseudofs_create_export(struct fsal_module *fsal_hdl,
@@ -310,56 +311,56 @@ fsal_status_t pseudofs_create_export(struct fsal_module *fsal_hdl,
 				     struct exportlist *exp_entry,
 				     struct fsal_module *next_fsal,
 				     const struct fsal_up_vector *up_ops,
-				     struct fsal_export **export)
+				     struct fsal_namespace **namespace)
 {
-	struct pseudofs_fsal_export *myself;
+	struct pseudofs_fsal_namespace *myself;
 	int retval = 0;
 
-	*export = NULL;		/* poison it first */
+	*namespace = NULL;		/* poison it first */
 
 	if (next_fsal != NULL) {
 		LogCrit(COMPONENT_FSAL, "This module is not stackable");
 		return fsalstat(ERR_FSAL_INVAL, 0);
 	}
 
-	myself = gsh_calloc(1, sizeof(struct pseudofs_fsal_export));
+	myself = gsh_calloc(1, sizeof(struct pseudofs_fsal_namespace));
 
 	if (myself == NULL) {
 		LogMajor(COMPONENT_FSAL,
-			 "Could not allocate export");
+			 "Could not allocate namespace");
 		return fsalstat(posix2fsal_error(errno), errno);
 	}
 
-	retval = fsal_export_init(&myself->export, exp_entry);
+	retval = fsal_namespace_init(&myself->namespace, exp_entry);
 
 	if (retval != 0) {
 		LogMajor(COMPONENT_FSAL,
-			 "Could not initialize export");
+			 "Could not initialize namespace");
 		gsh_free(myself);
 		return fsalstat(posix2fsal_error(retval), retval);
 	}
 
-	pseudofs_export_ops_init(myself->export.ops);
-	pseudofs_handle_ops_init(myself->export.obj_ops);
+	pseudofs_namespace_ops_init(myself->namespace.ops);
+	pseudofs_handle_ops_init(myself->namespace.obj_ops);
 
-	myself->export.up_ops = up_ops;
+	myself->namespace.up_ops = up_ops;
 
 	/* lock myself before attaching to the fsal.
 	 * keep myself locked until done with creating myself.
 	 */
 
-	pthread_mutex_lock(&myself->export.lock);
+	pthread_mutex_lock(&myself->namespace.lock);
 
-	retval = fsal_attach_export(fsal_hdl, &myself->export.exports);
+	retval = fsal_attach_namespace(fsal_hdl, &myself->namespace.namespaces);
 
 	if (retval != 0) {
 		/* seriously bad */
 		LogMajor(COMPONENT_FSAL,
-			 "Could not attach export");
+			 "Could not attach namespace");
 		goto errout;
 	}
 
-	myself->export.fsal = fsal_hdl;
+	myself->namespace.fsal = fsal_hdl;
 
 	/* Save the export path. */
 	myself->export_path = gsh_strdup(export_path);
@@ -371,12 +372,12 @@ fsal_status_t pseudofs_create_export(struct fsal_module *fsal_hdl,
 		goto errout;
 	}
 
-	*export = &myself->export;
+	*namespace = &myself->namespace;
 
-	pthread_mutex_unlock(&myself->export.lock);
+	pthread_mutex_unlock(&myself->namespace.lock);
 
 	LogDebug(COMPONENT_FSAL,
-		 "Created exp %p - %s",
+		 "Created namespace %p - %s",
 		 myself, myself->export_path);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
@@ -389,10 +390,10 @@ fsal_status_t pseudofs_create_export(struct fsal_module *fsal_hdl,
 	if (myself->root_handle != NULL)
 		gsh_free(myself->root_handle);
 
-	free_export_ops(&myself->export);
+	free_namespace_ops(&myself->namespace);
 
-	pthread_mutex_unlock(&myself->export.lock);
-	pthread_mutex_destroy(&myself->export.lock);
+	pthread_mutex_unlock(&myself->namespace.lock);
+	pthread_mutex_destroy(&myself->namespace.lock);
 
 	gsh_free(myself);	/* elvis has left the building */
 

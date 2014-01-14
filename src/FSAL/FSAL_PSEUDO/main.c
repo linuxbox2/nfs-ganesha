@@ -92,7 +92,7 @@ static struct fsal_staticfsinfo_t default_posix_info = {
 	.xattr_access_rights = 0400,	/* root=RW, owner=R */
 };
 
-/* private helper for export object
+/* private helper for namespace object
  */
 
 struct fsal_staticfsinfo_t *pseudofs_staticinfo(struct fsal_module *hdl)
@@ -160,7 +160,7 @@ static fsal_status_t init_config(struct fsal_module *fsal_hdl,
 
 static struct pseudo_fsal_module PSEUDOFS;
 
-/* linkage to the exports and handle ops initializers
+/* linkage to the namespaces and handle ops initializers
  */
 
 int unload_pseudo_fsal(struct fsal_module *fsal_hdl)

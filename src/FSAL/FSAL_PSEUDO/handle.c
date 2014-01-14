@@ -168,7 +168,7 @@ static void package_pseudo_handle(char *buff,
 /**
  * @brief Concatenate a number of pseudofs tokens into a string
  *
- * When reading pseudofs paths from export entries, we divide the
+ * When reading pseudofs paths from namespace entries, we divide the
  * path into tokens. This function will recombine a specific number
  * of those tokens into a string.
  *
@@ -208,7 +208,7 @@ static int fullpath(struct display_buffer *pathbuf,
 static struct pseudo_fsal_obj_handle
 *alloc_directory_handle(struct pseudo_fsal_obj_handle *parent,
 			const char *name,
-			struct fsal_export *exp_hdl,
+			struct fsal_namespace *namespace,
 			mode_t unix_mode,
 			const struct req_op_context *opctx)
 {
@@ -252,7 +252,7 @@ static struct pseudo_fsal_obj_handle
 
 	hdl->obj_handle.type = DIRECTORY;
 
-	hdl->obj_handle.export = exp_hdl;
+	hdl->obj_handle.namespace = namespace;
 
 	/* Fills the output struct */
 	hdl->obj_handle.attributes.type = DIRECTORY;
@@ -307,7 +307,7 @@ static struct pseudo_fsal_obj_handle
 	hdl->obj_handle.attributes.rawdev.minor = 0;
 	FSAL_SET_MASK(hdl->obj_handle.attributes.mask, ATTR_RAWDEV);
 
-	if (!fsal_obj_handle_init(&hdl->obj_handle, exp_hdl, DIRECTORY)) {
+	if (!fsal_obj_handle_init(&hdl->obj_handle, namespace, DIRECTORY)) {
 		avltree_init(&hdl->avl_name, pseudofs_n_cmpf, 0 /* flags */);
 		avltree_init(&hdl->avl_index, pseudofs_i_cmpf, 0 /* flags */);
 		hdl->next_i = 2;
@@ -442,12 +442,12 @@ static fsal_status_t makedir(struct fsal_obj_handle *dir_hdl,
 			      obj_handle);
 
 	unix_mode = fsal2unix_mode(attrib->mode)
-	    & ~dir_hdl->export->ops->fs_umask(dir_hdl->export);
+	    & ~dir_hdl->namespace->ops->fs_umask(dir_hdl->namespace);
 
 	/* allocate an obj_handle and fill it up */
 	hdl = alloc_directory_handle(myself,
 				     name,
-				     myself->obj_handle.export,
+				     myself->obj_handle.namespace,
 				     unix_mode,
 				     opctx);
 
@@ -759,7 +759,7 @@ static void handle_to_key(struct fsal_obj_handle *obj_hdl,
 
 /*
  * release
- * release our export first so they know we are gone
+ * release our namespace first so they know we are gone
  */
 
 static fsal_status_t release(struct fsal_obj_handle *obj_hdl)
@@ -840,7 +840,7 @@ void pseudofs_handle_ops_init(struct fsal_obj_ops *ops)
 
 }
 
-/* export methods that create object handles
+/* namespace methods that create object handles
  */
 
 /* lookup_path
@@ -848,14 +848,15 @@ void pseudofs_handle_ops_init(struct fsal_obj_ops *ops)
  * KISS
  */
 
-fsal_status_t pseudofs_lookup_path(struct fsal_export *exp_hdl,
+fsal_status_t pseudofs_lookup_path(struct fsal_namespace *namespace,
 				 const struct req_op_context *opctx,
 				 const char *path,
 				 struct fsal_obj_handle **handle)
 {
-	struct pseudofs_fsal_export *myself;
+	struct pseudofs_fsal_namespace *myself;
 
-	myself = container_of(exp_hdl, struct pseudofs_fsal_export, export);
+	myself =
+	     container_of(namespace, struct pseudofs_fsal_namespace, namespace);
 
 	if (strcmp(path, myself->export_path) != 0) {
 		/* Lookup of a path other than the export's root. */
@@ -869,7 +870,7 @@ fsal_status_t pseudofs_lookup_path(struct fsal_export *exp_hdl,
 		myself->root_handle =
 			alloc_directory_handle(NULL,
 					       myself->export_path,
-					       exp_hdl,
+					       namespace,
 					       0755,
 					       opctx);
 
@@ -896,7 +897,7 @@ fsal_status_t pseudofs_lookup_path(struct fsal_export *exp_hdl,
  * Ideas and/or clever hacks are welcome...
  */
 
-fsal_status_t pseudofs_create_handle(struct fsal_export *exp_hdl,
+fsal_status_t pseudofs_create_handle(struct fsal_namespace *namespace,
 				   const struct req_op_context *opctx,
 				   struct gsh_buffdesc *hdl_desc,
 				   struct fsal_obj_handle **handle)
@@ -916,9 +917,9 @@ fsal_status_t pseudofs_create_handle(struct fsal_export *exp_hdl,
 		return fsalstat(ERR_FSAL_BADHANDLE, 0);
 	}
 
-	pthread_mutex_lock(&exp_hdl->lock);
+	pthread_mutex_lock(&namespace->lock);
 
-	glist_for_each(glist, &exp_hdl->handles) {
+	glist_for_each(glist, &namespace->handles) {
 		hdl = glist_entry(glist, struct fsal_obj_handle, handles);
 
 		my_hdl = container_of(hdl,
@@ -934,7 +935,7 @@ fsal_status_t pseudofs_create_handle(struct fsal_export *exp_hdl,
 
 			*handle = hdl;
 
-			pthread_mutex_unlock(&exp_hdl->lock);
+			pthread_mutex_unlock(&namespace->lock);
 
 			return fsalstat(ERR_FSAL_NO_ERROR, 0);
 		}
@@ -943,7 +944,7 @@ fsal_status_t pseudofs_create_handle(struct fsal_export *exp_hdl,
 	LogDebug(COMPONENT_FSAL,
 		"Could not find handle");
 
-	pthread_mutex_unlock(&exp_hdl->lock);
+	pthread_mutex_unlock(&namespace->lock);
 
 	return fsalstat(ERR_FSAL_STALE, ESTALE);
 }

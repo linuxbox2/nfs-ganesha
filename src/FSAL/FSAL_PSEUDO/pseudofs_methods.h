@@ -36,20 +36,20 @@
 struct pseudo_fsal_obj_handle;
 
 /*
- * PSEUDOFS internal export
+ * PSEUDOFS internal namespace
  */
-struct pseudofs_fsal_export {
-	struct fsal_export export;
+struct pseudofs_fsal_namespace {
+	struct fsal_namespace namespace;
 	char *export_path;
 	struct pseudo_fsal_obj_handle *root_handle;
 };
 
-fsal_status_t pseudofs_lookup_path(struct fsal_export *exp_hdl,
+fsal_status_t pseudofs_lookup_path(struct fsal_namespace *namespace,
 				 const struct req_op_context *opctx,
 				 const char *path,
 				 struct fsal_obj_handle **handle);
 
-fsal_status_t pseudofs_create_handle(struct fsal_export *exp_hdl,
+fsal_status_t pseudofs_create_handle(struct fsal_namespace *namespace,
 				   const struct req_op_context *opctx,
 				   struct gsh_buffdesc *hdl_desc,
 				   struct fsal_obj_handle **handle);
@@ -164,7 +164,7 @@ fsal_status_t pseudofs_remove_extattr_by_name(struct fsal_obj_handle *obj_hdl,
 
 void pseudofs_handle_ops_init(struct fsal_obj_ops *ops);
 
-/* Internal PSEUDOFS method linkage to export object
+/* Internal PSEUDOFS method linkage to namespace object
  */
 
 fsal_status_t pseudofs_create_export(struct fsal_module *fsal_hdl,
@@ -173,4 +173,4 @@ fsal_status_t pseudofs_create_export(struct fsal_module *fsal_hdl,
 				     struct exportlist *exp_entry,
 				     struct fsal_module *next_fsal,
 				     const struct fsal_up_vector *up_ops,
-				     struct fsal_export **export);
+				     struct fsal_namespace **namespace);
