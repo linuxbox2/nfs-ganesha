@@ -37,8 +37,8 @@ struct pxy_fsal_module {
 /*       struct fsal_ops pxy_ops; */
 };
 
-struct pxy_export {
-	struct fsal_export exp;
+struct pxy_namespace {
+	struct fsal_namespace namespace;
 	const proxyfs_specific_initinfo_t *info;
 };
 
@@ -92,12 +92,12 @@ fsal_status_t pxy_remove_extattr_by_name(struct fsal_obj_handle *obj_hdl,
 					 const struct req_op_context *opctx,
 					 const char *xattr_name);
 
-fsal_status_t pxy_lookup_path(struct fsal_export *exp_hdl,
+fsal_status_t pxy_lookup_path(struct fsal_namespace *namespace,
 			      const struct req_op_context *opctx,
 			      const char *path,
 			      struct fsal_obj_handle **handle);
 
-fsal_status_t pxy_create_handle(struct fsal_export *exp_hdl,
+fsal_status_t pxy_create_handle(struct fsal_namespace *namespace,
 				const struct req_op_context *opctx,
 				struct gsh_buffdesc *hdl_desc,
 				struct fsal_obj_handle **handle);
@@ -107,13 +107,13 @@ fsal_status_t pxy_create_export(struct fsal_module *fsal_hdl,
 				struct exportlist *exp_entry,
 				struct fsal_module *next_fsal,
 				const struct fsal_up_vector *up_ops,
-				struct fsal_export **export);
+				struct fsal_namespace **namespace);
 
-fsal_status_t pxy_get_dynamic_info(struct fsal_export *,
+fsal_status_t pxy_get_dynamic_info(struct fsal_namespace *,
 				   const struct req_op_context *,
 				   fsal_dynamicfsinfo_t *);
 
-fsal_status_t pxy_extract_handle(struct fsal_export *, fsal_digesttype_t,
+fsal_status_t pxy_extract_handle(struct fsal_namespace *, fsal_digesttype_t,
 				 struct gsh_buffdesc *);
 
 #endif

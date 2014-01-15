@@ -8,7 +8,7 @@ add_definitions(
 SET(fsalproxy_LIB_SRCS
    handle.c
    proxy.c
-   export.c
+   namespace.c
    xattrs.c
 )
 
