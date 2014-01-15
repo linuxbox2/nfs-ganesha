@@ -61,7 +61,7 @@
  * FSAL_truncate:
  * Modify the data length of a regular file.
  *
- * \param export (input):
+ * \param namespace (input):
  *        For use of mount fd
  * \param p_filehandle (input):
  *        Handle of the file is to be truncated.
@@ -81,7 +81,7 @@
  *        - ERR_FSAL_NO_ERROR     (no error)
  *        - Another error code if an error occurred.
  */
-fsal_status_t PTFSAL_truncate(struct fsal_export * export,	/* IN */
+fsal_status_t PTFSAL_truncate(struct fsal_namespace * namespace,	/* IN */
 			      struct pt_fsal_obj_handle * p_filehandle,	/* IN */
 			      const struct req_op_context * p_context,	/* IN */
 			      size_t length,	/* IN */
@@ -96,7 +96,7 @@ fsal_status_t PTFSAL_truncate(struct fsal_export * export,	/* IN */
 	/* sanity checks.
 	 * note : object_attributes is optional.
 	 */
-	if (!p_filehandle || !p_context || !export)
+	if (!p_filehandle || !p_context || !namespace)
 		return fsalstat(ERR_FSAL_FAULT, 0);
 
 	ptfsal_print_handle(p_filehandle->handle->data.handle.f_handle);
@@ -107,7 +107,7 @@ fsal_status_t PTFSAL_truncate(struct fsal_export * export,	/* IN */
 		FSI_TRACE(FSI_DEBUG,
 			  "Truncating with fd=%d, truncate length=%ld", fd,
 			  length);
-		rc = ptfsal_ftruncate(p_context, export, fd, length);
+		rc = ptfsal_ftruncate(p_context, namespace, fd, length);
 		errsv = errno;
 	}
 
@@ -124,7 +124,7 @@ fsal_status_t PTFSAL_truncate(struct fsal_export * export,	/* IN */
 		FSI_TRACE(FSI_DEBUG,
 			  "Truncating with POSIX truncate fd=%d, truncate length=%ld",
 			  fd, length);
-		rc = ptfsal_ftruncate(p_context, export, fd, length);
+		rc = ptfsal_ftruncate(p_context, namespace, fd, length);
 		errsv = errno;
 
 		/* Before checking for truncate error, close the fd we opened */
@@ -144,7 +144,7 @@ fsal_status_t PTFSAL_truncate(struct fsal_export * export,	/* IN */
 
 		fsal_status_t st;
 
-		st = PTFSAL_getattrs(export, p_context, p_filehandle->handle,
+		st = PTFSAL_getattrs(namespace, p_context, p_filehandle->handle,
 				     p_object_attributes);
 
 		if (FSAL_IS_ERROR(st)) {

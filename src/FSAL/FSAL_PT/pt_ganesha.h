@@ -293,7 +293,7 @@ void fsi_get_whole_path(const char *parentPath, const char *name, char *path);
 int fsi_cache_name_and_handle(const struct req_op_context *p_context,
 			      char *handle, char *name);
 int fsi_get_name_from_handle(const struct req_op_context *p_context,
-			     struct fsal_export *export,
+			     struct fsal_namespace *namespace,
 			     ptfsal_handle_t * pt_handle, char *name,
 			     int *handle_index);
 int fsi_update_cache_name(char *oldname, char *newname);
@@ -315,11 +315,11 @@ struct fsi_handle_cache_t {
 };
 
 int ptfsal_stat_by_handle(const struct req_op_context *p_context,
-			  struct fsal_export *export,
+			  struct fsal_namespace *namespace,
 			  ptfsal_handle_t * p_filehandle, struct stat *p_stat);
 
 int ptfsal_stat_by_name(const struct req_op_context *p_context,
-			struct fsal_export *export, const char *p_fsalpath,
+			struct fsal_namespace *namespace, const char *p_fsalpath,
 			fsi_stat_struct * p_stat);
 
 int ptfsal_stat_by_parent_name(const struct req_op_context *p_context,
@@ -328,18 +328,18 @@ int ptfsal_stat_by_parent_name(const struct req_op_context *p_context,
 			       fsi_stat_struct * p_stat);
 
 int ptfsal_opendir(const struct req_op_context *p_context,
-		   struct fsal_export *export, const char *filename,
+		   struct fsal_namespace *namespace, const char *filename,
 		   const char *mask, uint32_t attr);
 
 int ptfsal_readdir(const struct req_op_context *p_context,
-		   struct fsal_export *export, fsal_dir_t * dir_desc,
+		   struct fsal_namespace *namespace, fsal_dir_t * dir_desc,
 		   fsi_stat_struct * sbuf, char *fsi_dname);
 
 int ptfsal_closedir(const struct req_op_context *p_context,
-		    struct fsal_export *export, fsal_dir_t * dir_desc);
+		    struct fsal_namespace *namespace, fsal_dir_t * dir_desc);
 
 int ptfsal_closedir_fd(const struct req_op_context *p_context,
-		       struct fsal_export *export, int fd);
+		       struct fsal_namespace *namespace, int fd);
 
 int ptfsal_fsync(struct pt_fsal_obj_handle *p_file_descriptor,
 		 const struct req_op_context *opctx);
@@ -352,10 +352,10 @@ int ptfsal_open(struct pt_fsal_obj_handle *p_parent_directory_handle,
 		const char *p_filename, const struct req_op_context *p_context,
 		mode_t mode, ptfsal_handle_t * p_object_handle);
 
-int ptfsal_close_mount_root(fsal_export_context_t * p_export_context);
+int ptfsal_close_mount_root(fsal_namespace_context_t * p_namespace_context);
 
 int ptfsal_ftruncate(const struct req_op_context *p_context,
-		     struct fsal_export *export, int handle_index,
+		     struct fsal_namespace *namespace, int handle_index,
 		     uint64_t offset);
 
 int ptfsal_unlink(const struct req_op_context *p_context,
@@ -371,14 +371,14 @@ int ptfsal_rename(const struct req_op_context *p_context,
 int fsi_check_handle_index(int handle_index);
 
 int ptfsal_chown(const struct req_op_context *p_context,
-		 struct fsal_export *export, const char *path, uid_t uid,
+		 struct fsal_namespace *namespace, const char *path, uid_t uid,
 		 gid_t gid);
 
 int ptfsal_chmod(const struct req_op_context *p_context,
-		 struct fsal_export *export, const char *path, mode_t mode);
+		 struct fsal_namespace *namespace, const char *path, mode_t mode);
 
 int ptfsal_ntimes(const struct req_op_context *p_context,
-		  struct fsal_export *export, const char *filename,
+		  struct fsal_namespace *namespace, const char *filename,
 		  uint64_t atime, uint64_t mtime);
 
 int ptfsal_mkdir(struct pt_fsal_obj_handle *p_parent_directory_handle,
@@ -393,7 +393,7 @@ int ptfsal_dynamic_fsinfo(struct pt_fsal_obj_handle *p_filehandle,
 			  const struct req_op_context *p_context,
 			  fsal_dynamicfsinfo_t * p_dynamicinfo);
 
-int ptfsal_readlink(ptfsal_handle_t * p_linkhandle, struct fsal_export *export,
+int ptfsal_readlink(ptfsal_handle_t * p_linkhandle, struct fsal_namespace *namespace,
 		    const struct req_op_context *p_context, char *p_buf);
 
 int ptfsal_symlink(struct pt_fsal_obj_handle *p_parent_directory_handle,
@@ -406,12 +406,12 @@ int ptfsal_SetDefault_FS_specific_parameter(
     );
 
 int ptfsal_name_to_handle(const struct req_op_context *p_context,
-			  struct fsal_export *export, const char *p_fsalpath,
+			  struct fsal_namespace *namespace, const char *p_fsalpath,
 			  ptfsal_handle_t * p_handle);
 
 int ptfsal_handle_to_name(ptfsal_handle_t * p_filehandle,
 			  const struct req_op_context *p_context,
-			  struct fsal_export *export, char *path);
+			  struct fsal_namespace *namespace, char *path);
 
 uint64_t ptfsal_read(struct pt_fsal_obj_handle *p_file_descriptor,
 		     const struct req_op_context *opctx, char *buf, size_t size,
@@ -425,7 +425,7 @@ void ptfsal_print_handle(char *handle);
 
 mode_t fsal_type2unix(int fsal_type);
 
-void ptfsal_set_fsi_handle_data(struct fsal_export *export,
+void ptfsal_set_fsi_handle_data(struct fsal_namespace *namespace,
 				const struct req_op_context *p_context,
 				ccl_context_t * context);
 void *ptfsal_closeHandle_listener_thread(void *args);

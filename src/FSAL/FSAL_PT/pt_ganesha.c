@@ -135,7 +135,7 @@ int fsi_cache_name_and_handle(const struct req_op_context *p_context,
 
 // -----------------------------------------------------------------------------
 int fsi_get_name_from_handle(const struct req_op_context *p_context,
-			     /*IN*/ struct fsal_export *export,
+			     /*IN*/ struct fsal_namespace *namespace,
 			     ptfsal_handle_t * pt_handle, /*IN*/ char *name,
 			     /*OUT*/ int *handle_index) /*OUT*/
 {
@@ -204,7 +204,7 @@ int fsi_get_name_from_handle(const struct req_op_context *p_context,
 		}
 	}
 
-	ptfsal_set_fsi_handle_data(export, p_context, &ccl_context);
+	ptfsal_set_fsi_handle_data(namespace, p_context, &ccl_context);
 
 	// Look up our front end opened handle cache
 
@@ -460,11 +460,11 @@ int ptfsal_rename(const struct req_op_context *p_context,
 	char fsi_old_fullpath[PATH_MAX];
 	char fsi_new_fullpath[PATH_MAX];
 
-	ptfsal_set_fsi_handle_data(p_old_parentdir_handle->obj_handle.export,
+	ptfsal_set_fsi_handle_data(p_old_parentdir_handle->obj_handle.namespace,
 				   p_context, &ccl_context);
 
 	rc = fsi_get_name_from_handle(p_context,
-				      p_old_parentdir_handle->obj_handle.export,
+				      p_old_parentdir_handle->obj_handle.namespace,
 				      p_old_parentdir_handle->handle,
 				      fsi_old_parent_dir_name, NULL);
 	if (rc < 0) {
@@ -472,7 +472,7 @@ int ptfsal_rename(const struct req_op_context *p_context,
 		return rc;
 	}
 	rc = fsi_get_name_from_handle(p_context,
-				      p_new_parentdir_handle->obj_handle.export,
+				      p_new_parentdir_handle->obj_handle.namespace,
 				      p_new_parentdir_handle->handle,
 				      fsi_new_parent_dir_name, NULL);
 	if (rc < 0) {
@@ -509,12 +509,12 @@ int ptfsal_stat_by_parent_name(const struct req_op_context *p_context,
 	char fsi_parent_dir_name[PATH_MAX];
 	char fsi_fullpath[PATH_MAX];
 
-	ptfsal_set_fsi_handle_data(p_parentdir_handle->obj_handle.export,
+	ptfsal_set_fsi_handle_data(p_parentdir_handle->obj_handle.namespace,
 				   p_context, &ccl_context);
 
 	stat_rc =
 	    fsi_get_name_from_handle(p_context,
-				     p_parentdir_handle->obj_handle.export,
+				     p_parentdir_handle->obj_handle.namespace,
 				     p_parentdir_handle->handle,
 				     fsi_parent_dir_name, NULL);
 	if (stat_rc < 0) {
@@ -533,14 +533,14 @@ int ptfsal_stat_by_parent_name(const struct req_op_context *p_context,
 
 // -----------------------------------------------------------------------------
 int ptfsal_stat_by_name(const struct req_op_context *p_context,
-			struct fsal_export *export, const char *p_fsalpath,
+			struct fsal_namespace *namespace, const char *p_fsalpath,
 			fsi_stat_struct * p_stat)
 {
 	int stat_rc;
 
 	ccl_context_t ccl_context;
 
-	ptfsal_set_fsi_handle_data(export, p_context, &ccl_context);
+	ptfsal_set_fsi_handle_data(namespace, p_context, &ccl_context);
 
 	FSI_TRACE(FSI_DEBUG, "FSI - name = %s\n", p_fsalpath);
 
@@ -569,7 +569,7 @@ void fsi_stat2stat(fsi_stat_struct * fsi_stat, struct stat *p_stat)
 }
 
 int ptfsal_stat_by_handle(const struct req_op_context *p_context,
-			  struct fsal_export *export,
+			  struct fsal_namespace *namespace,
 			  ptfsal_handle_t * p_filehandle, struct stat *p_stat)
 {
 	int stat_rc;
@@ -583,11 +583,11 @@ int ptfsal_stat_by_handle(const struct req_op_context *p_context,
 	memset(&fsi_stat, 0, sizeof(fsi_stat));
 	ptfsal_print_handle(p_fsi_handle->data.handle.f_handle);
 
-	ptfsal_set_fsi_handle_data(export, p_context, &ccl_context);
+	ptfsal_set_fsi_handle_data(namespace, p_context, &ccl_context);
 
 	memset(fsi_name, 0, sizeof(fsi_name));
 	stat_rc =
-	    fsi_get_name_from_handle(p_context, export, p_filehandle, fsi_name,
+	    fsi_get_name_from_handle(p_context, namespace, p_filehandle, fsi_name,
 				     NULL);
 	FSI_TRACE(FSI_DEBUG, "FSI - rc = %d\n", stat_rc);
 	if (stat_rc) {
@@ -648,7 +648,7 @@ int ptfsal_stat_by_handle(const struct req_op_context *p_context,
 
 // -----------------------------------------------------------------------------
 int ptfsal_opendir(const struct req_op_context *p_context,
-		   struct fsal_export *export, const char *filename,
+		   struct fsal_namespace *namespace, const char *filename,
 		   const char *mask, uint32_t attr)
 {
 	int dir_handle;
@@ -656,7 +656,7 @@ int ptfsal_opendir(const struct req_op_context *p_context,
 
 	ccl_context_t ccl_context;
 
-	ptfsal_set_fsi_handle_data(export, p_context, &ccl_context);
+	ptfsal_set_fsi_handle_data(namespace, p_context, &ccl_context);
 
 	FSI_TRACE(FSI_DEBUG, "This will be full path: %s\n", filename);
 	dir_handle = CCL_OPENDIR(&ccl_context, filename, mask, attr);
@@ -674,7 +674,7 @@ int ptfsal_opendir(const struct req_op_context *p_context,
 
 // -----------------------------------------------------------------------------
 int ptfsal_readdir(const struct req_op_context *p_context,
-		   struct fsal_export *export, fsal_dir_t * dir_desc,
+		   struct fsal_namespace *namespace, fsal_dir_t * dir_desc,
 		   fsi_stat_struct * sbuf, char *fsi_dname)
 {
 
@@ -685,7 +685,7 @@ int ptfsal_readdir(const struct req_op_context *p_context,
 	ptfsal_dir_t *p_dir_descriptor = dir_desc;
 
 	dir_hnd_index = p_dir_descriptor->fd;
-	ptfsal_set_fsi_handle_data(export, p_context, &ccl_context);
+	ptfsal_set_fsi_handle_data(namespace, p_context, &ccl_context);
 
 	struct fsi_struct_dir_t *dirp = (struct fsi_struct_dir_t *)
 	    &g_fsi_dir_handles_fsal->m_dir_handle[dir_hnd_index].
@@ -704,13 +704,13 @@ int ptfsal_readdir(const struct req_op_context *p_context,
 
 // -----------------------------------------------------------------------------
 int ptfsal_closedir(const struct req_op_context *p_context,
-		    struct fsal_export *export, fsal_dir_t * dir_desc)
+		    struct fsal_namespace *namespace, fsal_dir_t * dir_desc)
 {
 	int dir_hnd_index;
 	ccl_context_t ccl_context;
 	ptfsal_dir_t *ptfsal_dir_descriptor = (ptfsal_dir_t *) dir_desc;
 
-	ptfsal_set_fsi_handle_data(export, p_context, &ccl_context);
+	ptfsal_set_fsi_handle_data(namespace, p_context, &ccl_context);
 
 	dir_hnd_index = ptfsal_dir_descriptor->fd;
 
@@ -722,12 +722,12 @@ int ptfsal_closedir(const struct req_op_context *p_context,
 }
 
 int ptfsal_closedir_fd(const struct req_op_context *p_context,
-		       struct fsal_export *export, int fd)
+		       struct fsal_namespace *namespace, int fd)
 {
 	int dir_hnd_index = fd;
 	ccl_context_t ccl_context;
 
-	ptfsal_set_fsi_handle_data(export, p_context, &ccl_context);
+	ptfsal_set_fsi_handle_data(namespace, p_context, &ccl_context);
 
 	struct fsi_struct_dir_t *dirp = (struct fsi_struct_dir_t *)
 	    &g_fsi_dir_handles_fsal->m_dir_handle[dir_hnd_index].
@@ -778,12 +778,12 @@ int ptfsal_open_by_handle(const struct req_op_context *p_context,
 	FSI_TRACE(FSI_DEBUG, "Open by Handle:");
 	ptfsal_print_handle(p_fsi_handle->data.handle.f_handle);
 
-	ptfsal_set_fsi_handle_data(p_object_handle->obj_handle.export,
+	ptfsal_set_fsi_handle_data(p_object_handle->obj_handle.namespace,
 				   p_context, &ccl_context);
 
 	strcpy(fsi_filename, "");
 	rc = fsi_get_name_from_handle(p_context,
-				      p_object_handle->obj_handle.export,
+				      p_object_handle->obj_handle.namespace,
 				      p_object_handle->handle, fsi_filename,
 				      &handle_index);
 	err = 0;
@@ -905,12 +905,12 @@ int ptfsal_open(struct pt_fsal_obj_handle *p_parent_directory_handle,
 	ptfsal_handle_t *p_fsi_handle = p_object_handle;
 	ccl_context_t ccl_context;
 
-	ptfsal_set_fsi_handle_data(p_parent_directory_handle->obj_handle.export,
+	ptfsal_set_fsi_handle_data(p_parent_directory_handle->obj_handle.namespace,
 				   p_context, &ccl_context);
 
 	rc = fsi_get_name_from_handle(p_context,
 				      p_parent_directory_handle->obj_handle.
-				      export, p_parent_directory_handle->handle,
+				      namespace, p_parent_directory_handle->handle,
 				      fsi_parent_dir_name, NULL);
 	if (rc < 0) {
 		FSI_TRACE(FSI_ERR,
@@ -940,7 +940,7 @@ int ptfsal_open(struct pt_fsal_obj_handle *p_parent_directory_handle,
 		memcpy(fsal_path, &fsi_name, PATH_MAX);
 		rc = ptfsal_name_to_handle(p_context,
 					   p_parent_directory_handle->
-					   obj_handle.export, fsal_path,
+					   obj_handle.namespace, fsal_path,
 					   p_object_handle);
 		if (rc != 0) {
 			FSI_TRACE(FSI_ERR, "Name to handle failed\n");
@@ -961,14 +961,14 @@ int ptfsal_open(struct pt_fsal_obj_handle *p_parent_directory_handle,
 }
 
 // -----------------------------------------------------------------------------
-int ptfsal_close_mount_root(fsal_export_context_t * p_export_context)
+int ptfsal_close_mount_root(fsal_namespace_context_t * p_namespace_context)
 {
-	ptfsal_export_context_t *fsi_export_context = p_export_context;
+	ptfsal_namespace_context_t *fsi_namespace_context = p_namespace_context;
 
 	// Change to NFS_CLOSE only if it is NFS_OPEN. The calling function will ignore
 	// other nfs state.
 	int state_rc =
-	    CCL_SAFE_UPDATE_HANDLE_NFS_STATE(fsi_export_context->mount_root_fd,
+	    CCL_SAFE_UPDATE_HANDLE_NFS_STATE(fsi_namespace_context->mount_root_fd,
 					     NFS_CLOSE,
 					     NFS_OPEN);
 	if (state_rc) {
@@ -981,13 +981,13 @@ int ptfsal_close_mount_root(fsal_export_context_t * p_export_context)
 
 // -----------------------------------------------------------------------------
 int ptfsal_ftruncate(const struct req_op_context *p_context,
-		     struct fsal_export *export, int handle_index,
+		     struct fsal_namespace *namespace, int handle_index,
 		     uint64_t offset)
 {
 	ccl_context_t ccl_context;
 	int ftrunc_rc;
 
-	ptfsal_set_fsi_handle_data(export, p_context, &ccl_context);
+	ptfsal_set_fsi_handle_data(namespace, p_context, &ccl_context);
 
 	ftrunc_rc = CCL_FTRUNCATE(&ccl_context, handle_index, offset);
 
@@ -1010,7 +1010,7 @@ int ptfsal_unlink(const struct req_op_context *p_context,
 	int handle_index_to_close;
 	rc = fsi_get_name_from_handle(p_context,
 				      p_parent_directory_handle->obj_handle.
-				      export, p_parent_directory_handle->handle,
+				      namespace, p_parent_directory_handle->handle,
 				      fsi_parent_dir_name, NULL);
 	if (rc < 0) {
 		FSI_TRACE(FSI_ERR, "Failed to get name from handle.");
@@ -1019,7 +1019,7 @@ int ptfsal_unlink(const struct req_op_context *p_context,
 	fsi_get_whole_path(fsi_parent_dir_name, p_filename, fsi_fullpath);
 	FSI_TRACE(FSI_DEBUG, "Full path is %s", fsi_fullpath);
 
-	ptfsal_set_fsi_handle_data(p_parent_directory_handle->obj_handle.export,
+	ptfsal_set_fsi_handle_data(p_parent_directory_handle->obj_handle.namespace,
 				   p_context, &ccl_context);
 
 	handle_index_to_close =
@@ -1056,35 +1056,35 @@ int ptfsal_unlink(const struct req_op_context *p_context,
 
 // -----------------------------------------------------------------------------
 int ptfsal_chmod(const struct req_op_context *p_context,
-		 struct fsal_export *export, const char *path, mode_t mode)
+		 struct fsal_namespace *namespace, const char *path, mode_t mode)
 {
 	ccl_context_t ccl_context;
 
-	ptfsal_set_fsi_handle_data(export, p_context, &ccl_context);
+	ptfsal_set_fsi_handle_data(namespace, p_context, &ccl_context);
 
 	return CCL_CHMOD(&ccl_context, path, mode);
 }
 
 // -----------------------------------------------------------------------------
 int ptfsal_chown(const struct req_op_context *p_context,
-		 struct fsal_export *export, const char *path, uid_t uid,
+		 struct fsal_namespace *namespace, const char *path, uid_t uid,
 		 gid_t gid)
 {
 	ccl_context_t ccl_context;
 
-	ptfsal_set_fsi_handle_data(export, p_context, &ccl_context);
+	ptfsal_set_fsi_handle_data(namespace, p_context, &ccl_context);
 
 	return CCL_CHOWN(&ccl_context, path, uid, gid);
 }
 
 // -----------------------------------------------------------------------------
 int ptfsal_ntimes(const struct req_op_context *p_context,
-		  struct fsal_export *export, const char *filename,
+		  struct fsal_namespace *namespace, const char *filename,
 		  uint64_t atime, uint64_t mtime)
 {
 	ccl_context_t ccl_context;
 
-	ptfsal_set_fsi_handle_data(export, p_context, &ccl_context);
+	ptfsal_set_fsi_handle_data(namespace, p_context, &ccl_context);
 
 	// not changing create time in NFS
 	return CCL_NTIMES(&ccl_context, filename, atime, mtime, 0);
@@ -1104,13 +1104,13 @@ int ptfsal_mkdir(struct pt_fsal_obj_handle *p_parent_directory_handle,
 	ptfsal_handle_t *p_fsi_handle = p_object_handle;
 	ccl_context_t ccl_context;
 
-	ptfsal_set_fsi_handle_data(p_parent_directory_handle->obj_handle.export,
+	ptfsal_set_fsi_handle_data(p_parent_directory_handle->obj_handle.namespace,
 				   p_context, &ccl_context);
 
 	/* build new entry path */
 	rc = fsi_get_name_from_handle(p_context,
 				      p_parent_directory_handle->obj_handle.
-				      export, p_parent_directory_handle->handle,
+				      namespace, p_parent_directory_handle->handle,
 				      fsi_parent_dir_name, NULL);
 	if (rc < 0) {
 		FSI_TRACE(FSI_ERR, "Handle to name failed for hanlde %s",
@@ -1139,7 +1139,7 @@ int ptfsal_mkdir(struct pt_fsal_obj_handle *p_parent_directory_handle,
 
 		ptfsal_name_to_handle(p_context,
 				      p_parent_directory_handle->obj_handle.
-				      export, fsal_path, p_object_handle);
+				      namespace, fsal_path, p_object_handle);
 		fsi_cache_name_and_handle(p_context,
 					  (char *)&p_fsi_handle->data.handle.
 					  f_handle, fsi_name);
@@ -1160,7 +1160,7 @@ int ptfsal_rmdir(const struct req_op_context *p_context,
 
 	rc = fsi_get_name_from_handle(p_context,
 				      p_parent_directory_handle->obj_handle.
-				      export, p_parent_directory_handle->handle,
+				      namespace, p_parent_directory_handle->handle,
 				      fsi_parent_dir_name, NULL);
 	if (rc < 0) {
 		FSI_TRACE(FSI_ERR, "Failed to get name from handle.");
@@ -1169,7 +1169,7 @@ int ptfsal_rmdir(const struct req_op_context *p_context,
 	fsi_get_whole_path(fsi_parent_dir_name, p_object_name, fsi_fullpath);
 	FSI_TRACE(FSI_DEBUG, "Full path is %s", fsi_fullpath);
 
-	ptfsal_set_fsi_handle_data(p_parent_directory_handle->obj_handle.export,
+	ptfsal_set_fsi_handle_data(p_parent_directory_handle->obj_handle.namespace,
 				   p_context, &ccl_context);
 
 	rc = CCL_RMDIR(&ccl_context, fsi_fullpath);
@@ -1292,14 +1292,14 @@ int ptfsal_dynamic_fsinfo(struct pt_fsal_obj_handle *p_filehandle,
 	struct CCLClientOpDynamicFsInfoRspMsg fs_info;
 
 	rc = ptfsal_handle_to_name(p_filehandle->handle, p_context,
-				   p_filehandle->obj_handle.export, fsi_name);
+				   p_filehandle->obj_handle.namespace, fsi_name);
 	if (rc) {
 		return rc;
 	}
 
 	FSI_TRACE(FSI_DEBUG, "Name = %s", fsi_name);
 
-	ptfsal_set_fsi_handle_data(p_filehandle->obj_handle.export, p_context,
+	ptfsal_set_fsi_handle_data(p_filehandle->obj_handle.namespace, p_context,
 				   &ccl_context);
 	rc = CCL_DYNAMIC_FSINFO(&ccl_context, fsi_name, &fs_info);
 	if (rc) {
@@ -1321,7 +1321,7 @@ int ptfsal_dynamic_fsinfo(struct pt_fsal_obj_handle *p_filehandle,
 }
 
 // -----------------------------------------------------------------------------
-int ptfsal_readlink(ptfsal_handle_t * p_linkhandle, struct fsal_export *export,
+int ptfsal_readlink(ptfsal_handle_t * p_linkhandle, struct fsal_namespace *namespace,
 		    const struct req_op_context *p_context, char *p_buf)
 {
 	int rc;
@@ -1331,7 +1331,7 @@ int ptfsal_readlink(ptfsal_handle_t * p_linkhandle, struct fsal_export *export,
 	struct CCLPersistentHandle pt_handler;
 	ptfsal_handle_t *p_fsi_handle = p_linkhandle;
 
-	ptfsal_set_fsi_handle_data(export, p_context, &ccl_context);
+	ptfsal_set_fsi_handle_data(namespace, p_context, &ccl_context);
 
 	memcpy(&pt_handler.handle, &p_fsi_handle->data.handle.f_handle,
 	       sizeof(pt_handler.handle));
@@ -1339,7 +1339,7 @@ int ptfsal_readlink(ptfsal_handle_t * p_linkhandle, struct fsal_export *export,
 	FSI_TRACE(FSI_DEBUG, "Handle=%s", pt_handler.handle);
 
 	memset(fsi_name, 0, sizeof(fsi_name));
-	rc = ptfsal_handle_to_name(p_linkhandle, p_context, export, fsi_name);
+	rc = ptfsal_handle_to_name(p_linkhandle, p_context, namespace, fsi_name);
 	if (rc) {
 		return rc;
 	}
@@ -1359,7 +1359,7 @@ int ptfsal_symlink(struct pt_fsal_obj_handle *p_parent_directory_handle,
 	ccl_context_t ccl_context;
 	char pt_path[PATH_MAX];
 
-	ptfsal_set_fsi_handle_data(p_parent_directory_handle->obj_handle.export,
+	ptfsal_set_fsi_handle_data(p_parent_directory_handle->obj_handle.namespace,
 				   p_context, &ccl_context);
 
 	rc = CCL_SYMLINK(&ccl_context, p_linkname, p_linkcontent);
@@ -1371,7 +1371,7 @@ int ptfsal_symlink(struct pt_fsal_obj_handle *p_parent_directory_handle,
 	memcpy(pt_path, p_linkname, PATH_MAX);
 
 	rc = ptfsal_name_to_handle(p_context,
-				   p_parent_directory_handle->obj_handle.export,
+				   p_parent_directory_handle->obj_handle.namespace,
 				   pt_path, p_link_handle);
 
 	return rc;
@@ -1379,7 +1379,7 @@ int ptfsal_symlink(struct pt_fsal_obj_handle *p_parent_directory_handle,
 
 // -----------------------------------------------------------------------------
 int ptfsal_name_to_handle(const struct req_op_context *p_context,
-			  struct fsal_export *export, const char *p_fsalpath,
+			  struct fsal_namespace *namespace, const char *p_fsalpath,
 			  ptfsal_handle_t * p_handle)
 {
 	int rc;
@@ -1389,7 +1389,7 @@ int ptfsal_name_to_handle(const struct req_op_context *p_context,
 	ptfsal_handle_t *p_fsi_handle = p_handle;
 	fsi_stat_struct fsi_stat;
 
-	ptfsal_set_fsi_handle_data(export, p_context, &ccl_context);
+	ptfsal_set_fsi_handle_data(namespace, p_context, &ccl_context);
 
 	memset(&pt_handler, 0, sizeof(struct CCLPersistentHandle));
 	rc = CCL_NAME_TO_HANDLE(&ccl_context, p_fsalpath, &pt_handler);
@@ -1398,7 +1398,7 @@ int ptfsal_name_to_handle(const struct req_op_context *p_context,
 		return rc;
 	}
 
-	rc = ptfsal_stat_by_name(p_context, export, p_fsalpath, &fsi_stat);
+	rc = ptfsal_stat_by_name(p_context, namespace, p_fsalpath, &fsi_stat);
 
 	if (rc) {
 		FSI_TRACE(FSI_DEBUG, "stat by name failed %d!", rc);
@@ -1426,14 +1426,14 @@ int ptfsal_name_to_handle(const struct req_op_context *p_context,
 // -----------------------------------------------------------------------------
 int ptfsal_handle_to_name(ptfsal_handle_t * p_filehandle,
 			  const struct req_op_context *p_context,
-			  struct fsal_export *export, char *path)
+			  struct fsal_namespace *namespace, char *path)
 {
 	int rc;
 	ccl_context_t ccl_context;
 	struct CCLPersistentHandle pt_handler;
 	ptfsal_handle_t *p_fsi_handle = p_filehandle;
 
-	ptfsal_set_fsi_handle_data(export, p_context, &ccl_context);
+	ptfsal_set_fsi_handle_data(namespace, p_context, &ccl_context);
 
 	memcpy(&pt_handler.handle, &p_fsi_handle->data.handle.f_handle,
 	       sizeof(pt_handler.handle));
@@ -1495,13 +1495,13 @@ mode_t fsal_type2unix(int fsal_type)
 }
 
 // This function will fill in ccl_context_t
-void ptfsal_set_fsi_handle_data(struct fsal_export *exp_hdl,
+void ptfsal_set_fsi_handle_data(struct fsal_namespace *namespace,
 				const struct req_op_context *p_context,
 				ccl_context_t * ccl_context)
 {
 	unsigned char *bytes;
-	struct pt_fsal_export *myself;
-	myself = container_of(exp_hdl, struct pt_fsal_export, export);
+	struct pt_fsal_namespace *myself;
+	myself = container_of(namespace, struct pt_fsal_namespace, namespace);
 
 	ccl_context->export_id = myself->pt_export_id;;
 	ccl_context->uid = 0;	//(p_context == NULL?0: p_context->creds->caller_uid);

@@ -81,7 +81,7 @@
 #define fsal_op_context_t ptfsal_op_context_t
 #define fsal_file_t ptfsal_file_t
 #define fsal_dir_t ptfsal_dir_t
-#define fsal_export_context_t ptfsal_export_context_t
+#define fsal_namespace_context_t ptfsal_namespace_context_t
 #define fsal_lockdesc_t ptfsal_lockdesc_t
 #define fsal_cookie_t ptfsal_cookie_t
 #define fs_specific_initinfo_t ptfs_specific_initinfo_t
@@ -160,14 +160,14 @@ typedef struct {
 	unsigned int fsid[2];
 	int ganesha_export_id;	/* This is Export_Id */
 	uint64_t pt_export_id;	/* This is PT side FS export ID */
-} ptfsal_export_context_t;
+} ptfsal_namespace_context_t;
 
 /*                              
- * PT internal export     
+ * PT internal namespace     
  */
 
-struct pt_fsal_export {
-	struct fsal_export export;
+struct pt_fsal_namespace {
+	struct fsal_namespace namespace;
 	char *mntdir;
 	char *fs_spec;
 	char *fstype;
@@ -182,7 +182,7 @@ struct pt_fsal_export {
 
 typedef struct {
 	/* Must be the first entry in this structure */
-	ptfsal_export_context_t *export_context;
+	ptfsal_namespace_context_t *namespace_context;
 	struct user_cred credential;
 	int64_t latency;
 	unsigned int count;

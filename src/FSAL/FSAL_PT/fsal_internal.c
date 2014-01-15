@@ -75,10 +75,10 @@ static fsal_status_t fsal_internal_testAccess_no_acl(const struct req_op_context
 
 /**
  * fsal_internal_handle2fd:
- * Open a file by handle within an export.
+ * Open a file by handle within an namespace.
  *
  * \param p_context (input):
- *        Pointer to current context.  Used to get export root fd.
+ *        Pointer to current context.  Used to get namespace root fd.
  * \param phandle (input):
  *        Opaque filehandle
  * \param pfd (output):
@@ -150,7 +150,7 @@ fsal_status_t fsal_internal_handle2fd_at(const struct req_op_context *
 	} else {
 		stat_rc =
 		    fsi_get_name_from_handle(p_context,
-					     myself->obj_handle.export,
+					     myself->obj_handle.namespace,
 					     myself->handle, fsi_name, NULL);
 		if (stat_rc < 0) {
 			err = errno;
@@ -160,7 +160,7 @@ fsal_status_t fsal_internal_handle2fd_at(const struct req_op_context *
 		}
 		FSI_TRACE(FSI_DEBUG, "NAME: %s", fsi_name);
 		open_rc =
-		    ptfsal_opendir(p_context, myself->obj_handle.export,
+		    ptfsal_opendir(p_context, myself->obj_handle.namespace,
 				   fsi_name, NULL, 0);
 		if (open_rc < 0) {
 			err = errno;
@@ -188,7 +188,7 @@ fsal_status_t fsal_internal_handle2fd_at(const struct req_op_context *
  * Create a handle from a file path
  *
  * \param pcontext (input):
- *        A context pointer for the root of the current export
+ *        A context pointer for the root of the current namespace
  * \param p_fsalpath (input):
  *        Full path to the file
  * \param p_handle (output):
@@ -196,7 +196,7 @@ fsal_status_t fsal_internal_handle2fd_at(const struct req_op_context *
  *
  * \return status of operation
  */
-fsal_status_t fsal_internal_get_handle(const struct req_op_context * p_context, struct fsal_export * export, const char *p_fsalpath,	/* IN */
+fsal_status_t fsal_internal_get_handle(const struct req_op_context * p_context, struct fsal_namespace * namespace, const char *p_fsalpath,	/* IN */
 				       ptfsal_handle_t * p_handle)
 {				/* OUT */
 	int rc;
@@ -209,7 +209,7 @@ fsal_status_t fsal_internal_get_handle(const struct req_op_context * p_context, 
 		return fsalstat(ERR_FSAL_FAULT, 0);
 
 	memset(p_handle, 0, sizeof(ptfsal_handle_t));
-	rc = ptfsal_stat_by_name(p_context, export, p_fsalpath, &buffstat);
+	rc = ptfsal_stat_by_name(p_context, namespace, p_fsalpath, &buffstat);
 
 	FSI_TRACE(FSI_DEBUG, "Stat call return %d", rc);
 	if (rc) {
@@ -246,7 +246,7 @@ fsal_status_t fsal_internal_get_handle(const struct req_op_context * p_context, 
  *
  * \return status of operation
  */
-fsal_status_t fsal_internal_get_handle_at(const struct req_op_context * p_context, struct fsal_export * export, int dfd, const char *p_fsalname,	/* IN */
+fsal_status_t fsal_internal_get_handle_at(const struct req_op_context * p_context, struct fsal_namespace * namespace, int dfd, const char *p_fsalname,	/* IN */
 					  ptfsal_handle_t * p_handle)
 {				/* OUT */
 	fsi_stat_struct buffstat;
@@ -268,7 +268,7 @@ fsal_status_t fsal_internal_get_handle_at(const struct req_op_context * p_contex
 
 	memset(fsal_path, 0, PATH_MAX);
 	memcpy(fsal_path, p_fsalname, PATH_MAX);
-	stat_rc = ptfsal_stat_by_name(p_context, export, fsal_path, &buffstat);
+	stat_rc = ptfsal_stat_by_name(p_context, namespace, fsal_path, &buffstat);
 
 	if (stat_rc == 0) {
 		memcpy(&p_handle->data.handle.f_handle,
@@ -319,7 +319,7 @@ fsal_status_t fsal_internal_fd2handle(int fd, ptfsal_handle_t * p_handle)
  * \return status of operation
  */
 fsal_status_t fsal_readlink_by_handle(const struct req_op_context * p_context,
-				      struct fsal_export * export,
+				      struct fsal_namespace * namespace,
 				      ptfsal_handle_t * p_handle, char *__buf,
 				      size_t maxlen)
 {
@@ -328,7 +328,7 @@ fsal_status_t fsal_readlink_by_handle(const struct req_op_context * p_context,
 	FSI_TRACE(FSI_DEBUG, "Begin - readlink_by_handle\n");
 
 	memset(__buf, 0, maxlen);
-	rc = ptfsal_readlink(p_handle, export, p_context, __buf);
+	rc = ptfsal_readlink(p_handle, namespace, p_context, __buf);
 
 	if (rc < 0)
 		return fsalstat(rc, 0);

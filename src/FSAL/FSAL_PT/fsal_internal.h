@@ -77,14 +77,14 @@ fsal_status_t fsal_internal_handle2fd_at(const struct req_op_context *p_context,
  * Access a link by a file handle.
  */
 fsal_status_t fsal_readlink_by_handle(const struct req_op_context *p_context,
-				      struct fsal_export *export,
+				      struct fsal_namespace *namespace,
 				      ptfsal_handle_t * p_handle, char *__buf,
 				      size_t maxlen);
 
-fsal_status_t fsal_internal_get_handle_at(const struct req_op_context *p_context, struct fsal_export *export, int dfd, const char *p_fsalname,	/* IN */
+fsal_status_t fsal_internal_get_handle_at(const struct req_op_context *p_context, struct fsal_namespace *namespace, int dfd, const char *p_fsalname,	/* IN */
 					  ptfsal_handle_t * p_handle);
 
-fsal_status_t fsal_internal_get_handle(const struct req_op_context *p_context, struct fsal_export *export, const char *p_fsalpath,	/* IN */
+fsal_status_t fsal_internal_get_handle(const struct req_op_context *p_context, struct fsal_namespace *namespace, const char *p_fsalpath,	/* IN */
 				       ptfsal_handle_t * p_handle);
 /**
  * Get the handle for a path (posix or fid path)
@@ -114,7 +114,7 @@ fsal_status_t PTFSAL_access(ptfsal_handle_t * p_object_handle,	/* IN */
 			    fsal_accessflags_t access_type,	/* IN */
 			    struct attrlist *p_object_attributes);	/* IN/OUT */
 
-fsal_status_t PTFSAL_getattrs(struct fsal_export *export,	/* IN */
+fsal_status_t PTFSAL_getattrs(struct fsal_namespace *namespace,	/* IN */
 			      const struct req_op_context *p_context,	/* IN */
 			      ptfsal_handle_t * p_filehandle,	/* IN */
 			      struct attrlist *p_object_attributes);	/* IN/OUT */
@@ -262,7 +262,7 @@ unsigned int PTFSAL_Handle_to_HashIndex(ptfsal_handle_t * p_handle,
 unsigned int PTFSAL_Handle_to_RBTIndex(ptfsal_handle_t * p_handle,
 				       unsigned int cookie);
 
-fsal_status_t PTFSAL_truncate(struct fsal_export *export,	/* IN */
+fsal_status_t PTFSAL_truncate(struct fsal_namespace *namespace,	/* IN */
 			      struct pt_fsal_obj_handle *p_filehandle,	/* IN */
 			      const struct req_op_context *p_context,	/* IN */
 			      size_t length,	/* IN */

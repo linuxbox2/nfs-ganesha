@@ -20,7 +20,7 @@ SET(fsalpt_LIB_SRCS
   pt_ganesha.c
   pt_ganesha.h
   pt_methods.h
-  export.c
+  namespace.c
   handle.c
   main.c
   file.c

@@ -48,7 +48,7 @@ extern fsal_status_t ptfsal_xstat_2_fsal_attributes(ptfsal_xstat_t *
  *        - ERR_FSAL_NO_ERROR     (no error)
  *        - Another error code if an error occured.
  */
-fsal_status_t PTFSAL_getattrs(struct fsal_export *export,
+fsal_status_t PTFSAL_getattrs(struct fsal_namespace *namespace,
 			      const struct req_op_context *p_context,
 			      ptfsal_handle_t * p_filehandle,
 			      struct attrlist *p_object_attributes)
@@ -62,11 +62,11 @@ fsal_status_t PTFSAL_getattrs(struct fsal_export *export,
 	/* sanity checks.
 	 * note : object_attributes is mandatory in PTFSAL_getattrs.
 	 */
-	if (!p_filehandle || !export || !p_object_attributes)
+	if (!p_filehandle || !namespace || !p_object_attributes)
 		return fsalstat(ERR_FSAL_FAULT, 0);
 
 	stat_rc =
-	    ptfsal_stat_by_handle(p_context, export, p_filehandle, &buffstat);
+	    ptfsal_stat_by_handle(p_context, namespace, p_filehandle, &buffstat);
 
 	if (stat_rc > 0)
 		err = stat_rc;
@@ -153,7 +153,7 @@ fsal_status_t PTFSAL_setattrs(struct fsal_obj_handle * dir_hdl,	/* IN */
 	wanted_attrs = *p_attrib_set;
 
 	/* First, check that FSAL attributes changes are allowed. */
-	if (!dir_hdl->export->ops->fs_supports(dir_hdl->export, fso_cansettime)) {
+	if (!dir_hdl->namespace->ops->fs_supports(dir_hdl->namespace, fso_cansettime)) {
 		if (wanted_attrs.mask &
 		    (ATTR_ATIME | ATTR_CREATION | ATTR_CTIME | ATTR_MTIME)) {
 			/* handled as an unsettable attribute. */
@@ -164,14 +164,14 @@ fsal_status_t PTFSAL_setattrs(struct fsal_obj_handle * dir_hdl,	/* IN */
 	/* apply umask, if mode attribute is to be changed */
 	if (FSAL_TEST_MASK(wanted_attrs.mask, ATTR_MODE)) {
 		wanted_attrs.mode &=
-		    ~dir_hdl->export->ops->fs_umask(dir_hdl->export);
+		    ~dir_hdl->namespace->ops->fs_umask(dir_hdl->namespace);
 	}
 
 	/* get current attributes */
 	current_attrs.mask =
-	    dir_hdl->export->ops->fs_supported_attrs(dir_hdl->export);
+	    dir_hdl->namespace->ops->fs_supported_attrs(dir_hdl->namespace);
 	status =
-	    PTFSAL_getattrs(dir_hdl->export, p_context, myself->handle,
+	    PTFSAL_getattrs(dir_hdl->namespace, p_context, myself->handle,
 			    &current_attrs);
 
 	if (FSAL_IS_ERROR(status))
@@ -191,7 +191,7 @@ fsal_status_t PTFSAL_setattrs(struct fsal_obj_handle * dir_hdl,	/* IN */
 		}
 
 		status =
-		    PTFSAL_truncate(dir_hdl->export, myself, p_context,
+		    PTFSAL_truncate(dir_hdl->namespace, myself, p_context,
 				    wanted_attrs.filesize, p_object_attributes);
 
 		if (FSAL_IS_ERROR(status)) {
@@ -218,7 +218,7 @@ fsal_status_t PTFSAL_setattrs(struct fsal_obj_handle * dir_hdl,	/* IN */
 				  buffxstat.buffstat.st_mode);
 
 			rc = fsi_get_name_from_handle(p_context,
-						      myself->obj_handle.export,
+						      myself->obj_handle.namespace,
 						      myself->handle, fsi_name,
 						      NULL);
 			if (rc < 0) {
@@ -233,7 +233,7 @@ fsal_status_t PTFSAL_setattrs(struct fsal_obj_handle * dir_hdl,	/* IN */
 				  fsi_name,
 				  myself->handle->data.handle.f_handle);
 
-			rc = ptfsal_chmod(p_context, dir_hdl->export, fsi_name,
+			rc = ptfsal_chmod(p_context, dir_hdl->namespace, fsi_name,
 					  unix2fsal_mode(buffxstat.buffstat.
 							 st_mode));
 			if (rc == -1) {
@@ -283,7 +283,7 @@ fsal_status_t PTFSAL_setattrs(struct fsal_obj_handle * dir_hdl,	/* IN */
 			  current_attrs.group, buffxstat.buffstat.st_gid);
 
 		rc = fsi_get_name_from_handle(p_context,
-					      myself->obj_handle.export,
+					      myself->obj_handle.namespace,
 					      myself->handle, fsi_name, NULL);
 		if (rc < 0) {
 			FSI_TRACE(FSI_ERR,
@@ -296,7 +296,7 @@ fsal_status_t PTFSAL_setattrs(struct fsal_obj_handle * dir_hdl,	/* IN */
 
 		FSI_TRACE(FSI_DEBUG, "handle to name: %s for handle %s",
 			  fsi_name, myself->handle->data.handle.f_handle);
-		rc = ptfsal_chown(p_context, dir_hdl->export, fsi_name,
+		rc = ptfsal_chown(p_context, dir_hdl->namespace, fsi_name,
 				  buffxstat.buffstat.st_uid,
 				  buffxstat.buffstat.st_gid);
 		if (rc == -1) {
@@ -345,7 +345,7 @@ fsal_status_t PTFSAL_setattrs(struct fsal_obj_handle * dir_hdl,	/* IN */
 			  (unsigned long)buffxstat.buffstat.st_mtime);
 
 		rc = fsi_get_name_from_handle(p_context,
-					      myself->obj_handle.export,
+					      myself->obj_handle.namespace,
 					      myself->handle, fsi_name, NULL);
 		if (rc < 0) {
 			FSI_TRACE(FSI_ERR,
@@ -360,7 +360,7 @@ fsal_status_t PTFSAL_setattrs(struct fsal_obj_handle * dir_hdl,	/* IN */
 		FSI_TRACE(FSI_DEBUG, "Handle to name: %s for handle %s",
 			  fsi_name, myself->handle->data.handle.f_handle);
 
-		rc = ptfsal_ntimes(p_context, dir_hdl->export, fsi_name,
+		rc = ptfsal_ntimes(p_context, dir_hdl->namespace, fsi_name,
 				   buffxstat.buffstat.st_atime,
 				   buffxstat.buffstat.st_mtime);
 		if (rc == -1) {
@@ -376,7 +376,7 @@ fsal_status_t PTFSAL_setattrs(struct fsal_obj_handle * dir_hdl,	/* IN */
 
 	if (p_object_attributes) {
 		status =
-		    PTFSAL_getattrs(dir_hdl->export, p_context, myself->handle,
+		    PTFSAL_getattrs(dir_hdl->namespace, p_context, myself->handle,
 				    p_object_attributes);
 
 		/* on error, we set a special bit in the mask. */

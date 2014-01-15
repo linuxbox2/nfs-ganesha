@@ -112,7 +112,7 @@ fsal_status_t PTFSAL_lookup(const struct req_op_context *p_context,
 
 	/* get directory metadata */
 	parent_dir_attrs->mask =
-	    parent->export->ops->fs_supported_attrs(parent->export);
+	    parent->namespace->ops->fs_supported_attrs(parent->namespace);
 	status =
 	    fsal_internal_handle2fd_at(p_context, parent_hdl, &parent_fd,
 				       O_RDONLY);
@@ -149,7 +149,7 @@ fsal_status_t PTFSAL_lookup(const struct req_op_context *p_context,
 	rc = ptfsal_stat_by_parent_name(p_context, parent_hdl, p_filename,
 					&buffstat);
 	if (rc < 0) {
-		ptfsal_closedir_fd(p_context, parent->export, parent_fd);
+		ptfsal_closedir_fd(p_context, parent->namespace, parent_fd);
 		return fsalstat(ERR_FSAL_NOENT, errno);
 	}
 	memset(fh->data.handle.f_handle, 0, sizeof(fh->data.handle.f_handle));
@@ -163,9 +163,9 @@ fsal_status_t PTFSAL_lookup(const struct req_op_context *p_context,
 	/* get object attributes */
 	if (p_object_attr) {
 		p_object_attr->mask =
-		    parent->export->ops->fs_supported_attrs(parent->export);
+		    parent->namespace->ops->fs_supported_attrs(parent->namespace);
 		status =
-		    PTFSAL_getattrs(parent->export, p_context, fh,
+		    PTFSAL_getattrs(parent->namespace, p_context, fh,
 				    p_object_attr);
 		if (FSAL_IS_ERROR(status)) {
 			FSAL_CLEAR_MASK(p_object_attr->mask);
@@ -173,7 +173,7 @@ fsal_status_t PTFSAL_lookup(const struct req_op_context *p_context,
 		}
 	}
 
-	ptfsal_closedir_fd(p_context, parent->export, parent_fd);
+	ptfsal_closedir_fd(p_context, parent->namespace, parent_fd);
 
 	FSI_TRACE(FSI_DEBUG, "End##################################\n");
 	/* lookup complete ! */

@@ -135,7 +135,7 @@ static struct fsal_staticfsinfo_t default_posix_info = {
 	.share_support_owner = false,
 };
 
-/* private helper for export object
+/* private helper for namespace object
  */
 
 struct fsal_staticfsinfo_t *pt_staticinfo(struct fsal_module *hdl)
@@ -186,7 +186,7 @@ static fsal_status_t init_config(struct fsal_module *fsal_hdl,
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
-/* Internal PT method linkage to export object
+/* Internal PT method linkage to namespace object
  */
 
 fsal_status_t pt_create_export(struct fsal_module * fsal_hdl,
@@ -194,7 +194,7 @@ fsal_status_t pt_create_export(struct fsal_module * fsal_hdl,
 			       struct exportlist * exp_entry,
 			       struct fsal_module * next_fsal,
 			       const struct fsal_up_vector * up_ops,
-			       struct fsal_export ** export);
+			       struct fsal_namespace ** namespace);
 /* Module initialization.
  * Called by dlopen() to register the module
  * keep a private pointer to me in myself
@@ -205,7 +205,7 @@ fsal_status_t pt_create_export(struct fsal_module * fsal_hdl,
 
 static struct pt_fsal_module PT;
 
-/* linkage to the exports and handle ops initializers
+/* linkage to the namespaces and handle ops initializers
  */
 
 MODULE_INIT void pt_init(void)

@@ -4,14 +4,14 @@
 #ifndef PT_METHODS_H
 #define PT_METHODS_H
 
-/* method proto linkage to handle.c for export
+/* method proto linkage to handle.c for namespace
  */
 
-fsal_status_t pt_lookup_path(struct fsal_export *exp_hdl,
+fsal_status_t pt_lookup_path(struct fsal_namespace *namespace,
 			     const struct req_op_context *opctx,
 			     const char *path, struct fsal_obj_handle **handle);
 
-fsal_status_t pt_create_handle(struct fsal_export *exp_hdl,
+fsal_status_t pt_create_handle(struct fsal_namespace *namespace,
 			       const struct req_op_context *opctx,
 			       struct gsh_buffdesc *hdl_desc,
 			       struct fsal_obj_handle **handle);
