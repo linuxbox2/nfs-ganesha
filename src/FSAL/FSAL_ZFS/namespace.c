@@ -25,8 +25,8 @@
  * -------------
  */
 
-/* export.c
- * VFS FSAL export object
+/* namespace.c
+ * VFS FSAL namespace object
  */
 
 #include "config.h"
@@ -46,11 +46,11 @@ size_t i_snapshots = 0;
 snapshot_t *p_snapshots = NULL;
 
 /*
- * VFS internal export
+ * VFS internal namespace
  */
 
-struct zfs_fsal_export {
-	struct fsal_export export;
+struct zfs_fsal_namespace {
+	struct fsal_namespace namespace;
 	libzfswrap_vfs_t *p_vfs;
 };
 
@@ -59,52 +59,52 @@ struct zfs_fsal_export {
 
 struct fsal_staticfsinfo_t *zfs_staticinfo(struct fsal_module *hdl);
 
-libzfswrap_vfs_t *tank_get_root_pvfs(struct fsal_export *exp_hdl)
+libzfswrap_vfs_t *tank_get_root_pvfs(struct fsal_namespace *namespace)
 {
-	struct zfs_fsal_export *myself;
+	struct zfs_fsal_namespace *myself;
 
-	myself = container_of(exp_hdl, struct zfs_fsal_export, export);
+	myself = container_of(namespace, struct zfs_fsal_namespace, namespace);
 	return myself->p_vfs;
 }
 
-/* export object methods
+/* namespace object methods
  */
 
-static fsal_status_t release(struct fsal_export *exp_hdl)
+static fsal_status_t release(struct fsal_namespace *namespace)
 {
-	struct zfs_fsal_export *myself;
+	struct zfs_fsal_namespace *myself;
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 	int retval = 0;
 
-	myself = container_of(exp_hdl, struct zfs_fsal_export, export);
+	myself = container_of(namespace, struct zfs_fsal_namespace, namespace);
 
-	pthread_mutex_lock(&exp_hdl->lock);
-	if (exp_hdl->refs > 0 || !glist_empty(&exp_hdl->handles)) {
-		LogMajor(COMPONENT_FSAL, "ZFS release: export (0x%p)busy",
-			 exp_hdl);
+	pthread_mutex_lock(&namespace->lock);
+	if (namespace->refs > 0 || !glist_empty(&namespace->handles)) {
+		LogMajor(COMPONENT_FSAL, "ZFS release: namespace (0x%p)busy",
+			 namespace);
 		fsal_error = posix2fsal_error(EBUSY);
 		retval = EBUSY;
 		goto errout;
 	}
-	fsal_detach_export(exp_hdl->fsal, &exp_hdl->exports);
-	free_export_ops(exp_hdl);
-	myself->export.ops = NULL;	/* poison myself */
-	pthread_mutex_unlock(&exp_hdl->lock);
+	fsal_detach_namespace(namespace->fsal, &namespace->namespaces);
+	free_namespace_ops(namespace);
+	myself->namespace.ops = NULL;	/* poison myself */
+	pthread_mutex_unlock(&namespace->lock);
 
-	pthread_mutex_destroy(&exp_hdl->lock);
+	pthread_mutex_destroy(&namespace->lock);
 	gsh_free(myself);		/* elvis has left the building */
 	return fsalstat(fsal_error, retval);
 
  errout:
-	pthread_mutex_unlock(&exp_hdl->lock);
+	pthread_mutex_unlock(&namespace->lock);
 	return fsalstat(fsal_error, retval);
 }
 
-static fsal_status_t get_dynamic_info(struct fsal_export *exp_hdl,
+static fsal_status_t get_dynamic_info(struct fsal_namespace *namespace,
 				      const struct req_op_context *opctx,
 				      fsal_dynamicfsinfo_t *infop)
 {
-	struct zfs_fsal_export *myself;
+	struct zfs_fsal_namespace *myself;
 	struct statvfs statfs;
 
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
@@ -114,7 +114,7 @@ static fsal_status_t get_dynamic_info(struct fsal_export *exp_hdl,
 		fsal_error = ERR_FSAL_FAULT;
 		goto out;
 	}
-	myself = container_of(exp_hdl, struct zfs_fsal_export, export);
+	myself = container_of(namespace, struct zfs_fsal_namespace, namespace);
 	retval = libzfswrap_statfs(myself->p_vfs, &statfs);
 
 	if (retval < 0) {
@@ -138,100 +138,100 @@ static fsal_status_t get_dynamic_info(struct fsal_export *exp_hdl,
 	return fsalstat(fsal_error, retval);
 }
 
-static bool fs_supports(struct fsal_export *exp_hdl,
+static bool fs_supports(struct fsal_namespace *namespace,
 			fsal_fsinfo_options_t option)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = zfs_staticinfo(exp_hdl->fsal);
+	info = zfs_staticinfo(namespace->fsal);
 	return fsal_supports(info, option);
 }
 
-static uint64_t fs_maxfilesize(struct fsal_export *exp_hdl)
+static uint64_t fs_maxfilesize(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = zfs_staticinfo(exp_hdl->fsal);
+	info = zfs_staticinfo(namespace->fsal);
 	return fsal_maxfilesize(info);
 }
 
-static uint32_t fs_maxread(struct fsal_export *exp_hdl)
+static uint32_t fs_maxread(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = zfs_staticinfo(exp_hdl->fsal);
+	info = zfs_staticinfo(namespace->fsal);
 	return fsal_maxread(info);
 }
 
-static uint32_t fs_maxwrite(struct fsal_export *exp_hdl)
+static uint32_t fs_maxwrite(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = zfs_staticinfo(exp_hdl->fsal);
+	info = zfs_staticinfo(namespace->fsal);
 	return fsal_maxwrite(info);
 }
 
-static uint32_t fs_maxlink(struct fsal_export *exp_hdl)
+static uint32_t fs_maxlink(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = zfs_staticinfo(exp_hdl->fsal);
+	info = zfs_staticinfo(namespace->fsal);
 	return fsal_maxlink(info);
 }
 
-static uint32_t fs_maxnamelen(struct fsal_export *exp_hdl)
+static uint32_t fs_maxnamelen(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = zfs_staticinfo(exp_hdl->fsal);
+	info = zfs_staticinfo(namespace->fsal);
 	return fsal_maxnamelen(info);
 }
 
-static uint32_t fs_maxpathlen(struct fsal_export *exp_hdl)
+static uint32_t fs_maxpathlen(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = zfs_staticinfo(exp_hdl->fsal);
+	info = zfs_staticinfo(namespace->fsal);
 	return fsal_maxpathlen(info);
 }
 
-static struct timespec fs_lease_time(struct fsal_export *exp_hdl)
+static struct timespec fs_lease_time(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = zfs_staticinfo(exp_hdl->fsal);
+	info = zfs_staticinfo(namespace->fsal);
 	return fsal_lease_time(info);
 }
 
-static fsal_aclsupp_t fs_acl_support(struct fsal_export *exp_hdl)
+static fsal_aclsupp_t fs_acl_support(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = zfs_staticinfo(exp_hdl->fsal);
+	info = zfs_staticinfo(namespace->fsal);
 	return fsal_acl_support(info);
 }
 
-static attrmask_t fs_supported_attrs(struct fsal_export *exp_hdl)
+static attrmask_t fs_supported_attrs(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = zfs_staticinfo(exp_hdl->fsal);
+	info = zfs_staticinfo(namespace->fsal);
 	return fsal_supported_attrs(info);
 }
 
-static uint32_t fs_umask(struct fsal_export *exp_hdl)
+static uint32_t fs_umask(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = zfs_staticinfo(exp_hdl->fsal);
+	info = zfs_staticinfo(namespace->fsal);
 	return fsal_umask(info);
 }
 
-static uint32_t fs_xattr_access_rights(struct fsal_export *exp_hdl)
+static uint32_t fs_xattr_access_rights(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = zfs_staticinfo(exp_hdl->fsal);
+	info = zfs_staticinfo(namespace->fsal);
 	return fsal_xattr_access_rights(info);
 }
 
@@ -242,7 +242,7 @@ static uint32_t fs_xattr_access_rights(struct fsal_export *exp_hdl)
  * is the option to also adjust the start pointer.
  */
 
-static fsal_status_t tank_extract_handle(struct fsal_export *exp_hdl,
+static fsal_status_t tank_extract_handle(struct fsal_namespace *namespace,
 					 fsal_digesttype_t in_type,
 					 struct gsh_buffdesc *fh_desc)
 {
@@ -266,11 +266,11 @@ static fsal_status_t tank_extract_handle(struct fsal_export *exp_hdl,
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
-/* zfs_export_ops_init
+/* zfs_namespace_ops_init
  * overwrite vector entries with the methods that we support
  */
 
-void zfs_export_ops_init(struct export_ops *ops)
+void zfs_namespace_ops_init(struct namespace_ops *ops)
 {
 	ops->release = release;
 	ops->lookup_path = tank_lookup_path;
@@ -292,10 +292,10 @@ void zfs_export_ops_init(struct export_ops *ops)
 }
 
 /* create_export
- * Create an export point and return a handle to it to be kept
+ * Create an namespace point and return a handle to it to be kept
  * in the export list.
- * First lookup the fsal, then create the export and then put the fsal back.
- * returns the export with one reference taken.
+ * First lookup the fsal, then create the namespace and then put the fsal back.
+ * returns the namespace with one reference taken.
  */
 
 fsal_status_t zfs_create_export(struct fsal_module *fsal_hdl,
@@ -303,18 +303,18 @@ fsal_status_t zfs_create_export(struct fsal_module *fsal_hdl,
 				struct exportlist *exp_entry,
 				struct fsal_module *next_fsal,
 				const struct fsal_up_vector *up_ops,
-				struct fsal_export **export)
+				struct fsal_namespace **namespace)
 {
-	struct zfs_fsal_export *myself;
+	struct zfs_fsal_namespace *myself;
 	int retval = 0;
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 	libzfswrap_vfs_t *p_zfs = NULL;
 
-	*export = NULL;		/* poison it first */
+	*namespace = NULL;		/* poison it first */
 	if (export_path == NULL || strlen(export_path) == 0
 	    || strlen(export_path) > MAXPATHLEN) {
 		LogMajor(COMPONENT_FSAL,
-			 "zfs_create_export: export path empty or too big");
+			 "export path empty or too big");
 		return fsalstat(ERR_FSAL_INVAL, 0);
 	}
 	if (next_fsal != NULL) {
@@ -322,30 +322,30 @@ fsal_status_t zfs_create_export(struct fsal_module *fsal_hdl,
 		return fsalstat(ERR_FSAL_INVAL, 0);
 	}
 
-	myself = gsh_malloc(sizeof(struct zfs_fsal_export));
+	myself = gsh_malloc(sizeof(struct zfs_fsal_namespace));
 	if (myself == NULL) {
 		LogMajor(COMPONENT_FSAL,
-			 "zfs_fsal_create: out of memory for object");
+			 "out of memory for object");
 		return fsalstat(posix2fsal_error(errno), errno);
 	}
-	memset(myself, 0, sizeof(struct zfs_fsal_export));
+	memset(myself, 0, sizeof(struct zfs_fsal_namespace));
 
-	retval = fsal_export_init(&myself->export, exp_entry);
+	retval = fsal_namespace_init(&myself->namespace, exp_entry);
 	if (retval != 0)
 		goto errout;
 
-	zfs_export_ops_init(myself->export.ops);
-	zfs_handle_ops_init(myself->export.obj_ops);
-	myself->export.up_ops = up_ops;
+	zfs_namespace_ops_init(myself->namespace.ops);
+	zfs_handle_ops_init(myself->namespace.obj_ops);
+	myself->namespace.up_ops = up_ops;
 	/* lock myself before attaching to the fsal.
 	 * keep myself locked until done with creating myself.
 	 */
 
-	pthread_mutex_lock(&myself->export.lock);
-	retval = fsal_attach_export(fsal_hdl, &myself->export.exports);
+	pthread_mutex_lock(&myself->namespace.lock);
+	retval = fsal_attach_namespace(fsal_hdl, &myself->namespace.namespaces);
 	if (retval != 0)
 		goto errout;	/* seriously bad */
-	myself->export.fsal = fsal_hdl;
+	myself->namespace.fsal = fsal_hdl;
 
 	if (p_zhd == NULL) {
 		/* init libzfs library */
@@ -373,15 +373,15 @@ fsal_status_t zfs_create_export(struct fsal_module *fsal_hdl,
 	}
 
 	myself->p_vfs = p_snapshots[0].p_vfs;
-	*export = &myself->export;
-	pthread_mutex_unlock(&myself->export.lock);
+	*namespace = &myself->namespace;
+	pthread_mutex_unlock(&myself->namespace.lock);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 
  errout:
-	myself->export.ops = NULL;	/* poison myself */
-	pthread_mutex_unlock(&myself->export.lock);
-	pthread_mutex_destroy(&myself->export.lock);
+	myself->namespace.ops = NULL;	/* poison myself */
+	pthread_mutex_unlock(&myself->namespace.lock);
+	pthread_mutex_destroy(&myself->namespace.lock);
 	gsh_free(myself);		/* elvis has left the building */
 	return fsalstat(fsal_error, retval);
 }

@@ -85,7 +85,7 @@ static struct fsal_staticfsinfo_t default_zfs_info = {
 				 * open owners in FSAL */
 };
 
-/* private helper for export object
+/* private helper for namespace object
  */
 
 struct fsal_staticfsinfo_t *zfs_staticinfo(struct fsal_module *hdl)
@@ -136,7 +136,7 @@ static fsal_status_t init_config(struct fsal_module *fsal_hdl,
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
-/* Internal ZFS method linkage to export object
+/* Internal ZFS method linkage to namespace object
  */
 
 fsal_status_t zfs_create_export(struct fsal_module *fsal_hdl,
@@ -144,7 +144,7 @@ fsal_status_t zfs_create_export(struct fsal_module *fsal_hdl,
 				struct exportlist *exp_entry,
 				struct fsal_module *next_fsal,
 				const struct fsal_up_vector *up_ops,
-				struct fsal_export **export);
+				struct fsal_namespace **namespace);
 
 /* Module initialization.
  * Called by dlopen() to register the module

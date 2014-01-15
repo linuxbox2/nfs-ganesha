@@ -6,20 +6,20 @@ extern snapshot_t *p_snapshots;
 
 void zfs_handle_ops_init(struct fsal_obj_ops *ops);
 
-/* private helpers from export
+/* private helpers from namespace
  */
 
-libzfswrap_vfs_t *tank_get_root_pvfs(struct fsal_export *exp_hdl);
+libzfswrap_vfs_t *tank_get_root_pvfs(struct fsal_namespace *namespace);
 
-/* method proto linkage to handle.c for export
+/* method proto linkage to handle.c for namespace
  */
 
-fsal_status_t tank_lookup_path(struct fsal_export *exp_hdl,
+fsal_status_t tank_lookup_path(struct fsal_namespace *namespace,
 			       const struct req_op_context *opctx,
 			       const char *path,
 			       struct fsal_obj_handle **handle);
 
-fsal_status_t tank_create_handle(struct fsal_export *exp_hdl,
+fsal_status_t tank_create_handle(struct fsal_namespace *namespace,
 				 const struct req_op_context *opctx,
 				 struct gsh_buffdesc *hdl_desc,
 				 struct fsal_obj_handle **handle);

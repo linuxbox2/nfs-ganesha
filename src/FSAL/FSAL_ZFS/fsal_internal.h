@@ -10,10 +10,10 @@
 #include  "fsal.h"
 #include <libzfswrap.h>
 
-/* linkage to the exports and handle ops initializers
+/* linkage to the namespaces and handle ops initializers
  */
 
-void zfs_export_ops_init(struct export_ops *ops);
+void zfs_namespace_ops_init(struct namespace_ops *ops);
 void zfs_handle_ops_init(struct fsal_obj_ops *ops);
 
 /* libzfswrap handler, used only when the FSAL is created and destroyed */

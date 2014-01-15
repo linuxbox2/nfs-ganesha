@@ -5,7 +5,7 @@ SET(fsalzfs_LIB_SRCS
    fsal_convert.c
    fsal_internal.c
    main.c
-   export.c
+   namespace.c
    handle.c
    file.c
    xattrs.c
