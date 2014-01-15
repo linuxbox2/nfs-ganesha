@@ -1790,12 +1790,12 @@ static void grant_blocked_locks(cache_entry_t *entry,
 {
 	state_lock_entry_t *found_entry;
 	struct glist_head *glist, *glistn;
-	struct fsal_namespace *NAMESPACE = entry->obj_handle->namespace;
+	struct fsal_namespace *namespace = entry->obj_handle->namespace;
 
 	/* If FSAL supports async blocking locks,
 	 * allow it to grant blocked locks.
 	 */
-	if (NAMESPACE->ops->fs_supports(NAMESPACE,
+	if (namespace->ops->fs_supports(namespace,
 					fso_lock_support_async_block))
 		return;
 
@@ -2215,7 +2215,7 @@ static state_status_t do_lock_op(cache_entry_t *entry,
 	fsal_status_t fsal_status;
 	state_status_t status = STATE_SUCCESS;
 	fsal_lock_param_t conflicting_lock;
-	struct fsal_namespace *NAMESPACE = entry->obj_handle->namespace;
+	struct fsal_namespace *namespace = entry->obj_handle->namespace;
 
 	lock->lock_sle_type = sle_type;
 
@@ -2227,14 +2227,14 @@ static state_status_t do_lock_op(cache_entry_t *entry,
 	 *   overlaps a lock we already have (no need to make another FSAL
 	 *   call in that case)
 	 */
-	if (!NAMESPACE->ops->fs_supports(NAMESPACE, fso_lock_support)
-	    || (!NAMESPACE->ops->fs_supports(NAMESPACE,
+	if (!namespace->ops->fs_supports(namespace, fso_lock_support)
+	    || (!namespace->ops->fs_supports(namespace,
 					     fso_lock_support_async_block)
 		&& lock_op == FSAL_OP_CANCEL)
-	    || (!NAMESPACE->ops->fs_supports(NAMESPACE,
+	    || (!namespace->ops->fs_supports(namespace,
 					     fso_lock_support_async_block)
 		&& overlap)
-	    || (!NAMESPACE->ops->fs_supports(NAMESPACE,
+	    || (!namespace->ops->fs_supports(namespace,
 					     fso_lock_support_owner)
 		&& overlap))
 		return STATE_SUCCESS;
@@ -2244,17 +2244,17 @@ static state_status_t do_lock_op(cache_entry_t *entry,
 
 	memset(&conflicting_lock, 0, sizeof(conflicting_lock));
 
-	if (NAMESPACE->ops->fs_supports(NAMESPACE, fso_lock_support_owner)
+	if (namespace->ops->fs_supports(namespace, fso_lock_support_owner)
 	    || lock_op != FSAL_OP_UNLOCK) {
 		if (lock_op == FSAL_OP_LOCKB &&
-		    !NAMESPACE->ops->fs_supports(NAMESPACE,
+		    !namespace->ops->fs_supports(namespace,
 						 fso_lock_support_async_block))
 			lock_op = FSAL_OP_LOCK;
 
 		fsal_status = entry->obj_handle->ops->lock_op(
 			entry->obj_handle,
 			req_ctx,
-			NAMESPACE->ops->fs_supports(NAMESPACE,
+			namespace->ops->fs_supports(namespace,
 						    fso_lock_support_owner)
 				? owner : NULL, lock_op,
 			lock,
@@ -2438,7 +2438,7 @@ state_status_t state_lock(cache_entry_t *entry, exportlist_t *export,
 	uint64_t found_entry_end;
 	uint64_t range_end = lock_end(lock);
 	cache_inode_status_t cache_status;
-	struct fsal_namespace *NAMESPACE = entry->obj_handle->namespace;
+	struct fsal_namespace *namespace = entry->obj_handle->namespace;
 	fsal_lock_op_t lock_op;
 	state_status_t status = 0;
 
@@ -2617,7 +2617,7 @@ state_status_t state_lock(cache_entry_t *entry, exportlist_t *export,
 	}
 
 	/* Decide how to proceed */
-	if (NAMESPACE->ops->fs_supports(NAMESPACE,
+	if (namespace->ops->fs_supports(namespace,
 					fso_lock_support_async_block)
 	    && blocking == STATE_NLM_BLOCKING) {
 		/* FSAL supports blocking locks, and this is an NLM blocking
@@ -2705,7 +2705,7 @@ state_status_t state_lock(cache_entry_t *entry, exportlist_t *export,
 	 * make FSAL call. Don't ask for conflict if we know about a conflict.
 	 */
 	if (allow
-	    || NAMESPACE->ops->fs_supports(NAMESPACE,
+	    || namespace->ops->fs_supports(namespace,
 					   fso_lock_support_async_block)) {
 		/* Prepare to make call to FSAL for this lock */
 		status =

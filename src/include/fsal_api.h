@@ -26,16 +26,6 @@
  * -------------
  */
 
-/** @todo: Backwards compatibility #defines to be removed when
- *         all code uses the new identifier.
- *         When these are removed, rename all instances of
- *         NAMESPACE to namespace across the code
- */
-#define fsal_namespace fsal_export
-#define namespace_ops export_ops
-#define namespaces exports
-#define namespace export
-
 /**
  * @defgroup FSAL File-System Abstraction Layer
  * @{

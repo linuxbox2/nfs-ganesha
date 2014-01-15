@@ -2,12 +2,6 @@
  * fsal common utility functions
  */
 
-/** @todo REMOVE these #define when done converting code */
-#define fsal_attach_export fsal_attach_namespace
-#define fsal_detach_export fsal_detach_namespace
-#define fsal_export_init   fsal_namespace_init
-#define free_export_ops    free_namespace_ops
-
 /* fsal_module to fsal_namespace helpers
  */
 
