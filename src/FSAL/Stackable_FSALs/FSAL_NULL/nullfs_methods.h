@@ -8,8 +8,8 @@ struct nullfs_file_handle {
 	int nothing;
 };
 
-struct nullfs_exp_handle_ops {
-	int (*vex_open_by_handle) (struct fsal_export *exp,
+struct nullfs_namespace_handle_ops {
+	int (*vex_open_by_handle) (struct fsal_namespace *namespace,
 				   struct nullfs_file_handle *fh, int openflags,
 				   fsal_errors_t *fsal_error);
 	int (*vex_name_to_handle) (int fd, const char *name,
@@ -19,7 +19,7 @@ struct nullfs_exp_handle_ops {
 };
 
 struct next_ops {
-	struct export_ops *exp_ops;	/*< Vector of operations */
+	struct namespace_ops *namespace_ops;	/*< Vector of operations */
 	struct fsal_obj_ops *obj_ops;	/*< Shared handle methods vector */
 	struct fsal_ds_ops *ds_ops;	/*< Shared handle methods vector */
 	struct fsal_up_vector *up_ops;	/*< Upcall operations */
@@ -33,18 +33,18 @@ void nullfs_handle_ops_init(struct fsal_obj_ops *ops);
 
 
 /*
- * NULLFS internal export
+ * NULLFS internal namespace
  */
-struct nullfs_fsal_export {
-	struct fsal_export export;
+struct nullfs_namespace {
+	struct fsal_namespace namespace;
 };
 
-fsal_status_t nullfs_lookup_path(struct fsal_export *exp_hdl,
+fsal_status_t nullfs_lookup_path(struct fsal_namespace *namespace,
 				 const struct req_op_context *opctx,
 				 const char *path,
 				 struct fsal_obj_handle **handle);
 
-fsal_status_t nullfs_create_handle(struct fsal_export *exp_hdl,
+fsal_status_t nullfs_create_handle(struct fsal_namespace *namespace,
 				   const struct req_op_context *opctx,
 				   struct gsh_buffdesc *hdl_desc,
 				   struct fsal_obj_handle **handle);

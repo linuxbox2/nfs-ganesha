@@ -208,7 +208,7 @@ static void handle_to_key(struct fsal_obj_handle *obj_hdl,
 
 /*
  * release
- * release our export first so they know we are gone
+ * release our namespace first so they know we are gone
  */
 
 static fsal_status_t release(struct fsal_obj_handle *obj_hdl)
@@ -256,7 +256,7 @@ void nullfs_handle_ops_init(struct fsal_obj_ops *ops)
 
 }
 
-/* export methods that create object handles
+/* namespace methods that create object handles
  */
 
 /* lookup_path
@@ -264,13 +264,14 @@ void nullfs_handle_ops_init(struct fsal_obj_ops *ops)
  * KISS
  */
 
-fsal_status_t nullfs_lookup_path(struct fsal_export *exp_hdl,
+fsal_status_t nullfs_lookup_path(struct fsal_namespace *namespace,
 				 const struct req_op_context *opctx,
 				 const char *path,
 				 struct fsal_obj_handle **handle)
 {
 	printf("Called %p\n", nullfs_lookup_path);
-	return next_ops.exp_ops->lookup_path(exp_hdl, opctx, path, handle);
+	return next_ops.namespace_ops->lookup_path(namespace, opctx, path,
+						   handle);
 }
 
 /* create_handle
@@ -285,11 +286,11 @@ fsal_status_t nullfs_lookup_path(struct fsal_export *exp_hdl,
  * Ideas and/or clever hacks are welcome...
  */
 
-fsal_status_t nullfs_create_handle(struct fsal_export *exp_hdl,
+fsal_status_t nullfs_create_handle(struct fsal_namespace *namespace,
 				   const struct req_op_context *opctx,
 				   struct gsh_buffdesc *hdl_desc,
 				   struct fsal_obj_handle **handle)
 {
-	return next_ops.exp_ops->create_handle(exp_hdl, opctx, hdl_desc,
-					       handle);
+	return next_ops.namespace_ops->create_handle(namespace, opctx,
+						     hdl_desc, handle);
 }

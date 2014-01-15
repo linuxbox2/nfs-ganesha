@@ -13,7 +13,7 @@ SET(fsalnull_LIB_SRCS
    xattrs.c
    nullfs_methods.h
    main.c
-   export.c
+   namespace.c
    fsal_convert.c
 )
 
