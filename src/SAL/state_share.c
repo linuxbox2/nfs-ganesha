@@ -78,8 +78,8 @@ static state_status_t do_share_op(cache_entry_t *entry, state_owner_t *owner,
 	struct fsal_obj_handle *obj_hdl = entry->obj_handle;
 
 	/* Quick exit if share reservation is not supported by FSAL */
-	if (!obj_hdl->export->ops->
-	    fs_supports(obj_hdl->export, fso_share_support))
+	if (!obj_hdl->namespace->ops->fs_supports(obj_hdl->namespace,
+						  fso_share_support))
 		return STATE_SUCCESS;
 
 	fsal_status =
