@@ -266,7 +266,7 @@ static nfsstat4 one_segment(cache_entry_t *entry, exportlist_t *export,
 	state_status_t state_status = 0;
 	/* Size of a loc_body buffer */
 	size_t loc_body_size =
-	    MIN(export->export_hdl->ops->fs_loc_body_size(export->export_hdl),
+	    MIN(export->namespace->ops->fs_loc_body_size(export->namespace),
 		arg->maxcount);
 
 	if (loc_body_size == 0) {
@@ -396,8 +396,8 @@ int nfs4_op_layoutget(struct nfs_argop4 *op, compound_data_t *data,
 		goto out;
 
 	/* max_segment_count is also an indication of if fsal supports pnfs */
-	max_segment_count = data->export->export_hdl->ops->
-			fs_maximum_segments(data->export->export_hdl);
+	max_segment_count = data->export->namespace->ops->
+			fs_maximum_segments(data->export->namespace);
 
 	if (max_segment_count == 0) {
 		LogWarn(COMPONENT_PNFS,

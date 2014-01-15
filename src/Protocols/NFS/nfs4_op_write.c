@@ -184,8 +184,8 @@ static int nfs4_write(struct nfs_argop4 *op, compound_data_t *data,
 
 	/* if quota support is active, then we should check is the FSAL
 	   allows inode creation or not */
-	fsal_status = data->export->export_hdl->ops->check_quota(
-						data->export->export_hdl,
+	fsal_status = data->export->namespace->ops->check_quota(
+						data->export->namespace,
 						data->export->fullpath,
 						FSAL_QUOTA_INODES,
 						data->req_ctx);
@@ -358,7 +358,7 @@ static int nfs4_write(struct nfs_argop4 *op, compound_data_t *data,
 
 		verf_desc.addr = res_WRITE4->WRITE4res_u.resok4.writeverf;
 		verf_desc.len = sizeof(verifier4);
-		data->export->export_hdl->ops->get_write_verifier(&verf_desc);
+		data->export->namespace->ops->get_write_verifier(&verf_desc);
 
 		res_WRITE4->status = NFS4_OK;
 		if (anonymous)
@@ -411,7 +411,7 @@ static int nfs4_write(struct nfs_argop4 *op, compound_data_t *data,
 
 	verf_desc.addr = res_WRITE4->WRITE4res_u.resok4.writeverf;
 	verf_desc.len = sizeof(verifier4);
-	data->export->export_hdl->ops->get_write_verifier(&verf_desc);
+	data->export->namespace->ops->get_write_verifier(&verf_desc);
 
 	res_WRITE4->status = NFS4_OK;
 

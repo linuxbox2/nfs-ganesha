@@ -2164,7 +2164,7 @@ static int BuildExportEntry(config_item_t block)
 					"NFS READ %s: FSAL is already defined as (%s), new attempt = (%s)",
 					label,
 					fsal_hdl->ops->get_name(p_entry->
-								export_hdl->
+								namespace->
 								fsal),
 					var_value);
 				continue;
@@ -2286,7 +2286,7 @@ static int BuildExportEntry(config_item_t block)
 					NULL,
 					&fsal_up_top,
 					&p_entry->
-					export_hdl);
+					namespace);
 		if (FSAL_IS_ERROR(expres)) {
 			LogCrit(COMPONENT_CONFIG,
 				"Could not create FSAL export for %s",
@@ -2296,22 +2296,22 @@ static int BuildExportEntry(config_item_t block)
 			if ((p_entry->export_perms.
 			     options & EXPORT_OPTION_MAXREAD) !=
 			    EXPORT_OPTION_MAXREAD) {
-				if (p_entry->export_hdl->ops->
-				    fs_maxread(p_entry->export_hdl) > 0)
+				if (p_entry->namespace->ops->
+				    fs_maxread(p_entry->namespace) > 0)
 					p_entry->MaxRead =
-					    p_entry->export_hdl->ops->
-					    fs_maxread(p_entry->export_hdl);
+					    p_entry->namespace->ops->
+					    fs_maxread(p_entry->namespace);
 				else
 					p_entry->MaxRead = LASTDEFAULT;
 			}
 			if ((p_entry->export_perms.
 			     options & EXPORT_OPTION_MAXWRITE) !=
 			    EXPORT_OPTION_MAXWRITE) {
-				if (p_entry->export_hdl->ops->
-				    fs_maxwrite(p_entry->export_hdl) > 0)
+				if (p_entry->namespace->ops->
+				    fs_maxwrite(p_entry->namespace) > 0)
 					p_entry->MaxWrite =
-					    p_entry->export_hdl->ops->
-					    fs_maxwrite(p_entry->export_hdl);
+					    p_entry->namespace->ops->
+					    fs_maxwrite(p_entry->namespace);
 				else
 					p_entry->MaxWrite = LASTDEFAULT;
 			}
@@ -2498,7 +2498,7 @@ static bool BuildRootExport()
 						  p_entry,
 						  NULL,
 						  &fsal_up_top,
-						  &p_entry->export_hdl);
+						  &p_entry->namespace);
 
 		if (FSAL_IS_ERROR(rc)) {
 			LogCrit(COMPONENT_CONFIG,
@@ -2551,11 +2551,11 @@ void free_export_resources(exportlist_t *export)
 	fsal_status_t fsal_status;
 
 	FreeClientList(&export->clients);
-	if (export->export_hdl != NULL) {
-		if (export->export_hdl->ops->put(export->export_hdl) == 0) {
+	if (export->namespace != NULL) {
+		if (export->namespace->ops->put(export->namespace) == 0) {
 			fsal_status =
-			    export->export_hdl->ops->release(export->
-							     export_hdl);
+			    export->namespace->ops->release(export->
+							    namespace);
 			if (FSAL_IS_ERROR(fsal_status)) {
 				LogCrit(COMPONENT_CONFIG,
 					"Cannot release export object, quitting");
@@ -2565,7 +2565,7 @@ void free_export_resources(exportlist_t *export)
 				"Cannot put export object, quitting");
 		}
 	}
-	export->export_hdl = NULL;
+	export->namespace = NULL;
 	/* free strings here */
 	if (export->fullpath != NULL)
 		gsh_free(export->fullpath);
@@ -2735,10 +2735,10 @@ bool init_export_root(struct gsh_export *exp)
 	req_ctx.export = exp;
 
 	/* Lookup for the FSAL Path */
-	fsal_status = export->export_hdl->ops->lookup_path(export->export_hdl,
-							   &req_ctx,
-							   export->fullpath,
-							   &root_handle);
+	fsal_status = export->namespace->ops->lookup_path(export->namespace,
+							  &req_ctx,
+							  export->fullpath,
+							  &root_handle);
 
 	if (FSAL_IS_ERROR(fsal_status)) {
 		LogCrit(COMPONENT_INIT,

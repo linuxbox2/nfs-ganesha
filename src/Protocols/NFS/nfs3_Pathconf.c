@@ -72,7 +72,7 @@ int nfs3_Pathconf(nfs_arg_t *arg, exportlist_t *export,
 {
 	cache_entry_t *entry = NULL;
 	int rc = NFS_REQ_OK;
-	struct fsal_namespace *NAMESPACE = export->export_hdl;
+	struct fsal_namespace *NAMESPACE = export->namespace;
 
 	if (isDebug(COMPONENT_NFSPROTO)) {
 		char str[LEN_FH_STR];

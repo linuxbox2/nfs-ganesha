@@ -108,7 +108,7 @@ retry:
 		return false;
 	}
 
-	if (strcmp(state->req_ctx->export->export.export_hdl->fsal->name,
+	if (strcmp(state->req_ctx->export->export.namespace->fsal->name,
 		   "PSEUDO") != 0) {
 		/* Only allowed to create directories on FSAL_PSEUDO */
 		LogCrit(COMPONENT_NFS_V4_PSEUDO,

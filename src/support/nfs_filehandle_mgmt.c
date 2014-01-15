@@ -93,7 +93,7 @@ cache_entry_t *nfs3_FhandleToCache(nfs_fh3 *fh3,
 
 	assert(v3_handle->exportid == req_ctx->export->export.id);
 
-	namespace = req_ctx->export->export.export_hdl;
+	namespace = req_ctx->export->export.namespace;
 
 	/* Give the namespace a crack at it */
 	fsal_data.namespace = namespace;

@@ -134,7 +134,7 @@ int nfs4_op_getdeviceinfo(struct nfs_argop4 *op, compound_data_t *data,
 	    sizeof(uint32_t);	/* Number of bytes in da_addr_body */
 
 	da_addr_size =
-	    MIN(export->export_hdl->ops->fs_da_addr_size(export->export_hdl),
+	    MIN(export->namespace->ops->fs_da_addr_size(export->namespace),
 		arg_GETDEVICEINFO4->gdia_maxcount - mincount);
 
 	if (da_addr_size == 0) {
@@ -160,8 +160,8 @@ int nfs4_op_getdeviceinfo(struct nfs_argop4 *op, compound_data_t *data,
 
 	da_beginning = xdr_getpos(&da_addr_body);
 
-	nfs_status = export->export_hdl->ops->getdeviceinfo(
-			export->export_hdl,
+	nfs_status = export->namespace->ops->getdeviceinfo(
+			export->namespace,
 			&da_addr_body,
 			arg_GETDEVICEINFO4->gdia_layout_type,
 			&deviceid);

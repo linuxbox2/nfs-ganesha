@@ -93,7 +93,7 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t *data,
 
 	/* if quota support is active, then we should check is the FSAL allows
 	 * inode creation or not */
-	namespace = data->export->export_hdl;
+	namespace = data->export->namespace;
 
 	fsal_status = namespace->ops->check_quota(namespace,
 						data->export->fullpath,

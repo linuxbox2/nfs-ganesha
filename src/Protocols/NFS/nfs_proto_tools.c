@@ -508,7 +508,7 @@ static fattr_xdr_result encode_linksupport(XDR *xdr,
 	int linksupport;
 
 	if (args->data != NULL && args->data->export != NULL) {
-		namespace = args->data->export->export_hdl;
+		namespace = args->data->export->namespace;
 		linksupport =
 		    namespace->ops->fs_supports(namespace, fso_link_support);
 	}
@@ -534,7 +534,7 @@ static fattr_xdr_result encode_symlinksupport(XDR *xdr,
 	int symlinksupport;
 
 	if (args->data != NULL && args->data->export != NULL) {
-		namespace = args->data->export->export_hdl;
+		namespace = args->data->export->namespace;
 		symlinksupport =
 		    namespace->ops->fs_supports(namespace, fso_symlink_support);
 	}
@@ -562,7 +562,7 @@ static fattr_xdr_result encode_namedattrsupport(XDR *xdr,
 	int namedattrsupport;
 
 	if (args->data != NULL && args->data->export != NULL) {
-		namespace = args->data->export->export_hdl;
+		namespace = args->data->export->namespace;
 		namedattrsupport =
 		    namespace->ops->fs_supports(namespace, fso_named_attr);
 	}
@@ -616,7 +616,7 @@ static fattr_xdr_result encode_uniquehandles(XDR *xdr,
 	int uniquehandles;
 
 	if (args->data != NULL && args->data->export != NULL) {
-		namespace = args->data->export->export_hdl;
+		namespace = args->data->export->namespace;
 		uniquehandles =
 		    namespace->ops->fs_supports(namespace, fso_unique_handles);
 	}
@@ -863,7 +863,7 @@ static fattr_xdr_result encode_aclsupport(XDR *xdr,
 	uint32_t aclsupport;
 
 	if (args->data != NULL && args->data->export != NULL) {
-		namespace = args->data->export->export_hdl;
+		namespace = args->data->export->namespace;
 		aclsupport = namespace->ops->fs_acl_support(namespace);
 	}
 	if (!inline_xdr_u_int32_t(xdr, &aclsupport))
@@ -909,7 +909,7 @@ static fattr_xdr_result encode_cansettime(XDR *xdr,
 	uint32_t cansettime;
 
 	if (args->data != NULL && args->data->export != NULL) {
-		namespace = args->data->export->export_hdl;
+		namespace = args->data->export->namespace;
 		cansettime = namespace->ops->fs_supports(namespace,
 							 fso_cansettime);
 	}
@@ -936,7 +936,7 @@ static fattr_xdr_result encode_case_insensitive(XDR *xdr,
 	uint32_t caseinsensitive;
 
 	if (args->data != NULL && args->data->export != NULL) {
-		namespace = args->data->export->export_hdl;
+		namespace = args->data->export->namespace;
 		caseinsensitive =
 		    namespace->ops->fs_supports(namespace,
 						fso_case_insensitive);
@@ -964,7 +964,7 @@ static fattr_xdr_result encode_case_preserving(XDR *xdr,
 	uint32_t casepreserving;
 
 	if (args->data != NULL && args->data->export != NULL) {
-		namespace = args->data->export->export_hdl;
+		namespace = args->data->export->namespace;
 		casepreserving =
 		    namespace->ops->fs_supports(namespace, fso_case_preserving);
 	}
@@ -991,7 +991,7 @@ static fattr_xdr_result encode_chown_restricted(XDR *xdr,
 	uint32_t chownrestricted;
 
 	if (args->data != NULL && args->data->export != NULL) {
-		namespace = args->data->export->export_hdl;
+		namespace = args->data->export->namespace;
 		chownrestricted =
 		    namespace->ops->fs_supports(namespace,
 						fso_chown_restricted);
@@ -1230,7 +1230,7 @@ static fattr_xdr_result encode_homogeneous(XDR *xdr,
 	uint32_t homogeneous;
 
 	if (args->data != NULL && args->data->export != NULL) {
-		namespace = args->data->export->export_hdl;
+		namespace = args->data->export->namespace;
 		homogeneous = namespace->ops->fs_supports(namespace,
 							  fso_homogenous);
 	}
@@ -1256,7 +1256,7 @@ static fattr_xdr_result encode_maxfilesize(XDR *xdr,
 	uint64_t maxfilesize;
 
 	if (args->data != NULL && args->data->export != NULL) {
-		namespace = args->data->export->export_hdl;
+		namespace = args->data->export->namespace;
 		maxfilesize = namespace->ops->fs_maxfilesize(namespace);
 	}
 	if (!inline_xdr_u_int64_t(xdr, &maxfilesize))
@@ -1280,7 +1280,7 @@ static fattr_xdr_result encode_maxlink(XDR *xdr, struct xdr_attrs_args *args)
 	uint32_t maxlink;
 
 	if (args->data != NULL && args->data->export != NULL) {
-		namespace = args->data->export->export_hdl;
+		namespace = args->data->export->namespace;
 		maxlink = namespace->ops->fs_maxlink(namespace);
 	}
 	if (!inline_xdr_u_int32_t(xdr, &maxlink))
@@ -1303,7 +1303,7 @@ static fattr_xdr_result encode_maxname(XDR *xdr, struct xdr_attrs_args *args)
 	uint32_t maxname;
 
 	if (args->data != NULL && args->data->export != NULL) {
-		namespace = args->data->export->export_hdl;
+		namespace = args->data->export->namespace;
 		maxname = namespace->ops->fs_maxnamelen(namespace);
 	}
 	if (!inline_xdr_u_int32_t(xdr, &maxname))
@@ -1412,7 +1412,7 @@ static fattr_xdr_result encode_no_trunc(XDR *xdr, struct xdr_attrs_args *args)
 	uint32_t no_trunc = 0;
 
 	if (args->data != NULL && args->data->export != NULL) {
-		namespace = args->data->export->export_hdl;
+		namespace = args->data->export->namespace;
 		no_trunc = namespace->ops->fs_supports(namespace, fso_no_trunc);
 	}
 	if (!inline_xdr_bool(xdr, &no_trunc))
@@ -2084,7 +2084,7 @@ static fattr_xdr_result encode_fs_layout_types(XDR *xdr,
 
 	if (args->data == NULL || args->data->export == NULL)
 		return FATTR_XDR_NOOP;
-	namespace = args->data->export->export_hdl;
+	namespace = args->data->export->namespace;
 	namespace->ops->fs_layouttypes(namespace, &typecount, &layouttypes);
 
 	if (!inline_xdr_u_int32_t(xdr, (uint32_t *) &typecount))
@@ -2149,7 +2149,7 @@ static fattr_xdr_result encode_layout_blocksize(XDR *xdr,
 	} else {
 		struct fsal_namespace *namespace;
 		uint32_t blocksize;
-		namespace = args->data->export->export_hdl;
+		namespace = args->data->export->namespace;
 		blocksize = namespace->ops->fs_layout_blocksize(namespace);
 
 		if (!inline_xdr_u_int32_t(xdr, &blocksize))

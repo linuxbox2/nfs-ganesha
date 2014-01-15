@@ -295,7 +295,7 @@ cache_inode_get_keyed(cache_inode_key_t *key,
 		struct fsal_namespace *namespace;
 		fsal_status_t fsal_status;
 
-		namespace = req_ctx->export->export.export_hdl;
+		namespace = req_ctx->export->export.namespace;
 		fsal_status =
 		    namespace->ops->create_handle(namespace, req_ctx, &key->kv,
 						&new_hdl);

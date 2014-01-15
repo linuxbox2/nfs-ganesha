@@ -169,7 +169,7 @@ int mnt_Mnt(nfs_arg_t *arg, exportlist_t *exp_list,
 			goto out;
 		}
 	} else {
-		namespace = p_current_item->export_hdl;
+		namespace = p_current_item->namespace;
 		LogEvent(COMPONENT_NFSPROTO,
 			 "MOUNT: Performance warning: Export entry is not cached");
 		if (FSAL_IS_ERROR

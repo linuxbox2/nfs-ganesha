@@ -149,7 +149,7 @@ typedef struct exportlist {
 	uint64_t MaxCacheSize;	/*< Maximum Cache Size allowed */
 	bool UseCookieVerifier;	/*< Is Cookie verifier to be used? */
 	exportlist_client_t clients;	/*< Allowed clients */
-	struct fsal_export *export_hdl;	/*< Handle into our FSAL */
+	struct fsal_namespace *namespace;	/*< Handle into our FSAL */
 
 	pthread_mutex_t exp_state_mutex;	/*< Mutex to protect per-export
 						   state information. */
