@@ -74,7 +74,7 @@ cache_entry_t *nfs3_FhandleToCache(nfs_fh3 *fh3,
 {
 	fsal_status_t fsal_status;
 	file_handle_v3_t *v3_handle;
-	struct fsal_export *export;
+	struct fsal_namespace *namespace;
 	cache_entry_t *entry = NULL;
 	cache_inode_fsal_data_t fsal_data;
 	cache_inode_status_t cache_status;
@@ -93,17 +93,17 @@ cache_entry_t *nfs3_FhandleToCache(nfs_fh3 *fh3,
 
 	assert(v3_handle->exportid == req_ctx->export->export.id);
 
-	export = req_ctx->export->export.export_hdl;
+	namespace = req_ctx->export->export.export_hdl;
 
-	/* Give the export a crack at it */
-	fsal_data.export = export;
+	/* Give the namespace a crack at it */
+	fsal_data.namespace = namespace;
 	fsal_data.fh_desc.len = v3_handle->fs_len;
 	fsal_data.fh_desc.addr = &v3_handle->fsopaque;
 
 	/* adjust the handle opaque into a cache key */
-	fsal_status =
-	    export->ops->extract_handle(export, FSAL_DIGEST_NFSV3,
-					&fsal_data.fh_desc);
+	fsal_status = namespace->ops->extract_handle(namespace,
+						     FSAL_DIGEST_NFSV3,
+						     &fsal_data.fh_desc);
 
 	if (FSAL_IS_ERROR(fsal_status))
 		cache_status = cache_inode_error_convert(fsal_status);
