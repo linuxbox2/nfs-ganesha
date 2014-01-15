@@ -68,14 +68,14 @@ fsal_status_t GPFSFSAL_create(struct fsal_obj_handle *dir_hdl,	/* IN */
 
 	gpfs_hdl =
 	    container_of(dir_hdl, struct gpfs_fsal_obj_handle, obj_handle);
-	mount_fd = gpfs_get_root_fd(dir_hdl->export);
+	mount_fd = gpfs_get_root_fd(dir_hdl->namespace);
 
 	/* convert fsal mode to unix mode. */
 	unix_mode = fsal2unix_mode(accessmode);
 
 	/* Apply umask */
 	unix_mode =
-	    unix_mode & ~dir_hdl->export->ops->fs_umask(dir_hdl->export);
+	    unix_mode & ~dir_hdl->namespace->ops->fs_umask(dir_hdl->namespace);
 
 	LogFullDebug(COMPONENT_FSAL, "Creation mode: 0%o", accessmode);
 
@@ -92,7 +92,7 @@ fsal_status_t GPFSFSAL_create(struct fsal_obj_handle *dir_hdl,	/* IN */
 	/* retrieve file attributes */
 	if (p_object_attributes) {
 		status =
-		    GPFSFSAL_getattrs(dir_hdl->export, p_context,
+		    GPFSFSAL_getattrs(dir_hdl->namespace, p_context,
 				      p_object_handle, p_object_attributes);
 
 		/* on error, we set a special bit in the mask. */
@@ -161,14 +161,14 @@ fsal_status_t GPFSFSAL_mkdir(struct fsal_obj_handle *dir_hdl,	/* IN */
 	gpfs_hdl =
 	    container_of(dir_hdl, struct gpfs_fsal_obj_handle, obj_handle);
 
-	mount_fd = gpfs_get_root_fd(dir_hdl->export);
+	mount_fd = gpfs_get_root_fd(dir_hdl->namespace);
 
 	/* convert FSAL mode to unix mode. */
 	unix_mode = fsal2unix_mode(accessmode);
 
 	/* Apply umask */
 	unix_mode =
-	    unix_mode & ~dir_hdl->export->ops->fs_umask(dir_hdl->export);
+	    unix_mode & ~dir_hdl->namespace->ops->fs_umask(dir_hdl->namespace);
 
 	/* build new entry path */
 
@@ -186,7 +186,7 @@ fsal_status_t GPFSFSAL_mkdir(struct fsal_obj_handle *dir_hdl,	/* IN */
 	/* retrieve file attributes */
 	if (p_object_attributes) {
 		status =
-		    GPFSFSAL_getattrs(dir_hdl->export, p_context,
+		    GPFSFSAL_getattrs(dir_hdl->namespace, p_context,
 				      p_object_handle, p_object_attributes);
 
 		/* on error, we set a special bit in the mask. */
@@ -245,12 +245,12 @@ fsal_status_t GPFSFSAL_link(struct fsal_obj_handle *destdir_hdl,	/* IN */
 	dest_dir =
 	    container_of(destdir_hdl, struct gpfs_fsal_obj_handle, obj_handle);
 
-	mount_fd = gpfs_get_root_fd(destdir_hdl->export);
+	mount_fd = gpfs_get_root_fd(destdir_hdl->namespace);
 
 	/* Tests if hardlinking is allowed by configuration. */
 
-	if (!destdir_hdl->export->ops->
-	    fs_supports(destdir_hdl->export, fso_link_support))
+	if (!destdir_hdl->namespace->ops->
+	    fs_supports(destdir_hdl->namespace, fso_link_support))
 		return fsalstat(ERR_FSAL_NOTSUPP, 0);
 
 	/* Create the link on the filesystem */
@@ -269,7 +269,7 @@ fsal_status_t GPFSFSAL_link(struct fsal_obj_handle *destdir_hdl,	/* IN */
 
 	if (p_attributes) {
 		status =
-		    GPFSFSAL_getattrs(destdir_hdl->export, p_context,
+		    GPFSFSAL_getattrs(destdir_hdl->namespace, p_context,
 				      target_handle, p_attributes);
 
 		/* on error, we set a special bit in the mask. */
@@ -345,13 +345,13 @@ fsal_status_t GPFSFSAL_mknode(struct fsal_obj_handle *dir_hdl,	/* IN */
 
 	gpfs_hdl =
 	    container_of(dir_hdl, struct gpfs_fsal_obj_handle, obj_handle);
-	mount_fd = gpfs_get_root_fd(dir_hdl->export);
+	mount_fd = gpfs_get_root_fd(dir_hdl->namespace);
 
 	unix_mode = fsal2unix_mode(accessmode);
 
 	/* Apply umask */
 	unix_mode =
-	    unix_mode & ~dir_hdl->export->ops->fs_umask(dir_hdl->export);
+	    unix_mode & ~dir_hdl->namespace->ops->fs_umask(dir_hdl->namespace);
 
 	switch (nodetype) {
 	case BLOCK_FILE:
@@ -397,7 +397,7 @@ fsal_status_t GPFSFSAL_mknode(struct fsal_obj_handle *dir_hdl,	/* IN */
 	if (node_attributes) {
 
 		status =
-		    GPFSFSAL_getattrs(dir_hdl->export, p_context,
+		    GPFSFSAL_getattrs(dir_hdl->namespace, p_context,
 				      gpfs_hdl->handle, node_attributes);
 
 		/* on error, we set a special bit in the mask. */

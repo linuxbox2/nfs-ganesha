@@ -32,25 +32,25 @@
 #include "export_mgr.h"
 
 /**
- * @brief Get layout types supported by export
+ * @brief Get layout types supported by namespace
  *
  * We just return a pointer to the single type and set the count to 1.
  *
- * @param[in]  export_pub Public export handle
+ * @param[in]  namespace  Public namespace handle
  * @param[out] count      Number of layout types in array
  * @param[out] types      Static array of layout types that must not be
  *                        freed or modified and must not be dereferenced
- *                        after export reference is relinquished
+ *                        after namespace reference is relinquished
  */
 
-static void fs_layouttypes(struct fsal_export *export_hdl, size_t *count,
+static void fs_layouttypes(struct fsal_namespace *namespace, size_t *count,
 			   const layouttype4 **types)
 {
 	int rc;
 	struct open_arg arg;
 	static const layouttype4 supported_layout_type = LAYOUT4_NFSV4_1_FILES;
 
-	arg.mountdirfd = gpfs_get_root_fd(export_hdl);
+	arg.mountdirfd = gpfs_get_root_fd(namespace);
 	rc = gpfs_ganesha(OPENHANDLE_LAYOUT_TYPE, &arg);
 	if (rc < 0 || (rc != LAYOUT4_NFSV4_1_FILES)) {
 		LogDebug(COMPONENT_PNFS, "fs_layouttypes rc %d\n", rc);
@@ -63,15 +63,15 @@ static void fs_layouttypes(struct fsal_export *export_hdl, size_t *count,
 }
 
 /**
- * @brief Get layout block size for export
+ * @brief Get layout block size for namespace
  *
  * This function just return the GPFS default.
  *
- * @param[in] export_pub Public export handle
+ * @param[in] namespace Public namespace handle
  *
  * @return 4 MB.
  */
-static uint32_t fs_layout_blocksize(struct fsal_export *export_pub)
+static uint32_t fs_layout_blocksize(struct fsal_namespace *namespace)
 {
 	return 0x400000;
 }
@@ -81,11 +81,11 @@ static uint32_t fs_layout_blocksize(struct fsal_export *export_pub)
  *
  * Since current clients only support 1, that's what we'll use.
  *
- * @param[in] export_pub Public export handle
+ * @param[in] namespace Public namespace handle
  *
  * @return 1
  */
-static uint32_t fs_maximum_segments(struct fsal_export *export_pub)
+static uint32_t fs_maximum_segments(struct fsal_namespace *namespace)
 {
 	return 1;
 }
@@ -95,11 +95,11 @@ static uint32_t fs_maximum_segments(struct fsal_export *export_pub)
  *
  * Just a handle plus a bit.
  *
- * @param[in] export_pub Public export handle
+ * @param[in] namespace Public namespace handle
  *
  * @return Size of the buffer needed for a loc_body
  */
-static size_t fs_loc_body_size(struct fsal_export *export_pub)
+static size_t fs_loc_body_size(struct fsal_namespace *namespace)
 {
 	return 0x100;
 }
@@ -109,11 +109,11 @@ static size_t fs_loc_body_size(struct fsal_export *export_pub)
  *
  * This one is huge, due to the striping pattern.
  *
- * @param[in] export_pub Public export handle
+ * @param[in] namespace Public namespace handle
  *
  * @return Size of the buffer needed for a ds_addr
  */
-static size_t fs_da_addr_size(struct fsal_export *export_pub)
+static size_t fs_da_addr_size(struct fsal_namespace *namespace)
 {
 	return 0x1400;
 }
@@ -124,7 +124,7 @@ static size_t fs_da_addr_size(struct fsal_export *export_pub)
  * At present, we support a files based layout only.  The CRUSH
  * striping pattern is a-periodic
  *
- * @param[in]  export_pub   Public export handle
+ * @param[in]  namespace    Public namespace handle
  * @param[out] da_addr_body Stream we write the result to
  * @param[in]  type         Type of layout that gave the device
  * @param[in]  deviceid     The device to look up
@@ -132,7 +132,7 @@ static size_t fs_da_addr_size(struct fsal_export *export_pub)
  * @return Valid error codes in RFC 5661, p. 365.
  */
 
-static nfsstat4 getdeviceinfo(struct fsal_export *export_hdl,
+static nfsstat4 getdeviceinfo(struct fsal_namespace *namespace,
 			      XDR *da_addr_body, const layouttype4 type,
 			      const struct pnfs_deviceid *deviceid)
 {
@@ -144,12 +144,12 @@ static nfsstat4 getdeviceinfo(struct fsal_export *export_hdl,
 	size_t ds_buffer = 0;
 	struct deviceinfo_arg darg;
 
-	darg.mountdirfd = gpfs_get_root_fd(export_hdl);
+	darg.mountdirfd = gpfs_get_root_fd(namespace);
 	darg.type = LAYOUT4_NFSV4_1_FILES;
 	darg.devid.sbid = deviceid->export_id;
 	darg.devid.devid = deviceid->devid;
 
-	ds_buffer = fs_da_addr_size(export_hdl);
+	ds_buffer = fs_da_addr_size(namespace);
 
 	darg.xdr.p = (int *)da_addr_body->x_base;
 	da_beginning = xdr_getpos(da_addr_body);
@@ -181,7 +181,7 @@ static nfsstat4 getdeviceinfo(struct fsal_export *export_hdl,
  * We do not support listing devices and just set EOF without doing
  * anything.
  *
- * @param[in]     export_pub Export handle
+ * @param[in]     namespace Namespace handle
  * @param[in]     type      Type of layout to get devices for
  * @param[in]     cb        Function taking device ID halves
  * @param[in,out] res       In/out and output arguments of the function
@@ -189,7 +189,8 @@ static nfsstat4 getdeviceinfo(struct fsal_export *export_hdl,
  * @return Valid error codes in RFC 5661, pp. 365-6.
  */
 
-static nfsstat4 getdevicelist(struct fsal_export *export_pub, layouttype4 type,
+static nfsstat4 getdevicelist(struct fsal_namespace *namespace,
+			      layouttype4 type,
 			      void *opaque, bool(*cb) (void *opaque,
 						       const uint64_t id),
 			      struct fsal_getdevicelist_res *res)
@@ -198,7 +199,7 @@ static nfsstat4 getdevicelist(struct fsal_export *export_pub, layouttype4 type,
 	return NFS4_OK;
 }
 
-void export_ops_pnfs(struct export_ops *ops)
+void namespace_ops_pnfs(struct namespace_ops *ops)
 {
 	ops->getdeviceinfo = getdeviceinfo;
 	ops->getdevicelist = getdevicelist;

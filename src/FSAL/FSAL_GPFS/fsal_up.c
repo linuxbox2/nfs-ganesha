@@ -37,7 +37,7 @@ struct glist_head gpfs_fsal_up_ctx_list;
 /** @todo FSF: there are lots of assumptions in here that must be fixed when we
  *             support unexport. The thread may go away when all exports are
  *             removed and must clean itself up. Also, it must make sure it gets
- *             mount_root_fd from a living export.
+ *             mount_root_fd from a living namespace.
  */
 void *GPFSFSAL_UP_Thread(void *Arg)
 {
@@ -63,7 +63,7 @@ void *GPFSFSAL_UP_Thread(void *Arg)
 	SetNameFunction(thr_name);
 
 	/* Set the FSAL UP functions that will be used to process events. */
-	event_func = gpfs_fsal_up_ctx->gf_export->up_ops;
+	event_func = gpfs_fsal_up_ctx->gf_namespace->up_ops;
 
 	if (event_func == NULL) {
 		LogFatal(COMPONENT_FSAL_UP,
@@ -207,7 +207,7 @@ void *GPFSFSAL_UP_Thread(void *Arg)
 				};
 				rc = up_async_lock_grant(general_fridge,
 							 gpfs_fsal_up_ctx->
-							 gf_export, &key,
+							 gf_namespace, &key,
 							 fl.lock_owner,
 							 &lockdesc, NULL, NULL);
 			}
@@ -218,7 +218,8 @@ void *GPFSFSAL_UP_Thread(void *Arg)
 				 "delegation recall: flags:%x ino %ld", flags,
 				 callback.buf->st_ino);
 			rc = up_async_delegrecall(general_fridge,
-						  gpfs_fsal_up_ctx->gf_export,
+						  gpfs_fsal_up_ctx
+						  ->gf_namespace,
 						  &key, NULL, NULL);
 			break;
 
@@ -235,7 +236,7 @@ void *GPFSFSAL_UP_Thread(void *Arg)
 
 				rc = up_async_layoutrecall(general_fridge,
 							gpfs_fsal_up_ctx->
-							gf_export, &key,
+							gf_namespace, &key,
 							LAYOUT4_NFSV4_1_FILES,
 							false, &segment,
 							NULL, NULL, NULL,
@@ -266,7 +267,7 @@ void *GPFSFSAL_UP_Thread(void *Arg)
 				 dev_id.devid);
 
 			rc = up_async_notify_device(general_fridge,
-						gpfs_fsal_up_ctx->gf_export,
+						gpfs_fsal_up_ctx->gf_namespace,
 						NOTIFY_DEVICEID4_DELETE_MASK,
 						LAYOUT4_NFSV4_1_FILES,
 						dev_id.devid, true, NULL,
@@ -324,7 +325,8 @@ void *GPFSFSAL_UP_Thread(void *Arg)
 					    grace_period_attr;
 
 					rc = event_func->
-					    update(gpfs_fsal_up_ctx->gf_export,
+					    update(gpfs_fsal_up_ctx
+						   ->gf_namespace,
 						   &key, &attr, upflags);
 
 					if ((flags & UP_NLINK)
@@ -334,13 +336,13 @@ void *GPFSFSAL_UP_Thread(void *Arg)
 						rc = up_async_update
 						    (general_fridge,
 						     gpfs_fsal_up_ctx->
-						     gf_export, &key, &attr,
+						     gf_namespace, &key, &attr,
 						     upflags, NULL, NULL);
 					}
 				} else {
 					rc = event_func->
 					    invalidate(gpfs_fsal_up_ctx->
-						gf_export, &key,
+						gf_namespace, &key,
 						CACHE_INODE_INVALIDATE_ATTRS
 						|
 						CACHE_INODE_INVALIDATE_CONTENT);
@@ -349,7 +351,7 @@ void *GPFSFSAL_UP_Thread(void *Arg)
 			}
 			break;
 
-		case THREAD_STOP:	/* GPFS export no longer available */
+		case THREAD_STOP:	/* GPFS namespace no longer available */
 			LogWarn(COMPONENT_FSAL_UP,
 				"GPFS file system %d is no longer available",
 				gpfs_fsal_up_ctx->gf_fd);
@@ -359,7 +361,8 @@ void *GPFSFSAL_UP_Thread(void *Arg)
 			LogMidDebug(COMPONENT_FSAL_UP,
 				    "inode invalidate: flags:%x update ino %ld",
 				    flags, callback.buf->st_ino);
-			rc = event_func->invalidate(gpfs_fsal_up_ctx->gf_export,
+			rc = event_func->invalidate(
+						gpfs_fsal_up_ctx->gf_namespace,
 						&key,
 						CACHE_INODE_INVALIDATE_ATTRS
 						|
@@ -382,7 +385,7 @@ void *GPFSFSAL_UP_Thread(void *Arg)
 }				/* GPFSFSAL_UP_Thread */
 
 struct gpfs_fsal_up_ctx *gpfsfsal_find_fsal_up_context(struct gpfs_fsal_up_ctx
-						       *export_ctx)
+						       *namespace_ctx)
 {
 	struct glist_head *glist;
 
@@ -392,8 +395,9 @@ struct gpfs_fsal_up_ctx *gpfsfsal_find_fsal_up_context(struct gpfs_fsal_up_ctx
 		gpfs_fsal_up_ctx =
 		    glist_entry(glist, struct gpfs_fsal_up_ctx, gf_list);
 
-		if ((gpfs_fsal_up_ctx->gf_fsid[0] == export_ctx->gf_fsid[0])
-		    && (gpfs_fsal_up_ctx->gf_fsid[1] == export_ctx->gf_fsid[1]))
+		if ((gpfs_fsal_up_ctx->gf_fsid[0] == namespace_ctx->gf_fsid[0])
+		    &&
+		    (gpfs_fsal_up_ctx->gf_fsid[1] == namespace_ctx->gf_fsid[1]))
 			return gpfs_fsal_up_ctx;
 	}
 

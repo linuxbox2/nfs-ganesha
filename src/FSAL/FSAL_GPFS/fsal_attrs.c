@@ -59,7 +59,7 @@ extern fsal_status_t fsal_acl_2_gpfs_acl(fsal_acl_t *p_fsalacl,
  *        - ERR_FSAL_NO_ERROR     (no error)
  *        - Another error code if an error occured.
  */
-fsal_status_t GPFSFSAL_getattrs(struct fsal_export *export,	/* IN */
+fsal_status_t GPFSFSAL_getattrs(struct fsal_namespace *namespace,	/* IN */
 				const struct req_op_context *p_context,	/* IN */
 				struct gpfs_file_handle *p_filehandle,	/* IN */
 				struct attrlist *p_object_attributes)
@@ -73,10 +73,10 @@ fsal_status_t GPFSFSAL_getattrs(struct fsal_export *export,	/* IN */
 	/* sanity checks.
 	 * note : object_attributes is mandatory in GPFSFSAL_getattrs.
 	 */
-	if (!p_filehandle || !export || !p_object_attributes)
+	if (!p_filehandle || !namespace || !p_object_attributes)
 		return fsalstat(ERR_FSAL_FAULT, 0);
 
-	mntfd = gpfs_get_root_fd(export);
+	mntfd = gpfs_get_root_fd(namespace);
 
 	if (p_context->export->export.expire_type_attr == CACHE_INODE_EXPIRE)
 		expire = TRUE;
@@ -145,13 +145,13 @@ fsal_status_t GPFSFSAL_setattrs(struct fsal_obj_handle *dir_hdl,	/* IN */
 		return fsalstat(ERR_FSAL_FAULT, 0);
 
 	myself = container_of(dir_hdl, struct gpfs_fsal_obj_handle, obj_handle);
-	mntfd = gpfs_get_root_fd(dir_hdl->export);
+	mntfd = gpfs_get_root_fd(dir_hdl->namespace);
 
 	/* First, check that FSAL attributes changes are allowed. */
 
 	/* Is it allowed to change times ? */
 
-	if (!dir_hdl->export->ops->fs_supports(dir_hdl->export,
+	if (!dir_hdl->namespace->ops->fs_supports(dir_hdl->namespace,
 							fso_cansettime)) {
 		if (p_object_attributes->
 		    mask & (ATTR_ATIME | ATTR_CREATION | ATTR_CTIME | ATTR_MTIME
@@ -164,7 +164,7 @@ fsal_status_t GPFSFSAL_setattrs(struct fsal_obj_handle *dir_hdl,	/* IN */
 	/* apply umask, if mode attribute is to be changed */
 	if (FSAL_TEST_MASK(p_object_attributes->mask, ATTR_MODE)) {
 		p_object_attributes->mode &=
-		    ~dir_hdl->export->ops->fs_umask(dir_hdl->export);
+		    ~dir_hdl->namespace->ops->fs_umask(dir_hdl->namespace);
 	}
 
   /**************

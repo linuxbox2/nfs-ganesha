@@ -54,9 +54,9 @@ void set_gpfs_verifier(verifier4 *verifier);
 struct gpfs_fsal_up_ctx {
 	/* There is one GPFS FSAL UP Context per GPFS file system */
 	struct glist_head gf_list;	/* List of GPFS FSAL UP Contexts */
-	struct glist_head gf_exports;	/* List of GPFS Export Contexts on
+	struct glist_head gf_namespaces;   /* List of GPFS Namespace Contexts on
 					   this FSAL UP context */
-	struct fsal_export *gf_export;
+	struct fsal_namespace *gf_namespace;
 	int gf_fd;		/* GPFS File System Directory fd */
 	unsigned int gf_fsid[2];
 	pthread_t gf_thread;
@@ -114,7 +114,7 @@ struct gpfs_ds {
 /* the following variables must not be defined in fsal_internal.c */
 #ifndef FSAL_INTERNAL_C
 
-/* export_context_t is not given to every function, but
+/* namespace_context_t is not given to every function, but
  * most functions need to use the open-by-handle funcionality.
  */
 
@@ -135,10 +135,10 @@ static inline size_t gpfs_sizeof_handle(const struct gpfs_file_handle *hdl)
 	return offsetof(struct gpfs_file_handle, f_handle)+hdl->handle_size;
 }
 
-void export_ops_init(struct export_ops *ops);
+void namespace_ops_init(struct namespace_ops *ops);
 void handle_ops_init(struct fsal_obj_ops *ops);
 void ds_ops_init(struct fsal_ds_ops *ops);
-void export_ops_pnfs(struct export_ops *ops);
+void namespace_ops_pnfs(struct namespace_ops *ops);
 void handle_ops_pnfs(struct fsal_obj_ops *ops);
 
 fsal_status_t fsal_internal_close(int fd, void *owner, int cflags);
@@ -251,7 +251,7 @@ fsal_status_t GPFSFSAL_access(struct gpfs_file_handle *p_object_handle,	/* IN */
 			      fsal_accessflags_t access_type,	/* IN */
 			      struct attrlist *p_object_attributes); /* IO */
 
-fsal_status_t GPFSFSAL_getattrs(struct fsal_export *export,	/* IN */
+fsal_status_t GPFSFSAL_getattrs(struct fsal_namespace *namespace,	/* IN */
 				const struct req_op_context *p_context,	/* IN */
 				struct gpfs_file_handle *p_filehandle,	/* IN */
 				struct attrlist *p_object_attributes); /* IO */
@@ -407,7 +407,7 @@ unsigned int GPFSFSAL_Handle_to_HashIndex(struct gpfs_file_handle *p_handle,
 unsigned int GPFSFSAL_Handle_to_RBTIndex(struct gpfs_file_handle *p_handle,
 					 unsigned int cookie);
 
-fsal_status_t GPFSFSAL_truncate(struct fsal_export *export,	/* IN */
+fsal_status_t GPFSFSAL_truncate(struct fsal_namespace *namespace,	/* IN */
 				struct gpfs_file_handle *p_filehandle,	/* IN */
 				const struct req_op_context *p_context,	/* IN */
 				size_t length,	/* IN */

@@ -69,10 +69,10 @@ struct fsal_staticfsinfo_t global_fs_info;
 
 /**
  * fsal_internal_handle2fd:
- * Open a file by handle within an export.
+ * Open a file by handle within an namespace.
  *
  * \param p_context (input):
- *        Pointer to current context.  Used to get export root fd.
+ *        Pointer to current context.  Used to get namespace root fd.
  * \param phandle (input):
  *        Opaque filehandle
  * \param pfd (output):
@@ -179,7 +179,7 @@ fsal_status_t fsal_internal_handle2fd_at(int dirfd,
  * Create a handle from a file path
  *
  * \param pcontext (input):
- *        A context pointer for the root of the current export
+ *        A context pointer for the root of the current namespace
  * \param p_fsalpath (input):
  *        Full path to the file
  * \param p_handle (output):
@@ -277,7 +277,7 @@ fsal_status_t fsal_internal_get_handle_at(int dfd, const char *p_fsalname,
  * Create a handle from a directory handle and filename
  *
  * \param pcontext (input):
- *        A context pointer for the root of the current export
+ *        A context pointer for the root of the current namespace
  * \param p_dir_handle (input):
  *        The handle for the parent directory
  * \param p_fsalname (input):
@@ -376,7 +376,7 @@ fsal_status_t fsal_internal_fd2handle(int fd,
  * Create a link based on a file fh, dir fh, and new name
  *
  * \param p_context (input):
- *        Pointer to current context.  Used to get export root fd.
+ *        Pointer to current context.  Used to get namespace root fd.
  * \param p_target_handle (input):
  *          file handle of target file
  * \param p_dir_handle (input):
@@ -417,7 +417,7 @@ fsal_status_t fsal_internal_link_fh(int dirfd,
  * Stat a file by name
  *
  * \param p_context (input):
- *        Pointer to current context.  Used to get export root fd.
+ *        Pointer to current context.  Used to get namespace root fd.
  * \param p_dir_handle (input):
  *          file handle of directory
  * \param name (input):
@@ -460,7 +460,7 @@ fsal_status_t fsal_internal_stat_name(int dirfd,
  * Unlink a file/directory by name
  *
  * \param p_context (input):
- *        Pointer to current context.  Used to get export root fd.
+ *        Pointer to current context.  Used to get namespace root fd.
  * \param p_dir_handle (input):
  *          file handle of directory
  * \param name (input):
@@ -498,7 +498,7 @@ fsal_status_t fsal_internal_unlink(int dirfd,
  * Create a file/directory by name
  *
  * \param p_context (input):
- *        Pointer to current context.  Used to get export root fd.
+ *        Pointer to current context.  Used to get namespace root fd.
  * \param p_dir_handle (input):
  *          file handle of directory
  * \param name (input):
@@ -559,7 +559,7 @@ fsal_status_t fsal_internal_create(int dirfd,
  * Rename old file name to new name
  *
  * \param p_context (input):
- *        Pointer to current context.  Used to get export root fd.
+ *        Pointer to current context.  Used to get namespace root fd.
  * \param p_old_handle (input):
  *          file handle of old file
  * \param p_new_handle (input):

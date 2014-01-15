@@ -121,7 +121,7 @@ fsal_status_t GPFSFSAL_lock_op(struct fsal_obj_handle *obj_hdl,	/* IN */
 
 	glock_args.lfd = myself->u.file.fd;
 	glock_args.lock_owner = p_owner;
-	gpfs_sg_arg.mountdirfd = gpfs_get_root_fd(obj_hdl->export);
+	gpfs_sg_arg.mountdirfd = gpfs_get_root_fd(obj_hdl->namespace);
 	gpfs_sg_arg.lock = &glock_args;
 
 	errno = 0;

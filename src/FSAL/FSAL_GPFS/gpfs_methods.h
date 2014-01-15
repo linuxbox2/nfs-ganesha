@@ -1,20 +1,20 @@
 /* GPFS methods for handles
  */
 
-/* private helpers from export
+/* private helpers from namespace
  */
 
-int gpfs_get_root_fd(struct fsal_export *exp_hdl);
+int gpfs_get_root_fd(struct fsal_namespace *namespace);
 
-/* method proto linkage to handle.c for export
+/* method proto linkage to handle.c for namespace
  */
 
-fsal_status_t gpfs_lookup_path(struct fsal_export *exp_hdl,
+fsal_status_t gpfs_lookup_path(struct fsal_namespace *namespace,
 			       const struct req_op_context *opctx,
 			       const char *path,
 			       struct fsal_obj_handle **handle);
 
-fsal_status_t gpfs_create_handle(struct fsal_export *exp_hdl,
+fsal_status_t gpfs_create_handle(struct fsal_namespace *namespace,
 				 const struct req_op_context *opctx,
 				 struct gsh_buffdesc *hdl_desc,
 				 struct fsal_obj_handle **handle);

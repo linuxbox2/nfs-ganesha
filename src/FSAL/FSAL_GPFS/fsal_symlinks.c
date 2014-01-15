@@ -84,7 +84,7 @@ fsal_status_t GPFSFSAL_readlink(struct fsal_obj_handle *dir_hdl,	/* IN */
 
 	gpfs_hdl =
 	    container_of(dir_hdl, struct gpfs_fsal_obj_handle, obj_handle);
-	mount_fd = gpfs_get_root_fd(dir_hdl->export);
+	mount_fd = gpfs_get_root_fd(dir_hdl->namespace);
 
 	/* Read the link on the filesystem */
 	status =
@@ -99,7 +99,7 @@ fsal_status_t GPFSFSAL_readlink(struct fsal_obj_handle *dir_hdl,	/* IN */
 	if (p_link_attributes) {
 
 		status =
-		    GPFSFSAL_getattrs(dir_hdl->export, p_context,
+		    GPFSFSAL_getattrs(dir_hdl->namespace, p_context,
 				      gpfs_hdl->handle, p_link_attributes);
 
 		/* On error, we set a flag in the returned attributes */
@@ -165,12 +165,12 @@ fsal_status_t GPFSFSAL_symlink(struct fsal_obj_handle *dir_hdl,	/* IN */
 	gpfs_hdl =
 	    container_of(dir_hdl, struct gpfs_fsal_obj_handle, obj_handle);
 
-	mount_fd = gpfs_get_root_fd(dir_hdl->export);
+	mount_fd = gpfs_get_root_fd(dir_hdl->namespace);
 
 	/* Tests if symlinking is allowed by configuration. */
 
-	if (!dir_hdl->export->ops->
-	    fs_supports(dir_hdl->export, fso_symlink_support))
+	if (!dir_hdl->namespace->ops->
+	    fs_supports(dir_hdl->namespace, fso_symlink_support))
 		return fsalstat(ERR_FSAL_NOTSUPP, 0);
 
 	status =
@@ -211,9 +211,8 @@ fsal_status_t GPFSFSAL_symlink(struct fsal_obj_handle *dir_hdl,	/* IN */
 
 	if (p_link_attributes) {
 
-		status =
-		    GPFSFSAL_getattrs(dir_hdl->export, p_context, p_link_handle,
-				      p_link_attributes);
+		status = GPFSFSAL_getattrs(dir_hdl->namespace, p_context,
+					   p_link_handle, p_link_attributes);
 
 		/* On error, we set a flag in the returned attributes */
 

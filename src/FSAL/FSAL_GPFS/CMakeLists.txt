@@ -4,7 +4,7 @@ include_directories("${PROJECT_SOURCE_DIR}/FSAL/FSAL_GPFS")
 
 SET(fsalgpfs_LIB_SRCS
   main.c
-  export.c
+  namespace.c
   handle.c
   file.c
   fsal_up.c

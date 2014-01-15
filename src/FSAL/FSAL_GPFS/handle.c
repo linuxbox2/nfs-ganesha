@@ -54,13 +54,14 @@
  * this uses malloc/free for the time being.
  */
 
-static struct gpfs_fsal_obj_handle *alloc_handle(struct gpfs_file_handle *fh,
-						 struct attrlist *attributes,
-						 const char *link_content,
-						 struct gpfs_file_handle
-						 *dir_fh,
-						 const char *unopenable_name,
-						 struct fsal_export *exp_hdl)
+static
+struct gpfs_fsal_obj_handle *alloc_handle(struct gpfs_file_handle *fh,
+					  struct attrlist *attributes,
+					  const char *link_content,
+					  struct gpfs_file_handle
+					  *dir_fh,
+					  const char *unopenable_name,
+					  struct fsal_namespace *namespace)
 {
 	struct gpfs_fsal_obj_handle *hdl;
 
@@ -102,13 +103,14 @@ static struct gpfs_fsal_obj_handle *alloc_handle(struct gpfs_file_handle *fh,
 			goto spcerr;
 		strcpy(hdl->u.unopenable.name, unopenable_name);
 	}
-	hdl->obj_handle.export = exp_hdl;
+	hdl->obj_handle.namespace = namespace;
 	hdl->obj_handle.attributes.mask =
-	    exp_hdl->ops->fs_supported_attrs(exp_hdl);
+	    namespace->ops->fs_supported_attrs(namespace);
 	memcpy(&hdl->obj_handle.attributes, attributes,
 	       sizeof(struct attrlist));
 
-	if (!fsal_obj_handle_init(&hdl->obj_handle, exp_hdl, attributes->type))
+	if (!fsal_obj_handle_init(&hdl->obj_handle, namespace,
+				  attributes->type))
 		return hdl;
 
 	hdl->obj_handle.ops = NULL;
@@ -162,7 +164,7 @@ static fsal_status_t lookup(struct fsal_obj_handle *parent,
 		return status;
 
 	/* allocate an obj_handle and fill it up */
-	hdl = alloc_handle(fh, &attrib, NULL, NULL, NULL, parent->export);
+	hdl = alloc_handle(fh, &attrib, NULL, NULL, NULL, parent->namespace);
 	if (hdl == NULL) {
 		retval = ENOMEM;
 		goto hdlerr;
@@ -202,14 +204,14 @@ static fsal_status_t create(struct fsal_obj_handle *dir_hdl,
 	fh->handle_size = OPENHANDLE_HANDLE_LEN;
 
 	attrib->mask =
-	    dir_hdl->export->ops->fs_supported_attrs(dir_hdl->export);
+	    dir_hdl->namespace->ops->fs_supported_attrs(dir_hdl->namespace);
 	status =
 	    GPFSFSAL_create(dir_hdl, name, opctx, attrib->mode, fh, attrib);
 	if (FSAL_IS_ERROR(status))
 		return status;
 
 	/* allocate an obj_handle and fill it up */
-	hdl = alloc_handle(fh, attrib, NULL, NULL, NULL, dir_hdl->export);
+	hdl = alloc_handle(fh, attrib, NULL, NULL, NULL, dir_hdl->namespace);
 	if (hdl == NULL) {
 		retval = ENOMEM;
 		goto fileerr;
@@ -244,13 +246,13 @@ static fsal_status_t makedir(struct fsal_obj_handle *dir_hdl,
 	fh->handle_size = OPENHANDLE_HANDLE_LEN;
 
 	attrib->mask =
-	    dir_hdl->export->ops->fs_supported_attrs(dir_hdl->export);
+	    dir_hdl->namespace->ops->fs_supported_attrs(dir_hdl->namespace);
 	status = GPFSFSAL_mkdir(dir_hdl, name, opctx, attrib->mode, fh, attrib);
 	if (FSAL_IS_ERROR(status))
 		return status;
 
 	/* allocate an obj_handle and fill it up */
-	hdl = alloc_handle(fh, attrib, NULL, NULL, NULL, dir_hdl->export);
+	hdl = alloc_handle(fh, attrib, NULL, NULL, NULL, dir_hdl->namespace);
 	if (hdl == NULL) {
 		retval = ENOMEM;
 		goto fileerr;
@@ -289,7 +291,7 @@ static fsal_status_t makenode(struct fsal_obj_handle *dir_hdl,
 	fh->handle_size = OPENHANDLE_HANDLE_LEN;
 
 	attrib->mask =
-	    dir_hdl->export->ops->fs_supported_attrs(dir_hdl->export);
+	    dir_hdl->namespace->ops->fs_supported_attrs(dir_hdl->namespace);
 	status =
 	    GPFSFSAL_mknode(dir_hdl, name, opctx, attrib->mode, nodetype, dev,
 			    fh, attrib);
@@ -297,7 +299,7 @@ static fsal_status_t makenode(struct fsal_obj_handle *dir_hdl,
 		return status;
 
 	/* allocate an obj_handle and fill it up */
-	hdl = alloc_handle(fh, attrib, NULL, dir_fh, NULL, dir_hdl->export);
+	hdl = alloc_handle(fh, attrib, NULL, dir_fh, NULL, dir_hdl->namespace);
 	if (hdl == NULL) {
 		retval = ENOMEM;
 		goto nodeerr;
@@ -339,7 +341,7 @@ static fsal_status_t makesymlink(struct fsal_obj_handle *dir_hdl,
 	fh->handle_size = OPENHANDLE_HANDLE_LEN;
 
 	attrib->mask =
-	    dir_hdl->export->ops->fs_supported_attrs(dir_hdl->export);
+	    dir_hdl->namespace->ops->fs_supported_attrs(dir_hdl->namespace);
 	status =
 	    GPFSFSAL_symlink(dir_hdl, name, link_path, opctx, attrib->mode, fh,
 			     attrib);
@@ -347,7 +349,8 @@ static fsal_status_t makesymlink(struct fsal_obj_handle *dir_hdl,
 		return status;
 
 	/* allocate an obj_handle and fill it up */
-	hdl = alloc_handle(fh, attrib, link_path, NULL, NULL, dir_hdl->export);
+	hdl = alloc_handle(fh, attrib, link_path, NULL, NULL,
+			   dir_hdl->namespace);
 	if (hdl == NULL) {
 		retval = ENOMEM;
 		goto errout;
@@ -387,7 +390,7 @@ static fsal_status_t readsymlink(struct fsal_obj_handle *obj_hdl,
 			myself->u.symlink.link_content = NULL;
 			myself->u.symlink.link_size = 0;
 		}
-/*		mntfd = gpfs_get_root_fd(obj_hdl->export); */
+/*		mntfd = gpfs_get_root_fd(obj_hdl->namespace); */
 
 		status =
 		    GPFSFSAL_readlink(obj_hdl, opctx, link_buff, &retlink,
@@ -487,7 +490,7 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 		seekloc = (off_t) *whence;
 
 	myself = container_of(dir_hdl, struct gpfs_fsal_obj_handle, obj_handle);
-	mntfd = gpfs_get_root_fd(dir_hdl->export);
+	mntfd = gpfs_get_root_fd(dir_hdl->namespace);
 	status =
 	    fsal_internal_handle2fd_at(mntfd, myself->handle, &dirfd,
 				       (O_RDONLY | O_DIRECTORY));
@@ -564,9 +567,9 @@ static fsal_status_t getattrs(struct fsal_obj_handle *obj_hdl,
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle, obj_handle);
 
 	obj_hdl->attributes.mask =
-	    obj_hdl->export->ops->fs_supported_attrs(obj_hdl->export);
+	    obj_hdl->namespace->ops->fs_supported_attrs(obj_hdl->namespace);
 	status =
-	    GPFSFSAL_getattrs(obj_hdl->export, opctx, myself->handle,
+	    GPFSFSAL_getattrs(obj_hdl->namespace, opctx, myself->handle,
 			      &obj_hdl->attributes);
 	if (FSAL_IS_ERROR(status)) {
 		FSAL_CLEAR_MASK(obj_hdl->attributes.mask);
@@ -694,7 +697,7 @@ static void handle_to_key(struct fsal_obj_handle *obj_hdl,
 
 /*
  * release
- * release our export first so they know we are gone
+ * release our namespace first so they know we are gone
  */
 
 static fsal_status_t release(struct fsal_obj_handle *obj_hdl)
@@ -792,7 +795,7 @@ void gpfs_handle_ops_init(struct fsal_obj_ops *ops)
 	handle_ops_pnfs(ops);
 }
 
-/* export methods that create object handles
+/* namespace methods that create object handles
  */
 
 /* lookup_path
@@ -800,7 +803,7 @@ void gpfs_handle_ops_init(struct fsal_obj_ops *ops)
  * KISS
  */
 
-fsal_status_t gpfs_lookup_path(struct fsal_export *exp_hdl,
+fsal_status_t gpfs_lookup_path(struct fsal_namespace *namespace,
 			       const struct req_op_context *opctx,
 			       const char *path,
 			       struct fsal_obj_handle **handle)
@@ -861,7 +864,7 @@ fsal_status_t gpfs_lookup_path(struct fsal_export *exp_hdl,
 	if (retval < 0)
 		goto fileerr;
 
-	attributes.mask = exp_hdl->ops->fs_supported_attrs(exp_hdl);
+	attributes.mask = namespace->ops->fs_supported_attrs(namespace);
 	fsal_status = posix2fsal_attributes(&stat, &attributes);
 	if (FSAL_IS_ERROR(fsal_status))
 		goto fileerr;
@@ -880,7 +883,7 @@ fsal_status_t gpfs_lookup_path(struct fsal_export *exp_hdl,
 	close(dir_fd);
 
 	/* allocate an obj_handle and fill it up */
-	hdl = alloc_handle(fh, &attributes, NULL, NULL, NULL, exp_hdl);
+	hdl = alloc_handle(fh, &attributes, NULL, NULL, NULL, namespace);
 	if (link_content != NULL)
 		gsh_free(link_content);
 	if (hdl == NULL) {
@@ -915,7 +918,7 @@ fsal_status_t gpfs_lookup_path(struct fsal_export *exp_hdl,
  * Ideas and/or clever hacks are welcome...
  */
 
-fsal_status_t gpfs_create_handle(struct fsal_export *exp_hdl,
+fsal_status_t gpfs_create_handle(struct fsal_namespace *namespace,
 				 const struct req_op_context *opctx,
 				 struct gsh_buffdesc *hdl_desc,
 				 struct fsal_obj_handle **handle)
@@ -926,7 +929,7 @@ fsal_status_t gpfs_create_handle(struct fsal_export *exp_hdl,
 	struct gpfs_fsal_obj_handle *hdl;
 	struct gpfs_file_handle *fh;
 	struct attrlist attrib;
-	int mount_fd = gpfs_get_root_fd(exp_hdl);
+	int mount_fd = gpfs_get_root_fd(namespace);
 	char *link_content = NULL;
 	ssize_t retlink = PATH_MAX;
 	char link_buff[PATH_MAX + 1];
@@ -938,8 +941,8 @@ fsal_status_t gpfs_create_handle(struct fsal_export *exp_hdl,
 	fh = alloca(hdl_desc->len);
 	memcpy(fh, hdl_desc->addr, hdl_desc->len); /* struct aligned copy */
 
-	attrib.mask = exp_hdl->ops->fs_supported_attrs(exp_hdl);
-	status = GPFSFSAL_getattrs(exp_hdl, opctx, fh, &attrib);
+	attrib.mask = namespace->ops->fs_supported_attrs(namespace);
+	status = GPFSFSAL_getattrs(namespace, opctx, fh, &attrib);
 	if (FSAL_IS_ERROR(status))
 		return status;
 
@@ -960,7 +963,7 @@ fsal_status_t gpfs_create_handle(struct fsal_export *exp_hdl,
 		link_buff[retlink] = '\0';
 		link_content = link_buff;
 	}
-	hdl = alloc_handle(fh, &attrib, link_content, NULL, NULL, exp_hdl);
+	hdl = alloc_handle(fh, &attrib, link_content, NULL, NULL, namespace);
 	if (hdl == NULL) {
 		fsal_error = ERR_FSAL_NOMEM;
 		goto errout;
