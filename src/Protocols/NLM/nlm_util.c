@@ -406,7 +406,6 @@ int nlm_process_parameters(struct svc_req *req, bool exclusive,
 }
 
 int nlm_process_share_parms(struct svc_req *req, nlm4_share *share,
-			    struct fsal_export *exp_hdl,
 			    struct req_op_context *req_ctx,
 			    cache_entry_t **ppentry, care_t care,
 			    state_nsm_client_t **ppnsm_client,

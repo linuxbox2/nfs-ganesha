@@ -97,7 +97,6 @@ int nlm4_Unshare(nfs_arg_t *args, exportlist_t *export,
 
 	rc = nlm_process_share_parms(req,
 				     &arg->share,
-				     export->export_hdl,
 				     req_ctx,
 				     &pentry,
 				     CARE_NOT,
