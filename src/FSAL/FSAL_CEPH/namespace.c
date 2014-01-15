@@ -21,14 +21,14 @@
  */
 
 /**
- * @file FSAL_CEPH/export.c
+ * @file FSAL_CEPH/namespace.c
  * @author Adam C. Emerson <aemerson@linuxbox.com>
  * @date Thu Jul  5 16:37:47 2012
  *
- * @brief Implementation of FSAL export functions for Ceph
+ * @brief Implementation of FSAL namespace functions for Ceph
  *
  * This file implements the Ceph specific functionality for the FSAL
- * export handle.
+ * namespace handle.
  */
 
 #include <limits.h>
@@ -43,44 +43,47 @@
 #include "internal.h"
 
 /**
- * @brief Clean up an export
+ * @brief Clean up an namespace
  *
- * This function cleans up an export after the last reference is
+ * This function cleans up an namespace after the last reference is
  * released.
  *
- * @param[in,out] export The export to be released
+ * @param[in,out] pub_namespace The namespace to be released
  *
  * @retval ERR_FSAL_NO_ERROR on success.
- * @retval ERR_FSAL_BUSY if the export is in use.
+ * @retval ERR_FSAL_BUSY if the namespace is in use.
  */
 
-static fsal_status_t release(struct fsal_export *export_pub)
+static fsal_status_t release(struct fsal_namespace *pub_namespace)
 {
-	/* The priate, expanded export */
-	struct export *export = container_of(export_pub, struct export, export);
+	/* The priate, expanded namespace */
+	struct namespace *namespace = container_of(pub_namespace,
+						   struct namespace,
+						   namespace);
 	/* Return code */
 	fsal_status_t status = { ERR_FSAL_INVAL, 0 };
 
-	deconstruct_handle(export->root);
-	export->root = 0;
+	deconstruct_handle(namespace->root);
+	namespace->root = 0;
 
-	pthread_mutex_lock(&export->export.lock);
-	if ((export->export.refs > 0)
-	    || (!glist_empty(&export->export.handles))) {
-		pthread_mutex_lock(&export->export.lock);
+	pthread_mutex_lock(&namespace->namespace.lock);
+	if ((namespace->namespace.refs > 0)
+	    || (!glist_empty(&namespace->namespace.handles))) {
+		pthread_mutex_lock(&namespace->namespace.lock);
 		status.major = ERR_FSAL_INVAL;
 		return status;
 	}
-	fsal_detach_export(export->export.fsal, &export->export.exports);
-	free_export_ops(&export->export);
-	pthread_mutex_unlock(&export->export.lock);
+	fsal_detach_namespace(namespace->namespace.fsal,
+			      &namespace->namespace.namespaces);
+	free_namespace_ops(&namespace->namespace);
+	pthread_mutex_unlock(&namespace->namespace.lock);
 
-	export->export.ops = NULL;
-	ceph_shutdown(export->cmount);
-	export->cmount = NULL;
-	pthread_mutex_destroy(&export->export.lock);
-	gsh_free(export);
-	export = NULL;
+	namespace->namespace.ops = NULL;
+	ceph_shutdown(namespace->cmount);
+	namespace->cmount = NULL;
+	pthread_mutex_destroy(&namespace->namespace.lock);
+	gsh_free(namespace);
+	namespace = NULL;
 
 	return status;
 }
@@ -89,27 +92,27 @@ static fsal_status_t release(struct fsal_export *export_pub)
  * @brief Return a handle corresponding to a path
  *
  * This function looks up the given path and supplies an FSAL object
- * handle.  Because the root path specified for the export is a Ceph
+ * handle.  Because the root path specified for the namespace is a Ceph
  * style root as supplied to mount -t ceph of ceph-fuse (of the form
  * host:/path), we check to see if the path begins with / and, if not,
  * skip until we find one.
  *
- * @param[in]  export_pub The export in which to look up the file
+ * @param[in]  pub_namespace  The namespace in which to look up the file
  * @param[in]  path       The path to look up
  * @param[out] pub_handle The created public FSAL handle
  *
  * @return FSAL status.
  */
 
-static fsal_status_t lookup_path(struct fsal_export *export_pub,
+static fsal_status_t lookup_path(struct fsal_namespace *pub_namespace,
 				 const struct req_op_context *opctx,
 				 const char *path,
 				 struct fsal_obj_handle **pub_handle)
 {
-	/* The 'private' full export handle */
-	struct export *export = container_of(export_pub,
-					     struct export,
-					     export);
+	/* The 'private' full namespace handle */
+	struct namespace *namespace = container_of(pub_namespace,
+					     struct namespace,
+					     namespace);
 	/* The 'private' full object handle */
 	struct handle *handle = NULL;
 	/* The buffer in which to store stat info */
@@ -139,20 +142,20 @@ static fsal_status_t lookup_path(struct fsal_export *export_pub,
 	*pub_handle = NULL;
 
 	if (strcmp(realpath, "/") == 0) {
-		assert(export->root);
-		*pub_handle = &export->root->handle;
+		assert(namespace->root);
+		*pub_handle = &namespace->root->handle;
 		goto out;
 	}
 
-	rc = ceph_ll_walk(export->cmount, realpath, &i, &st);
+	rc = ceph_ll_walk(namespace->cmount, realpath, &i, &st);
 	if (rc < 0) {
 		status = ceph2fsal_error(rc);
 		goto out;
 	}
 
-	rc = construct_handle(&st, i, export, &handle);
+	rc = construct_handle(&st, i, namespace, &handle);
 	if (rc < 0) {
-		ceph_ll_put(export->cmount, i);
+		ceph_ll_put(namespace->cmount, i);
 		status = ceph2fsal_error(rc);
 		goto out;
 	}
@@ -168,11 +171,11 @@ static fsal_status_t lookup_path(struct fsal_export *export_pub,
  *
  * This function decodes a previously digested handle.
  *
- * @param[in]  exp_handle  Handle of the relevant fs export
+ * @param[in]  namespace  Handle of the relevant fs namespace
  * @param[in]  in_type  The type of digest being decoded
  * @param[out] fh_desc  Address and length of key
  */
-static fsal_status_t extract_handle(struct fsal_export *exp_hdl,
+static fsal_status_t extract_handle(struct fsal_namespace *namespace,
 				    fsal_digesttype_t in_type,
 				    struct gsh_buffdesc *fh_desc)
 {
@@ -201,20 +204,20 @@ static fsal_status_t extract_handle(struct fsal_export *exp_hdl,
  * since PUTFH is the only operation that can return
  * NFS4ERR_BADHANDLE.
  *
- * @param[in]  export_pub The export in which to create the handle
+ * @param[in]  pub_namespace The namespace in which to create the handle
  * @param[in]  desc       Buffer from which to create the file
  * @param[out] ds_pub     FSAL data server handle
  *
  * @return NFSv4.1 error codes.
  */
-nfsstat4 create_ds_handle(struct fsal_export * const export_pub,
+nfsstat4 create_ds_handle(struct fsal_namespace * const pub_namespace,
 			  const struct gsh_buffdesc * const desc,
 			  struct fsal_ds_handle ** const ds_pub)
 {
-	/* Full 'private' export structure */
-	struct export *export = container_of(export_pub,
-					     struct export,
-					     export);
+	/* Full 'private' namespace structure */
+	struct namespace *namespace = container_of(pub_namespace,
+					     struct namespace,
+					     namespace);
 	/* Handle to be created */
 	struct ds *ds = NULL;
 
@@ -241,7 +244,7 @@ nfsstat4 create_ds_handle(struct fsal_export * const export_pub,
 	}
 
 	if (fsal_ds_handle_init
-	    (&ds->ds, export->export.ds_ops, &export->export)) {
+	    (&ds->ds, namespace->namespace.ds_ops, &namespace->namespace)) {
 		gsh_free(ds);
 		return NFS4ERR_SERVERFAULT;
 	}
@@ -259,21 +262,21 @@ nfsstat4 create_ds_handle(struct fsal_export * const export_pub,
  * The wire handle is given in a buffer outlined by desc, which it
  * looks like we shouldn't modify.
  *
- * @param[in]  export_pub Public export
+ * @param[in]  pub_namespace  Public namespace
  * @param[in]  desc       Handle buffer descriptor
  * @param[out] pub_handle The created handle
  *
  * @return FSAL status.
  */
-static fsal_status_t create_handle(struct fsal_export *export_pub,
+static fsal_status_t create_handle(struct fsal_namespace *pub_namespace,
 				   const struct req_op_context *opctx,
 				   struct gsh_buffdesc *desc,
 				   struct fsal_obj_handle **pub_handle)
 {
-	/* Full 'private' export structure */
-	struct export *export = container_of(export_pub,
-					     struct export,
-					     export);
+	/* Full 'private' namespace structure */
+	struct namespace *namespace = container_of(pub_namespace,
+					     struct namespace,
+					     namespace);
 	/* FSAL status to return */
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
 	/* The FSAL specific portion of the handle received by the
@@ -295,20 +298,20 @@ static fsal_status_t create_handle(struct fsal_export *export_pub,
 		goto out;
 	}
 
-	i = ceph_ll_get_inode(export->cmount, *vi);
+	i = ceph_ll_get_inode(namespace->cmount, *vi);
 	if (!i)
 		return ceph2fsal_error(-ESTALE);
 
 	/* The ceph_ll_connectable_m should have populated libceph's
 	   cache with all this anyway */
-	rc = ceph_ll_getattr(export->cmount, i, &st, 0, 0);
+	rc = ceph_ll_getattr(namespace->cmount, i, &st, 0, 0);
 	if (rc < 0)
 		return ceph2fsal_error(rc);
 
 
-	rc = construct_handle(&st, i, export, &handle);
+	rc = construct_handle(&st, i, namespace, &handle);
 	if (rc < 0) {
-		ceph_ll_put(export->cmount, i);
+		ceph_ll_put(namespace->cmount, i);
 		status = ceph2fsal_error(rc);
 		goto out;
 	}
@@ -323,26 +326,28 @@ static fsal_status_t create_handle(struct fsal_export *export_pub,
  * @brief Get dynamic filesystem info
  *
  * This function returns dynamic filesystem information for the given
- * export.
+ * namespace.
  *
- * @param[in]  export_pub The public export handle
+ * @param[in]  pub_namespace The public namespace handle
  * @param[out] info       The dynamic FS information
  *
  * @return FSAL status.
  */
 
-static fsal_status_t get_fs_dynamic_info(struct fsal_export *export_pub,
+static fsal_status_t get_fs_dynamic_info(struct fsal_namespace *pub_namespace,
 					 const struct req_op_context *opctx,
 					 fsal_dynamicfsinfo_t *info)
 {
-	/* Full 'private' export */
-	struct export *export = container_of(export_pub, struct export, export);
+	/* Full 'private' namespace */
+	struct namespace *namespace = container_of(pub_namespace,
+						   struct namespace,
+						   namespace);
 	/* Return value from Ceph calls */
 	int rc = 0;
 	/* Filesystem stat */
 	struct statvfs vfs_st;
 
-	rc = ceph_ll_statfs(export->cmount, export->root->i, &vfs_st);
+	rc = ceph_ll_statfs(namespace->cmount, namespace->root->i, &vfs_st);
 
 	if (rc < 0)
 		return ceph2fsal_error(rc);
@@ -363,16 +368,16 @@ static fsal_status_t get_fs_dynamic_info(struct fsal_export *export_pub,
 /**
  * @brief Query the FSAL's capabilities
  *
- * This function queries the capabilities of an FSAL export.
+ * This function queries the capabilities of an FSAL namespace.
  *
- * @param[in] export_pub The public export handle
+ * @param[in] namespace The public namespace handle
  * @param[in] option     The option to check
  *
  * @retval true if the option is supported.
  * @retval false if the option is unsupported (or unknown).
  */
 
-static bool fs_supports(struct fsal_export *export_pub,
+static bool fs_supports(struct fsal_namespace *namespace,
 			fsal_fsinfo_options_t option)
 {
 	switch (option) {
@@ -441,12 +446,12 @@ static bool fs_supports(struct fsal_export *export_pub,
  *
  * This function returns the length of the longest file supported.
  *
- * @param[in] export_pub The public export
+ * @param[in] namespace The public namespace
  *
  * @return UINT64_MAX.
  */
 
-static uint64_t fs_maxfilesize(struct fsal_export *export_pub)
+static uint64_t fs_maxfilesize(struct fsal_namespace *namespace)
 {
 	return UINT64_MAX;
 }
@@ -456,12 +461,12 @@ static uint64_t fs_maxfilesize(struct fsal_export *export_pub)
  *
  * This function returns the length of the longest read supported.
  *
- * @param[in] export_pub The public export
+ * @param[in] namespace The public namespace
  *
  * @return 4 mebibytes.
  */
 
-static uint32_t fs_maxread(struct fsal_export *export_pub)
+static uint32_t fs_maxread(struct fsal_namespace *namespace)
 {
 	return 0x400000;
 }
@@ -471,12 +476,12 @@ static uint32_t fs_maxread(struct fsal_export *export_pub)
  *
  * This function returns the length of the longest write supported.
  *
- * @param[in] export_pub The public export
+ * @param[in] namespace The public namespace
  *
  * @return 4 mebibytes.
  */
 
-static uint32_t fs_maxwrite(struct fsal_export *export_pub)
+static uint32_t fs_maxwrite(struct fsal_namespace *namespace)
 {
 	return 0x400000;
 }
@@ -487,12 +492,12 @@ static uint32_t fs_maxwrite(struct fsal_export *export_pub)
  * This function returns the maximum number of hard links supported to
  * any file.
  *
- * @param[in] export_pub The public export
+ * @param[in] namespace The public namespace
  *
  * @return 1024.
  */
 
-static uint32_t fs_maxlink(struct fsal_export *export_pub)
+static uint32_t fs_maxlink(struct fsal_namespace *namespace)
 {
 	/* Ceph does not like hard links.  See the anchor table
 	   design.  We should fix this, but have to do it in the Ceph
@@ -505,12 +510,12 @@ static uint32_t fs_maxlink(struct fsal_export *export_pub)
  *
  * This function returns the maximum filename length.
  *
- * @param[in] export_pub The public export
+ * @param[in] namespace The public namespace
  *
  * @return UINT32_MAX.
  */
 
-static uint32_t fs_maxnamelen(struct fsal_export *export_pub)
+static uint32_t fs_maxnamelen(struct fsal_namespace *namespace)
 {
 	/* Ceph actually supports filenames of unlimited length, at
 	   least according to the protocol docs.  We may wish to
@@ -523,12 +528,12 @@ static uint32_t fs_maxnamelen(struct fsal_export *export_pub)
  *
  * This function returns the maximum path length.
  *
- * @param[in] export_pub The public export
+ * @param[in] namespace The public namespace
  *
  * @return UINT32_MAX.
  */
 
-static uint32_t fs_maxpathlen(struct fsal_export *export_pub)
+static uint32_t fs_maxpathlen(struct fsal_namespace *namespace)
 {
 	/* Similarly unlimited int he protocol */
 	return UINT32_MAX;
@@ -539,12 +544,12 @@ static uint32_t fs_maxpathlen(struct fsal_export *export_pub)
  *
  * This function returns the lease time.
  *
- * @param[in] export_pub The public export
+ * @param[in] namespace The public namespace
  *
  * @return five minutes.
  */
 
-static struct timespec fs_lease_time(struct fsal_export *export_pub)
+static struct timespec fs_lease_time(struct fsal_namespace *namespace)
 {
 	struct timespec lease = { 300, 0 };
 
@@ -554,14 +559,14 @@ static struct timespec fs_lease_time(struct fsal_export *export_pub)
 /**
  * @brief Return ACL support
  *
- * This function returns the export's ACL support.
+ * This function returns the namespace's ACL support.
  *
- * @param[in] export_pub The public export
+ * @param[in] namespace The public namespace
  *
  * @return FSAL_ACLSUPPORT_DENY.
  */
 
-static fsal_aclsupp_t fs_acl_support(struct fsal_export *export_pub)
+static fsal_aclsupp_t fs_acl_support(struct fsal_namespace *namespace)
 {
 	return FSAL_ACLSUPPORT_DENY;
 }
@@ -571,12 +576,12 @@ static fsal_aclsupp_t fs_acl_support(struct fsal_export *export_pub)
  *
  * This function returns the mask of attributes this FSAL can support.
  *
- * @param[in] export_pub The public export
+ * @param[in] namespace The public namespace
  *
  * @return supported_attributes as defined in internal.c.
  */
 
-static attrmask_t fs_supported_attrs(struct fsal_export *export_pub)
+static attrmask_t fs_supported_attrs(struct fsal_namespace *namespace)
 {
 	return supported_attributes;
 }
@@ -586,12 +591,12 @@ static attrmask_t fs_supported_attrs(struct fsal_export *export_pub)
  *
  * This function returns the default mode on any new file created.
  *
- * @param[in] export_pub The public export
+ * @param[in] namespace The public namespace
  *
  * @return 0600.
  */
 
-static uint32_t fs_umask(struct fsal_export *export_pub)
+static uint32_t fs_umask(struct fsal_namespace *namespace)
 {
 	return 0600;
 }
@@ -602,18 +607,18 @@ static uint32_t fs_umask(struct fsal_export *export_pub)
  * This function returns the access mode applied to extended
  * attributes.  This seems a bit dubious
  *
- * @param[in] export_pub The public export
+ * @param[in] namespace The public namespace
  *
  * @return 0644.
  */
 
-static uint32_t fs_xattr_access_rights(struct fsal_export *export_pub)
+static uint32_t fs_xattr_access_rights(struct fsal_namespace *namespace)
 {
 	return 0644;
 }
 
 /**
- * @brief Set operations for exports
+ * @brief Set operations for namespaces
  *
  * This function overrides operations that we've implemented, leaving
  * the rest for the default.
@@ -621,7 +626,7 @@ static uint32_t fs_xattr_access_rights(struct fsal_export *export_pub)
  * @param[in,out] ops Operations vector
  */
 
-void export_ops_init(struct export_ops *ops)
+void namespace_ops_init(struct namespace_ops *ops)
 {
 	ops->release = release;
 	ops->lookup_path = lookup_path;
@@ -644,6 +649,6 @@ void export_ops_init(struct export_ops *ops)
 	ops->fs_umask = fs_umask;
 	ops->fs_xattr_access_rights = fs_xattr_access_rights;
 #ifdef CEPH_PNFS
-	export_ops_pnfs(ops);
+	namespace_ops_pnfs(ops);
 #endif				/* CEPH_PNFS */
 }

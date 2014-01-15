@@ -41,14 +41,14 @@
 #include <stdbool.h>
 
 /**
- * Ceph private export object
+ * Ceph private namespace object
  */
 
-struct export {
+struct namespace {
 	struct ceph_mount_info *cmount;	/*< The mount object used to
 					   access all Ceph methods on
-					   this export. */
-	struct fsal_export export;	/*< The public export object */
+					   this namespace. */
+	struct fsal_namespace namespace;  /*< The public namespace object */
 	struct handle *root;	/*< The root handle */
 };
 
@@ -114,16 +114,16 @@ static const size_t BIGGEST_PATTERN = 1024;
 /* Prototypes */
 
 int construct_handle(const struct stat *st, struct Inode *i,
-		     struct export *export, struct handle **obj);
+		     struct namespace *namespace, struct handle **obj);
 int deconstruct_handle(struct handle *obj);
 fsal_status_t ceph2fsal_error(const int ceph_errorcode);
 void ceph2fsal_attributes(const struct stat *buffstat,
 			  struct attrlist *fsalattr);
-void export_ops_init(struct export_ops *ops);
+void namespace_ops_init(struct namespace_ops *ops);
 void handle_ops_init(struct fsal_obj_ops *ops);
 #ifdef CEPH_PNFS
 void ds_ops_init(struct fsal_ds_ops *ops);
-void export_ops_pnfs(struct export_ops *ops);
+void namespace_ops_pnfs(struct namespace_ops *ops);
 void handle_ops_pnfs(struct fsal_obj_ops *ops);
 #endif				/* CEPH_PNFS */
 

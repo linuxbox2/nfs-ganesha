@@ -14,7 +14,7 @@ ENDIF()
 
 SET(fsalceph_LIB_SRCS
    main.c
-   export.c
+   namespace.c
    handle.c
    mds.c
    ds.c

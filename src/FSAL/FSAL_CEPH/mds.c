@@ -41,7 +41,7 @@
  * @brief pNFS Metadata Server Operations for the Ceph FSAL
  *
  * This file implements the layoutget, layoutreturn, layoutcommit,
- * getdeviceinfo, and getdevicelist operations and export query
+ * getdeviceinfo, and getdevicelist operations and namespace query
  * support for the Ceph FSAL.
  */
 
@@ -49,9 +49,9 @@ static bool initiate_recall(vinodeno_t vi, bool write, void *opaque)
 {
 	/* The private 'full' object handle */
 	struct handle *handle = (struct handle *)opaque;
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(handle->handle.export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(handle->handle.namespace, struct namespace, namespace);
 	/* Return code from upcall operation */
 	state_status_t status = STATE_SUCCESS;
 	struct gsh_buffdesc key = {
@@ -65,7 +65,8 @@ static bool initiate_recall(vinodeno_t vi, bool write, void *opaque)
 	};
 
 	status =
-	    export->export.up_ops->layoutrecall(&export->export, &key,
+	    namespace->namespace.up_ops->layoutrecall(&namespace->namespace,
+						&key,
 						LAYOUT4_NFSV4_1_FILES, false,
 						&segment, NULL, NULL);
 
@@ -81,7 +82,7 @@ static bool initiate_recall(vinodeno_t vi, bool write, void *opaque)
  * At present, we support a files based layout only.  The CRUSH
  * striping pattern is a-periodic
  *
- * @param[in]  export_pub   Public export handle
+ * @param[in]  namespace    Public namespace handle
  * @param[out] da_addr_body Stream we write the result to
  * @param[in]  type         Type of layout that gave the device
  * @param[in]  deviceid     The device to look up
@@ -89,14 +90,16 @@ static bool initiate_recall(vinodeno_t vi, bool write, void *opaque)
  * @return Valid error codes in RFC 5661, p. 365.
  */
 
-static nfsstat4 getdeviceinfo(struct fsal_export *export_pub,
+static nfsstat4 getdeviceinfo(struct fsal_namespace *namespace,
 			      XDR *da_addr_body, const layouttype4 type,
 			      const struct pnfs_deviceid *deviceid)
 {
-	/* Full 'private' export */
-	struct export *export = container_of(export_pub, struct export, export);
+	/* Full 'private' namespace */
+	struct namespace *namespace = container_of(namespace,
+						   struct namespace,
+						   namespace);
 	/* The number of Ceph OSDs in the cluster */
-	unsigned num_osds = ceph_ll_num_osds(export->cmount);
+	unsigned num_osds = ceph_ll_num_osds(namespace->cmount);
 	/* Minimal information needed to get layout info */
 	vinodeno_t vinode;
 	/* Structure containing the storage parameters of the file within
@@ -122,7 +125,7 @@ static nfsstat4 getdeviceinfo(struct fsal_export *export_pub,
 
 	/* Retrieve and calculate storage parameters of layout */
 	memset(&file_layout, 0, sizeof(struct ceph_file_layout));
-	if (ceph_ll_file_layout(export->cmount, vinode, &file_layout) != 0) {
+	if (ceph_ll_file_layout(namespace->cmount, vinode, &file_layout) != 0) {
 		LogCrit(COMPONENT_PNFS, "Failed to get Ceph layout for inode");
 		return NFS4ERR_SERVERFAULT;
 	}
@@ -144,7 +147,7 @@ static nfsstat4 getdeviceinfo(struct fsal_export *export_pub,
 
 	for (stripe = 0; stripe < stripes; stripe++) {
 		uint32_t stripe_osd = stripe_osd =
-		    ceph_ll_get_stripe_osd(export->cmount,
+		    ceph_ll_get_stripe_osd(namespace->cmount,
 					   vinode,
 					   stripe,
 					   &file_layout);
@@ -179,7 +182,7 @@ static nfsstat4 getdeviceinfo(struct fsal_export *export_pub,
 		fsal_multipath_member_t host;
 		memset(&host, 0, sizeof(fsal_multipath_member_t));
 		host.proto = 6;
-		if (ceph_ll_osdaddr(export->cmount, osd, &host.addr) < 0) {
+		if (ceph_ll_osdaddr(namespace->cmount, osd, &host.addr) < 0) {
 			LogCrit(COMPONENT_PNFS,
 				"Unable to get IP address for OSD %lu.", osd);
 			return NFS4ERR_SERVERFAULT;
@@ -199,7 +202,7 @@ static nfsstat4 getdeviceinfo(struct fsal_export *export_pub,
  * We do not support listing devices and just set EOF without doing
  * anything.
  *
- * @param[in]     export_pub Export handle
+ * @param[in]     namespace Namespace handle
  * @param[in]     type      Type of layout to get devices for
  * @param[in]     cb        Function taking device ID halves
  * @param[in,out] res       In/out and output arguments of the function
@@ -207,7 +210,8 @@ static nfsstat4 getdeviceinfo(struct fsal_export *export_pub,
  * @return Valid error codes in RFC 5661, pp. 365-6.
  */
 
-static nfsstat4 getdevicelist(struct fsal_export *export_pub, layouttype4 type,
+static nfsstat4 getdevicelist(struct fsal_namespace *namespace,
+			      layouttype4 type,
 			      void *opaque, bool(*cb) (void *opaque,
 						       const uint64_t id),
 			      struct fsal_getdevicelist_res *res)
@@ -217,18 +221,18 @@ static nfsstat4 getdevicelist(struct fsal_export *export_pub, layouttype4 type,
 }
 
 /**
- * @brief Get layout types supported by export
+ * @brief Get layout types supported by namespace
  *
  * We just return a pointer to the single type and set the count to 1.
  *
- * @param[in]  export_pub Public export handle
+ * @param[in]  namespace  Public namespace handle
  * @param[out] count      Number of layout types in array
  * @param[out] types      Static array of layout types that must not be
  *                        freed or modified and must not be dereferenced
- *                        after export reference is relinquished
+ *                        after namespace reference is relinquished
  */
 
-static void fs_layouttypes(struct fsal_export *export_pub, size_t *count,
+static void fs_layouttypes(struct fsal_namespace *namespace, size_t *count,
 			   const layouttype4 **types)
 {
 	static const layouttype4 supported_layout_type = LAYOUT4_NFSV4_1_FILES;
@@ -237,16 +241,16 @@ static void fs_layouttypes(struct fsal_export *export_pub, size_t *count,
 }
 
 /**
- * @brief Get layout block size for export
+ * @brief Get layout block size for namespace
  *
  * This function just return the Ceph default.
  *
- * @param[in] export_pub Public export handle
+ * @param[in] namespace Public namespace handle
  *
  * @return 4 MB.
  */
 
-static uint32_t fs_layout_blocksize(struct fsal_export *export_pub)
+static uint32_t fs_layout_blocksize(struct fsal_namespace *namespace)
 {
 	return 0x400000;
 }
@@ -256,11 +260,11 @@ static uint32_t fs_layout_blocksize(struct fsal_export *export_pub)
  *
  * Since current clients only support 1, that's what we'll use.
  *
- * @param[in] export_pub Public export handle
+ * @param[in] namespace Public namespace handle
  *
  * @return 1
  */
-static uint32_t fs_maximum_segments(struct fsal_export *export_pub)
+static uint32_t fs_maximum_segments(struct fsal_namespace *namespace)
 {
 	return 1;
 }
@@ -270,11 +274,11 @@ static uint32_t fs_maximum_segments(struct fsal_export *export_pub)
  *
  * Just a handle plus a bit.
  *
- * @param[in] export_pub Public export handle
+ * @param[in] namespace Public namespace handle
  *
  * @return Size of the buffer needed for a loc_body
  */
-static size_t fs_loc_body_size(struct fsal_export *export_pub)
+static size_t fs_loc_body_size(struct fsal_namespace *namespace)
 {
 	return 0x100;
 }
@@ -284,16 +288,16 @@ static size_t fs_loc_body_size(struct fsal_export *export_pub)
  *
  * This one is huge, due to the striping pattern.
  *
- * @param[in] export_pub Public export handle
+ * @param[in] namespace Public namespace handle
  *
  * @return Size of the buffer needed for a ds_addr
  */
-static size_t fs_da_addr_size(struct fsal_export *export_pub)
+static size_t fs_da_addr_size(struct fsal_namespace *namespace)
 {
 	return 0x1400;
 }
 
-void export_ops_pnfs(struct export_ops *ops)
+void namespace_ops_pnfs(struct namespace_ops *ops)
 {
 	ops->getdeviceinfo = getdeviceinfo;
 	ops->getdevicelist = getdevicelist;
@@ -327,9 +331,9 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
 			  const struct fsal_layoutget_arg *arg,
 			  struct fsal_layoutget_res *res)
 {
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(obj_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(obj_pub->namespace, struct namespace, namespace);
 	/* The private 'full' object handle */
 	struct handle *handle = container_of(obj_pub, struct handle, handle);
 	/* Structure containing the storage parameters of the file within
@@ -375,7 +379,7 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
 
 	memset(&file_layout, 0, sizeof(struct ceph_file_layout));
 
-	ceph_ll_file_layout(export->cmount, handle->wire.vi, &file_layout);
+	ceph_ll_file_layout(namespace->cmount, handle->wire.vi, &file_layout);
 	stripe_width = file_layout.fl_stripe_unit;
 	last_possible_byte = (BIGGEST_PATTERN * stripe_width) - 1;
 	forbidden_area.offset = last_possible_byte + 1;
@@ -427,7 +431,7 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
 	if (res->segment.io_mode == LAYOUTIOMODE4_READ) {
 		uint32_t r = 0;
 		if (handle->rd_issued == 0) {
-			r = ceph_ll_hold_rw(export->cmount, handle->wire.vi,
+			r = ceph_ll_hold_rw(namespace->cmount, handle->wire.vi,
 					    false, initiate_recall, handle,
 					    &handle->rd_serial, NULL);
 			if (r < 0) {
@@ -439,7 +443,7 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
 	} else {
 		uint32_t r = 0;
 		if (handle->rw_issued == 0) {
-			r = ceph_ll_hold_rw(export->cmount, handle->wire.vi,
+			r = ceph_ll_hold_rw(namespace->cmount, handle->wire.vi,
 					    true, initiate_recall, handle,
 					    &handle->rw_serial,
 					    &handle->rw_max_len);
@@ -476,7 +480,7 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
 
 	ds_wire.wire = handle->wire;
 	ds_wire.layout = file_layout;
-	ds_wire.snapseq = ceph_ll_snap_seq(export->cmount, handle->wire.vi);
+	ds_wire.snapseq = ceph_ll_snap_seq(namespace->cmount, handle->wire.vi);
 
 	nfs_status = FSAL_encode_file_layout(loc_body, &deviceid, util, 0, 0,
 					     req_ctx->export->export.id, 1,
@@ -513,7 +517,7 @@ static nfsstat4 layoutget(struct fsal_obj_handle *obj_pub,
 		}
 	}
 
-	ceph_ll_return_rw(export->cmount, handle->wire.vi,
+	ceph_ll_return_rw(namespace->cmount, handle->wire.vi,
 			  res->segment.io_mode ==
 			  LAYOUTIOMODE4_READ ? handle->rd_serial : handle->
 			  rw_serial);
@@ -541,9 +545,9 @@ static nfsstat4 layoutreturn(struct fsal_obj_handle *obj_pub,
 			     struct req_op_context *req_ctx, XDR *lrf_body,
 			     const struct fsal_layoutreturn_arg *arg)
 {
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(obj_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(obj_pub->namespace, struct namespace, namespace);
 	/* The private 'full' object handle */
 	struct handle *handle = container_of(obj_pub, struct handle, handle);
 
@@ -568,7 +572,7 @@ static nfsstat4 layoutreturn(struct fsal_obj_handle *obj_pub,
 			}
 		}
 
-		ceph_ll_return_rw(export->cmount, handle->wire.vi,
+		ceph_ll_return_rw(namespace->cmount, handle->wire.vi,
 				  arg->cur_segment.io_mode ==
 				  LAYOUTIOMODE4_READ ? handle->
 				  rd_serial : handle->rw_serial);
@@ -600,9 +604,9 @@ static nfsstat4 layoutcommit(struct fsal_obj_handle *obj_pub,
 			     const struct fsal_layoutcommit_arg *arg,
 			     struct fsal_layoutcommit_res *res)
 {
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(obj_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(obj_pub->namespace, struct namespace, namespace);
 	/* The private 'full' object handle */
 	struct handle *handle = container_of(obj_pub, struct handle, handle);
 	/* Old stat, so we don't truncate file or reverse time */
@@ -626,7 +630,7 @@ static nfsstat4 layoutcommit(struct fsal_obj_handle *obj_pub,
 	   those before it can work. */
 
 	memset(&stold, 0, sizeof(struct stat));
-	ceph_status = ceph_ll_getattr(export->cmount, handle->wire.vi,
+	ceph_status = ceph_ll_getattr(namespace->cmount, handle->wire.vi,
 				      &stold, 0, 0);
 	if (ceph_status < 0) {
 		LogCrit(COMPONENT_PNFS,
@@ -653,7 +657,7 @@ static nfsstat4 layoutcommit(struct fsal_obj_handle *obj_pub,
 
 	attrmask |= CEPH_SETATTR_MTIME;
 
-	ceph_status = ceph_ll_setattr(export->cmount, handle->wire.vi,
+	ceph_status = ceph_ll_setattr(namespace->cmount, handle->wire.vi,
 				      &stnew, attrmask, 0, 0);
 	if (ceph_status < 0) {
 		LogCrit(COMPONENT_PNFS,

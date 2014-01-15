@@ -28,7 +28,7 @@
  * @brief Impelmentation of FSAL module founctions for Ceph
  *
  * This file implements the module functions for the Ceph FSAL, for
- * initialization, teardown, configuration, and creation of exports.
+ * initialization, teardown, configuration, and creation of namespaces.
  */
 
 #include <stdlib.h>
@@ -53,9 +53,9 @@ static struct fsal_module *module;
 static const char *module_name = "Ceph";
 
 /**
- * @brief Create a new export under this FSAL
+ * @brief Create a new namespace under this FSAL
  *
- * This function creates a new export object for the Ceph FSAL.
+ * This function creates a new namespace object for the Ceph FSAL.
  *
  * @todo ACE: We do not handle re-exports of the same cluster in a
  * sane way.  Currently we create multiple handles and cache objects
@@ -68,7 +68,7 @@ static const char *module_name = "Ceph";
  * @param[in]     options    Export specific options for the FSAL
  * @param[in,out] list_entry Our entry in the export list
  * @param[in]     next_fsal  Next stacked FSAL
- * @param[out]    pub_export Newly created FSAL export object
+ * @param[out]    pub_namespace  Newly created FSAL namespace object
  *
  * @return FSAL status.
  */
@@ -78,14 +78,14 @@ static fsal_status_t create_export(struct fsal_module *module, const char *path,
 				   struct exportlist *list_entry,
 				   struct fsal_module *next_fsal,
 				   const struct fsal_up_vector *up_ops,
-				   struct fsal_export **pub_export)
+				   struct fsal_namespace **pub_namespace)
 {
 	/* The status code to return */
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
-	/* True if we have called fsal_export_init */
+	/* True if we have called fsal_namespace_init */
 	bool initialized = false;
-	/* The internal export object */
-	struct export *export = NULL;
+	/* The internal namespace object */
+	struct namespace *namespace = NULL;
 	/* A fake argument list for Ceph */
 	const char *argv[] = { "FSAL_CEPH", path };
 	/* Return code from Ceph calls */
@@ -113,40 +113,41 @@ static fsal_status_t create_export(struct fsal_module *module, const char *path,
 		goto error;
 	}
 
-	export = gsh_calloc(1, sizeof(struct export));
-	if (export == NULL) {
+	namespace = gsh_calloc(1, sizeof(struct namespace));
+	if (namespace == NULL) {
 		status.major = ERR_FSAL_NOMEM;
 		LogCrit(COMPONENT_FSAL,
-			"Unable to allocate export object for %s.", path);
+			"Unable to allocate namespace object for %s.", path);
 		goto error;
 	}
 
-	if (fsal_export_init(&export->export, list_entry) != 0) {
+	if (fsal_namespace_init(&namespace->namespace, list_entry) != 0) {
 		status.major = ERR_FSAL_NOMEM;
 		LogCrit(COMPONENT_FSAL,
-			"Unable to allocate export ops vectors for %s.", path);
+			"Unable to allocate namespace ops vectors for %s.",
+			path);
 		goto error;
 	}
-	export_ops_init(export->export.ops);
-	handle_ops_init(export->export.obj_ops);
+	namespace_ops_init(namespace->namespace.ops);
+	handle_ops_init(namespace->namespace.obj_ops);
 #ifdef CEPH_PNFS
-	ds_ops_init(export->export.ds_ops);
+	ds_ops_init(namespace->namespace.ds_ops);
 #endif				/* CEPH_PNFS */
-	export->export.up_ops = up_ops;
+	namespace->namespace.up_ops = up_ops;
 
 	initialized = true;
 
 	/* allocates ceph_mount_info */
-	ceph_status = ceph_create(&export->cmount, NULL);
+	ceph_status = ceph_create(&namespace->cmount, NULL);
 	if (ceph_status != 0) {
 		status.major = ERR_FSAL_SERVERFAULT;
 		LogCrit(COMPONENT_FSAL, "Unable to create Ceph handle");
 		goto error;
 	}
 
-	ceph_status = ceph_conf_read_file(export->cmount, NULL);
+	ceph_status = ceph_conf_read_file(namespace->cmount, NULL);
 	if (ceph_status == 0)
-		ceph_status = ceph_conf_parse_argv(export->cmount, 2, argv);
+		ceph_status = ceph_conf_parse_argv(namespace->cmount, 2, argv);
 
 	if (ceph_status != 0) {
 		status.major = ERR_FSAL_SERVERFAULT;
@@ -154,66 +155,67 @@ static fsal_status_t create_export(struct fsal_module *module, const char *path,
 		goto error;
 	}
 
-	ceph_status = ceph_mount(export->cmount, NULL);
+	ceph_status = ceph_mount(namespace->cmount, NULL);
 	if (ceph_status != 0) {
 		status.major = ERR_FSAL_SERVERFAULT;
 		LogCrit(COMPONENT_FSAL, "Unable to mount Ceph cluster.");
 		goto error;
 	}
 
-	if (fsal_attach_export(module, &export->export.exports) != 0) {
+	if (fsal_attach_namespace(module, &namespace->namespace.namespaces)
+	    != 0) {
 		status.major = ERR_FSAL_SERVERFAULT;
-		LogCrit(COMPONENT_FSAL, "Unable to attach export.");
+		LogCrit(COMPONENT_FSAL, "Unable to attach namespace.");
 		goto error;
 	}
 
-	export->export.fsal = module;
-	export->export.fsal = module;
+	namespace->namespace.fsal = module;
+	namespace->namespace.fsal = module;
 
 	root.ino.val = CEPH_INO_ROOT;
 	root.snapid.val = CEPH_NOSNAP;
-	i = ceph_ll_get_inode(export->cmount, root);
+	i = ceph_ll_get_inode(namespace->cmount, root);
 	if (!i) {
 		status.major = ERR_FSAL_SERVERFAULT;
 		goto error;
 	}
 
-	rc = ceph_ll_getattr(export->cmount, i, &st, 0, 0);
+	rc = ceph_ll_getattr(namespace->cmount, i, &st, 0, 0);
 	if (rc < 0) {
 		status = ceph2fsal_error(rc);
 		goto error;
 	}
 
-	rc = construct_handle(&st, i, export, &handle);
+	rc = construct_handle(&st, i, namespace, &handle);
 	if (rc < 0) {
 		status = ceph2fsal_error(rc);
 		goto error;
 	}
 
-	export->root = handle;
-	*pub_export = &export->export;
+	namespace->root = handle;
+	*pub_namespace = &namespace->namespace;
 	return status;
 
  error:
 
 	if (i) {
-		ceph_ll_put(export->cmount, i);
+		ceph_ll_put(namespace->cmount, i);
 		i = NULL;
 	}
 
-	if (export->cmount != NULL) {
-		ceph_shutdown(export->cmount);
-		export->cmount = NULL;
+	if (namespace->cmount != NULL) {
+		ceph_shutdown(namespace->cmount);
+		namespace->cmount = NULL;
 	}
 
 	if (initialized) {
-		pthread_mutex_destroy(&export->export.lock);
+		pthread_mutex_destroy(&namespace->namespace.lock);
 		initialized = false;
 	}
 
-	if (export != NULL) {
-		gsh_free(export);
-		export = NULL;
+	if (namespace != NULL) {
+		gsh_free(namespace);
+		namespace = NULL;
 	}
 
 	return status;

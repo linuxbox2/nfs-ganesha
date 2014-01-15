@@ -54,10 +54,10 @@ static fsal_status_t release(struct fsal_obj_handle *obj_pub)
 {
 	/* The private 'full' handle */
 	struct handle *obj = container_of(obj_pub, struct handle, handle);
-	struct export *export =
-	    container_of(obj_pub->export, struct export, export);
+	struct namespace *namespace =
+	    container_of(obj_pub->namespace, struct namespace, namespace);
 
-	if (obj == export->root)
+	if (obj == namespace->root)
 		return fsalstat(ERR_FSAL_NO_ERROR, 0);
 	else
 		return ceph2fsal_error(deconstruct_handle(obj));
@@ -83,22 +83,22 @@ static fsal_status_t lookup(struct fsal_obj_handle *dir_pub,
 	int rc = 0;
 	/* Stat output */
 	struct stat st;
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(dir_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(dir_pub->namespace, struct namespace, namespace);
 	struct handle *dir = container_of(dir_pub, struct handle, handle);
 	struct handle *obj = NULL;
 	struct Inode *i = NULL;
 
-	rc = ceph_ll_lookup(export->cmount, dir->i, path, &st, &i, 0, 0);
+	rc = ceph_ll_lookup(namespace->cmount, dir->i, path, &st, &i, 0, 0);
 
 	if (rc < 0)
 		return ceph2fsal_error(rc);
 
-	rc = construct_handle(&st, i, export, &obj);
+	rc = construct_handle(&st, i, namespace, &obj);
 
 	if (rc < 0) {
-		ceph_ll_put(export->cmount, i);
+		ceph_ll_put(namespace->cmount, i);
 		return ceph2fsal_error(rc);
 	}
 
@@ -132,9 +132,9 @@ static fsal_status_t fsal_readdir(struct fsal_obj_handle *dir_pub,
 {
 	/* Generic status return */
 	int rc = 0;
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(dir_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(dir_pub->namespace, struct namespace, namespace);
 	/* The private 'full' directory handle */
 	struct handle *dir = container_of(dir_pub, struct handle, handle);
 	/* The director descriptor */
@@ -144,21 +144,21 @@ static fsal_status_t fsal_readdir(struct fsal_obj_handle *dir_pub,
 	/* Return status */
 	fsal_status_t fsal_status = { ERR_FSAL_NO_ERROR, 0 };
 
-	rc = ceph_ll_opendir(export->cmount, dir->i, &dir_desc, 0, 0);
+	rc = ceph_ll_opendir(namespace->cmount, dir->i, &dir_desc, 0, 0);
 	if (rc < 0)
 		return ceph2fsal_error(rc);
 
 	if (whence != NULL)
 		start = *whence;
 
-	ceph_seekdir(export->cmount, dir_desc, start);
+	ceph_seekdir(namespace->cmount, dir_desc, start);
 
 	while (!(*eof)) {
 		struct stat st;
 		struct dirent de;
 		int stmask = 0;
 
-		rc = ceph_readdirplus_r(export->cmount, dir_desc, &de, &st,
+		rc = ceph_readdirplus_r(namespace->cmount, dir_desc, &de, &st,
 					&stmask);
 		if (rc < 0) {
 			fsal_status = ceph2fsal_error(rc);
@@ -183,7 +183,7 @@ static fsal_status_t fsal_readdir(struct fsal_obj_handle *dir_pub,
 
  closedir:
 
-	rc = ceph_ll_releasedir(export->cmount, dir_desc);
+	rc = ceph_ll_releasedir(namespace->cmount, dir_desc);
 
 	if (rc < 0)
 		fsal_status = ceph2fsal_error(rc);
@@ -212,9 +212,9 @@ static fsal_status_t fsal_create(struct fsal_obj_handle *dir_pub,
 {
 	/* Generic status return */
 	int rc = 0;
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(dir_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(dir_pub->namespace, struct namespace, namespace);
 	/* The private 'full' directory handle */
 	struct handle *dir = container_of(dir_pub, struct handle, handle);
 	/* Newly opened file descriptor */
@@ -224,16 +224,16 @@ static fsal_status_t fsal_create(struct fsal_obj_handle *dir_pub,
 	/* Newly created object */
 	struct handle *obj;
 
-	rc = ceph_ll_create(export->cmount, dir->i, name, 0600, O_CREAT, &st,
+	rc = ceph_ll_create(namespace->cmount, dir->i, name, 0600, O_CREAT, &st,
 			    &i, NULL, opctx->creds->caller_uid,
 			    opctx->creds->caller_gid);
 	if (rc < 0)
 		return ceph2fsal_error(rc);
 
-	rc = construct_handle(&st, i, export, &obj);
+	rc = construct_handle(&st, i, namespace, &obj);
 
 	if (rc < 0) {
-		ceph_ll_put(export->cmount, i);
+		ceph_ll_put(namespace->cmount, i);
 		return ceph2fsal_error(rc);
 	}
 
@@ -264,9 +264,9 @@ static fsal_status_t fsal_mkdir(struct fsal_obj_handle *dir_pub,
 {
 	/* Generic status return */
 	int rc = 0;
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(dir_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(dir_pub->namespace, struct namespace, namespace);
 	/* The private 'full' directory handle */
 	struct handle *dir = container_of(dir_pub, struct handle, handle);
 	/* Stat result */
@@ -275,16 +275,16 @@ static fsal_status_t fsal_mkdir(struct fsal_obj_handle *dir_pub,
 	struct handle *obj = NULL;
 	struct Inode *i = NULL;
 
-	rc = ceph_ll_mkdir(export->cmount, dir->i, name, 0700, &st, &i,
+	rc = ceph_ll_mkdir(namespace->cmount, dir->i, name, 0700, &st, &i,
 			   opctx->creds->caller_uid, opctx->creds->caller_gid);
 
 	if (rc < 0)
 		return ceph2fsal_error(rc);
 
-	rc = construct_handle(&st, i, export, &obj);
+	rc = construct_handle(&st, i, namespace, &obj);
 
 	if (rc < 0) {
-		ceph_ll_put(export->cmount, i);
+		ceph_ll_put(namespace->cmount, i);
 		return ceph2fsal_error(rc);
 	}
 
@@ -317,9 +317,9 @@ static fsal_status_t fsal_symlink(struct fsal_obj_handle *dir_pub,
 {
 	/* Generic status return */
 	int rc = 0;
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(dir_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(dir_pub->namespace, struct namespace, namespace);
 	/* The private 'full' directory handle */
 	struct handle *dir = container_of(dir_pub, struct handle, handle);
 	/* Stat result */
@@ -328,15 +328,16 @@ static fsal_status_t fsal_symlink(struct fsal_obj_handle *dir_pub,
 	/* Newly created object */
 	struct handle *obj = NULL;
 
-	rc = ceph_ll_symlink(export->cmount, dir->i, name, link_path, &st, &i,
+	rc = ceph_ll_symlink(namespace->cmount, dir->i,
+			     name, link_path, &st, &i,
 			     opctx->creds->caller_uid,
 			     opctx->creds->caller_gid);
 	if (rc < 0)
 		return ceph2fsal_error(rc);
 
-	rc = construct_handle(&st, i, export, &obj);
+	rc = construct_handle(&st, i, namespace, &obj);
 	if (rc < 0) {
-		ceph_ll_put(export->cmount, i);
+		ceph_ll_put(namespace->cmount, i);
 		return ceph2fsal_error(rc);
 	}
 
@@ -368,9 +369,9 @@ static fsal_status_t fsal_readlink(struct fsal_obj_handle *link_pub,
 {
 	/* Generic status return */
 	int rc = 0;
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(link_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(link_pub->namespace, struct namespace, namespace);
 	/* The private 'full' directory handle */
 	struct handle *link = container_of(link_pub, struct handle, handle);
 	/* Pointer to the Ceph link content */
@@ -379,7 +380,7 @@ static fsal_status_t fsal_readlink(struct fsal_obj_handle *link_pub,
 	/* Content points into a static buffer in the Ceph client's
 	   cache, so we don't have to free it. */
 
-	rc = ceph_ll_readlink(export->cmount, link->i, &content, 0, 0);
+	rc = ceph_ll_readlink(namespace->cmount, link->i, &content, 0, 0);
 
 	if (rc < 0)
 		return ceph2fsal_error(rc);
@@ -409,15 +410,15 @@ static fsal_status_t getattrs(struct fsal_obj_handle *handle_pub,
 {
 	/* Generic status return */
 	int rc = 0;
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(handle_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(handle_pub->namespace, struct namespace, namespace);
 	/* The private 'full' directory handle */
 	struct handle *handle = container_of(handle_pub, struct handle, handle);
 	/* Stat buffer */
 	struct stat st;
 
-	rc = ceph_ll_getattr(export->cmount, handle->i, &st, 0, 0);
+	rc = ceph_ll_getattr(namespace->cmount, handle->i, &st, 0, 0);
 
 	if (rc < 0)
 		return ceph2fsal_error(rc);
@@ -445,9 +446,9 @@ static fsal_status_t setattrs(struct fsal_obj_handle *handle_pub,
 {
 	/* Generic status return */
 	int rc = 0;
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(handle_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(handle_pub->namespace, struct namespace, namespace);
 	/* The private 'full' directory handle */
 	struct handle *handle = container_of(handle_pub, struct handle, handle);
 	/* Stat buffer */
@@ -461,7 +462,7 @@ static fsal_status_t setattrs(struct fsal_obj_handle *handle_pub,
 		return fsalstat(ERR_FSAL_INVAL, 0);
 
 	if (FSAL_TEST_MASK(attrs->mask, ATTR_SIZE)) {
-		rc = ceph_ll_truncate(export->cmount, handle->i,
+		rc = ceph_ll_truncate(namespace->cmount, handle->i,
 				      attrs->filesize, 0, 0);
 
 		if (rc < 0)
@@ -517,7 +518,7 @@ static fsal_status_t setattrs(struct fsal_obj_handle *handle_pub,
 		st.st_ctim = attrs->ctime;
 	}
 
-	rc = ceph_ll_setattr(export->cmount, handle->i, &st, mask, 0, 0);
+	rc = ceph_ll_setattr(namespace->cmount, handle->i, &st, mask, 0, 0);
 
 	if (rc < 0)
 		return ceph2fsal_error(rc);
@@ -546,9 +547,9 @@ static fsal_status_t fsal_link(struct fsal_obj_handle *handle_pub,
 {
 	/* Generic status return */
 	int rc = 0;
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(handle_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(handle_pub->namespace, struct namespace, namespace);
 	/* The private 'full' object handle */
 	struct handle *handle = container_of(handle_pub, struct handle, handle);
 	/* The private 'full' destination directory handle */
@@ -556,7 +557,7 @@ static fsal_status_t fsal_link(struct fsal_obj_handle *handle_pub,
 	    container_of(destdir_pub, struct handle, handle);
 	struct stat st;
 
-	rc = ceph_ll_link(export->cmount, handle->i, destdir->i, name, &st,
+	rc = ceph_ll_link(namespace->cmount, handle->i, destdir->i, name, &st,
 			  opctx->creds->caller_uid, opctx->creds->caller_gid);
 
 	if (rc < 0)
@@ -588,15 +589,15 @@ static fsal_status_t fsal_rename(struct fsal_obj_handle *olddir_pub,
 {
 	/* Generic status return */
 	int rc = 0;
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(olddir_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(olddir_pub->namespace, struct namespace, namespace);
 	/* The private 'full' object handle */
 	struct handle *olddir = container_of(olddir_pub, struct handle, handle);
 	/* The private 'full' destination directory handle */
 	struct handle *newdir = container_of(newdir_pub, struct handle, handle);
 
-	rc = ceph_ll_rename(export->cmount, olddir->i, old_name, newdir->i,
+	rc = ceph_ll_rename(namespace->cmount, olddir->i, old_name, newdir->i,
 			    new_name, opctx->creds->caller_uid,
 			    opctx->creds->caller_gid);
 
@@ -626,16 +627,16 @@ static fsal_status_t fsal_unlink(struct fsal_obj_handle *dir_pub,
 {
 	/* Generic status return */
 	int rc = 0;
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(dir_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(dir_pub->namespace, struct namespace, namespace);
 	/* The private 'full' object handle */
 	struct handle *dir = container_of(dir_pub, struct handle, handle);
 
-	rc = ceph_ll_unlink(export->cmount, dir->i, name,
+	rc = ceph_ll_unlink(namespace->cmount, dir->i, name,
 			    opctx->creds->caller_uid, opctx->creds->caller_gid);
 	if (rc == -EISDIR) {
-		rc = ceph_ll_rmdir(export->cmount, dir->i, name,
+		rc = ceph_ll_rmdir(namespace->cmount, dir->i, name,
 				   opctx->creds->caller_uid,
 				   opctx->creds->caller_gid);
 	}
@@ -665,9 +666,9 @@ static fsal_status_t fsal_open(struct fsal_obj_handle *handle_pub,
 {
 	/* Generic status return */
 	int rc = 0;
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(handle_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(handle_pub->namespace, struct namespace, namespace);
 	/* The private 'full' object handle */
 	struct handle *handle = container_of(handle_pub, struct handle, handle);
 	/* Posix open flags */
@@ -686,8 +687,8 @@ static fsal_status_t fsal_open(struct fsal_obj_handle *handle_pub,
 	if (handle->openflags != FSAL_O_CLOSED)
 		return fsalstat(ERR_FSAL_SERVERFAULT, 0);
 
-	rc = ceph_ll_open(export->cmount, handle->i, posix_flags, &(handle->fd),
-			  0, 0);
+	rc = ceph_ll_open(namespace->cmount, handle->i, posix_flags,
+			  &(handle->fd), 0, 0);
 	if (rc < 0) {
 		handle->fd = NULL;
 		return ceph2fsal_error(rc);
@@ -742,16 +743,16 @@ static fsal_status_t fsal_read(struct fsal_obj_handle *handle_pub,
 			       void *buffer, size_t *read_amount,
 			       bool *end_of_file)
 {
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(handle_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(handle_pub->namespace, struct namespace, namespace);
 	/* The private 'full' object handle */
 	struct handle *handle = container_of(handle_pub, struct handle, handle);
 	/* Signed, so we can pick up on errors */
 	int64_t nb_read = 0;
 
 	nb_read =
-	    ceph_ll_read(export->cmount, handle->fd, offset, buffer_size,
+	    ceph_ll_read(namespace->cmount, handle->fd, offset, buffer_size,
 			 buffer);
 
 	if (nb_read < 0)
@@ -789,16 +790,16 @@ static fsal_status_t fsal_write(struct fsal_obj_handle *handle_pub,
 				void *buffer, size_t *write_amount,
 				bool *fsal_stable)
 {
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(handle_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(handle_pub->namespace, struct namespace, namespace);
 	/* The private 'full' object handle */
 	struct handle *handle = container_of(handle_pub, struct handle, handle);
 	/* Signed, so we can pick up on errors */
 	int64_t nb_written = 0;
 
 	nb_written =
-	    ceph_ll_write(export->cmount, handle->fd, offset, buffer_size,
+	    ceph_ll_write(namespace->cmount, handle->fd, offset, buffer_size,
 			  buffer);
 
 	if (nb_written < 0)
@@ -831,13 +832,13 @@ static fsal_status_t commit(struct fsal_obj_handle *handle_pub,
 {
 	/* Generic status return */
 	int rc = 0;
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(handle_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(handle_pub->namespace, struct namespace, namespace);
 	/* The private 'full' object handle */
 	struct handle *handle = container_of(handle_pub, struct handle, handle);
 
-	rc = ceph_ll_fsync(export->cmount, handle->fd, false);
+	rc = ceph_ll_fsync(namespace->cmount, handle->fd, false);
 
 	if (rc < 0)
 		return ceph2fsal_error(rc);
@@ -860,13 +861,13 @@ static fsal_status_t fsal_close(struct fsal_obj_handle *handle_pub)
 {
 	/* Generic status return */
 	int rc = 0;
-	/* The private 'full' export */
-	struct export *export =
-	    container_of(handle_pub->export, struct export, export);
+	/* The private 'full' namespace */
+	struct namespace *namespace =
+	    container_of(handle_pub->namespace, struct namespace, namespace);
 	/* The private 'full' object handle */
 	struct handle *handle = container_of(handle_pub, struct handle, handle);
 
-	rc = ceph_ll_close(export->cmount, handle->fd);
+	rc = ceph_ll_close(namespace->cmount, handle->fd);
 
 	if (rc < 0)
 		return ceph2fsal_error(rc);

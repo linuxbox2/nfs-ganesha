@@ -258,18 +258,18 @@ void ceph2fsal_attributes(const struct stat *buffstat,
  * @brief Construct a new filehandle
  *
  * This function constructs a new Ceph FSAL object handle and attaches
- * it to the export.  After this call the attributes have been filled
+ * it to the namespace.  After this call the attributes have been filled
  * in and the handdle is up-to-date and usable.
  *
  * @param[in]  st     Stat data for the file
- * @param[in]  export Export on which the object lives
+ * @param[in]  namespace Namespace on which the object lives
  * @param[out] obj    Object created
  *
  * @return 0 on success, negative error codes on failure.
  */
 
 int construct_handle(const struct stat *st, struct Inode *i,
-		     struct export *export, struct handle **obj)
+		     struct namespace *namespace, struct handle **obj)
 {
 	/* Poitner to the handle under construction */
 	struct handle *constructing = NULL;
@@ -295,7 +295,7 @@ int construct_handle(const struct stat *st, struct Inode *i,
 	ceph2fsal_attributes(st, &constructing->handle.attributes);
 
 	rc = -(fsal_obj_handle_init
-	       (&constructing->handle, &export->export,
+	       (&constructing->handle, &namespace->namespace,
 		constructing->handle.attributes.type));
 
 	if (rc < 0) {
@@ -319,11 +319,11 @@ int construct_handle(const struct stat *st, struct Inode *i,
 
 int deconstruct_handle(struct handle *obj)
 {
-	struct export *export =
-	    container_of(obj->handle.export, struct export, export);
+	struct namespace *namespace =
+	    container_of(obj->handle.namespace, struct namespace, namespace);
 	int retval;
 
-	ceph_ll_put(export->cmount, obj->i);
+	ceph_ll_put(namespace->cmount, obj->i);
 	retval = fsal_obj_handle_uninit(&obj->handle);
 	if (retval != 0)
 		return -retval;
