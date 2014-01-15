@@ -411,7 +411,7 @@ struct cache_entry_t {
  */
 
 typedef struct cache_inode_fsal_data {
-	struct fsal_export *export;	/*< export owning this handle */
+	struct fsal_namespace *namespace; /*< namespace owning this handle */
 	struct gsh_buffdesc fh_desc;	/*< FSAL handle descriptor  */
 } cache_inode_fsal_data_t;
 

@@ -463,8 +463,8 @@ clear_fsal_locks(cache_entry_t *entry)
 	/* FSAL object handle */
 	struct fsal_obj_handle *handle = entry->obj_handle;
 
-	if (handle->export->ops->fs_supports(handle->export,
-					     fso_lock_support)) {
+	if (handle->namespace->ops->fs_supports(handle->namespace,
+						fso_lock_support)) {
 		/* Lock that covers the whole file - type doesn't
 		   matter for unlock */
 		fsal_lock_param_t lock = {
@@ -522,8 +522,8 @@ clear_fsal_shares(cache_entry_t *entry)
 	/* FSAL object handle */
 	struct fsal_obj_handle *handle = entry->obj_handle;
 
-	if (handle->export->ops->fs_supports(handle->export,
-					     fso_share_support)) {
+	if (handle->namespace->ops->fs_supports(handle->namespace,
+						fso_share_support)) {
 		/* Fully released shares */
 		fsal_share_param_t releaser = {
 			.share_access = 0,
@@ -793,7 +793,6 @@ destroy_file_state(cache_entry_t *entry)
  * @brief Cleans up the export mappings for this entry without locks
  *
  * @param[in]  entry     The cache inode
- * @param[in]  export    The active export
  *
  */
 

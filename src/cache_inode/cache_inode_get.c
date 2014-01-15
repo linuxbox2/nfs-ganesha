@@ -192,7 +192,7 @@ cache_inode_get(cache_inode_fsal_data_t *fsdata,
 		cache_entry_t **entry)
 {
 	fsal_status_t fsal_status = { 0, 0 };
-	struct fsal_export *exp_hdl = NULL;
+	struct fsal_namespace *namespace = NULL;
 	struct fsal_obj_handle *new_hdl;
 	cache_inode_status_t status = CACHE_INODE_SUCCESS;
 	cih_latch_t latch;
@@ -218,10 +218,10 @@ cache_inode_get(cache_inode_fsal_data_t *fsdata,
 	}
 
 	/* Cache miss, allocate a new entry */
-	exp_hdl = fsdata->export;
+	namespace = fsdata->namespace;
 	fsal_status =
-	    exp_hdl->ops->create_handle(exp_hdl, req_ctx, &fsdata->fh_desc,
-					&new_hdl);
+	    namespace->ops->create_handle(namespace, req_ctx, &fsdata->fh_desc,
+					  &new_hdl);
 	if (FSAL_IS_ERROR(fsal_status)) {
 		status = cache_inode_error_convert(fsal_status);
 		LogDebug(COMPONENT_CACHE_INODE,
@@ -292,12 +292,12 @@ cache_inode_get_keyed(cache_inode_key_t *key,
 	/* Cache miss, allocate a new entry */
 	if (!(flags & CIG_KEYED_FLAG_CACHED_ONLY)) {
 		struct fsal_obj_handle *new_hdl;
-		struct fsal_export *exp_hdl;
+		struct fsal_namespace *namespace;
 		fsal_status_t fsal_status;
 
-		exp_hdl = req_ctx->export->export.export_hdl;
+		namespace = req_ctx->export->export.export_hdl;
 		fsal_status =
-		    exp_hdl->ops->create_handle(exp_hdl, req_ctx, &key->kv,
+		    namespace->ops->create_handle(namespace, req_ctx, &key->kv,
 						&new_hdl);
 
 		if (unlikely(FSAL_IS_ERROR(fsal_status))) {

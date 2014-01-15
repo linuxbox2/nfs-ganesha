@@ -59,13 +59,15 @@ cache_inode_statfs(cache_entry_t *entry,
 		   const struct req_op_context *req_ctx)
 {
 	fsal_status_t fsal_status;
-	struct fsal_export *export;
+	struct fsal_namespace *namespace;
 	cache_inode_status_t status = CACHE_INODE_SUCCESS;
 
-	export = entry->obj_handle->export;
+	namespace = entry->obj_handle->namespace;
+
 	/* Get FSAL to get dynamic info */
-	fsal_status =
-	    export->ops->get_fs_dynamic_info(export, req_ctx, dynamicinfo);
+	fsal_status = namespace->ops->get_fs_dynamic_info(namespace, req_ctx,
+							  dynamicinfo);
+
 	if (FSAL_IS_ERROR(fsal_status)) {
 		status = cache_inode_error_convert(fsal_status);
 		if (fsal_status.major == ERR_FSAL_STALE) {

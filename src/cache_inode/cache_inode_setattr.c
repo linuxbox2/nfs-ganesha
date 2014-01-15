@@ -78,8 +78,8 @@ cache_inode_setattr(cache_entry_t *entry,
 	}
 
 	/* Is it allowed to change times ? */
-	if (!obj_handle->export->ops->
-	    fs_supports(obj_handle->export, fso_cansettime)
+	if (!obj_handle->namespace->ops->
+	    fs_supports(obj_handle->namespace, fso_cansettime)
 	    &&
 	    (FSAL_TEST_MASK
 	     (attr->mask,
