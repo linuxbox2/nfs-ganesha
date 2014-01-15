@@ -77,7 +77,7 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t *data,
 	uint32_t mode = 0;
 	char *name = NULL;
 	char *link_content = NULL;
-	struct fsal_export *exp_hdl;
+	struct fsal_namespace *namespace;
 	fsal_status_t fsal_status;
 	cache_inode_create_arg_t create_arg;
 
@@ -93,9 +93,9 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t *data,
 
 	/* if quota support is active, then we should check is the FSAL allows
 	 * inode creation or not */
-	exp_hdl = data->export->export_hdl;
+	namespace = data->export->export_hdl;
 
-	fsal_status = exp_hdl->ops->check_quota(exp_hdl,
+	fsal_status = namespace->ops->check_quota(namespace,
 						data->export->fullpath,
 						FSAL_QUOTA_INODES,
 						data->req_ctx);

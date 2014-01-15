@@ -53,7 +53,7 @@
  *
  */
 
-int mnt_Mnt(nfs_arg_t *arg, exportlist_t *export,
+int mnt_Mnt(nfs_arg_t *arg, exportlist_t *exp_list,
 	    struct req_op_context *req_ctx, nfs_worker_data_t *worker,
 	    struct svc_req *req, nfs_res_t *res)
 {
@@ -62,7 +62,7 @@ int mnt_Mnt(nfs_arg_t *arg, exportlist_t *export,
 	struct gsh_export *exp = NULL;
 	struct fsal_obj_handle *pfsal_handle = NULL;
 	bool release_handle = false;
-	struct fsal_export *exp_hdl;
+	struct fsal_namespace *namespace;
 	int auth_flavor[NB_AUTH_FLAVOR];
 	int index_auth = 0;
 	int i = 0;
@@ -169,12 +169,12 @@ int mnt_Mnt(nfs_arg_t *arg, exportlist_t *export,
 			goto out;
 		}
 	} else {
-		exp_hdl = p_current_item->export_hdl;
+		namespace = p_current_item->export_hdl;
 		LogEvent(COMPONENT_NFSPROTO,
 			 "MOUNT: Performance warning: Export entry is not cached");
 		if (FSAL_IS_ERROR
-		    (exp_hdl->ops->
-		     lookup_path(exp_hdl, req_ctx, arg->arg_mnt,
+		    (namespace->ops->
+		     lookup_path(namespace, req_ctx, arg->arg_mnt,
 				 &pfsal_handle))) {
 			switch (req->rq_vers) {
 			case MOUNT_V1:

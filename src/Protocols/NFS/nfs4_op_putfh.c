@@ -64,7 +64,7 @@
 int nfs4_op_putfh(struct nfs_argop4 *op, compound_data_t *data,
 		  struct nfs_resop4 *resp)
 {
-	struct fsal_export *export;
+	struct fsal_namespace *namespace;
 	struct file_handle_v4 *v4_handle;
 	cache_entry_t *file_entry;
 
@@ -128,7 +128,7 @@ int nfs4_op_putfh(struct nfs_argop4 *op, compound_data_t *data,
 			return res_PUTFH4->status;
 	}
 
-	export = data->req_ctx->export->export.export_hdl;
+	namespace = data->req_ctx->export->export.export_hdl;
 
 	/* The export and fsalid should be updated, but DS handles
 	 * don't support metdata operations.  Thus, we can't call into
@@ -146,9 +146,9 @@ int nfs4_op_putfh(struct nfs_argop4 *op, compound_data_t *data,
 		data->current_filetype = REGULAR_FILE;
 
 		res_PUTFH4->status =
-		    export->ops->create_ds_handle(export,
-						  &fh_desc,
-						  &data->current_ds);
+		    namespace->ops->create_ds_handle(namespace,
+						     &fh_desc,
+						     &data->current_ds);
 
 		if (res_PUTFH4->status != NFS4_OK)
 			return res_PUTFH4->status;
@@ -157,15 +157,15 @@ int nfs4_op_putfh(struct nfs_argop4 *op, compound_data_t *data,
 		fsal_status_t fsal_status;
 		cache_inode_status_t cache_status;
 
-		fsal_data.export = export;
+		fsal_data.namespace = namespace;
 		fsal_data.fh_desc.len = v4_handle->fs_len;
 		fsal_data.fh_desc.addr = &v4_handle->fsopaque;
 
 		/* adjust the handle opaque into a cache key */
 		fsal_status =
-		    export->ops->extract_handle(export,
-						FSAL_DIGEST_NFSV4,
-						&fsal_data.fh_desc);
+		    namespace->ops->extract_handle(namespace,
+						   FSAL_DIGEST_NFSV4,
+						   &fsal_data.fh_desc);
 
 		if (FSAL_IS_ERROR(fsal_status)) {
 			cache_status =

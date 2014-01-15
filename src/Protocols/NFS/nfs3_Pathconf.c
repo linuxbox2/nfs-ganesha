@@ -72,7 +72,7 @@ int nfs3_Pathconf(nfs_arg_t *arg, exportlist_t *export,
 {
 	cache_entry_t *entry = NULL;
 	int rc = NFS_REQ_OK;
-	struct fsal_export *exp_hdl = export->export_hdl;
+	struct fsal_namespace *NAMESPACE = export->export_hdl;
 
 	if (isDebug(COMPONENT_NFSPROTO)) {
 		char str[LEN_FH_STR];
@@ -99,17 +99,17 @@ int nfs3_Pathconf(nfs_arg_t *arg, exportlist_t *export,
 	}
 
 	res->res_pathconf3.PATHCONF3res_u.resok.linkmax =
-	    exp_hdl->ops->fs_maxlink(exp_hdl);
+	    NAMESPACE->ops->fs_maxlink(NAMESPACE);
 	res->res_pathconf3.PATHCONF3res_u.resok.name_max =
-	    exp_hdl->ops->fs_maxnamelen(exp_hdl);
+	    NAMESPACE->ops->fs_maxnamelen(NAMESPACE);
 	res->res_pathconf3.PATHCONF3res_u.resok.no_trunc =
-	    exp_hdl->ops->fs_supports(exp_hdl, fso_no_trunc);
+	    NAMESPACE->ops->fs_supports(NAMESPACE, fso_no_trunc);
 	res->res_pathconf3.PATHCONF3res_u.resok.chown_restricted =
-	    exp_hdl->ops->fs_supports(exp_hdl, fso_chown_restricted);
+	    NAMESPACE->ops->fs_supports(NAMESPACE, fso_chown_restricted);
 	res->res_pathconf3.PATHCONF3res_u.resok.case_insensitive =
-	    exp_hdl->ops->fs_supports(exp_hdl, fso_case_insensitive);
+	    NAMESPACE->ops->fs_supports(NAMESPACE, fso_case_insensitive);
 	res->res_pathconf3.PATHCONF3res_u.resok.case_preserving =
-	    exp_hdl->ops->fs_supports(exp_hdl, fso_case_preserving);
+	    NAMESPACE->ops->fs_supports(NAMESPACE, fso_case_preserving);
 
 	/* Build post op file attributes */
 	nfs_SetPostOpAttr(entry, req_ctx,
