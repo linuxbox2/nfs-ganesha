@@ -70,14 +70,14 @@ static struct req_op_context synthetic_context = {
 /**
  * @brief Invalidate a cached entry
  *
- * @param[in] export FSAL export
+ * @param[in] namespace FSAL namespace
  * @param[in] key    Key to specify object
  * @param[in] flags  Flags to pass to cache_inode_invalidate
  *
  * @return CACHE_INODE_SUCCESS or errors.
  */
 
-static cache_inode_status_t invalidate(struct fsal_export *export,
+static cache_inode_status_t invalidate(struct fsal_namespace *namespace,
 				       const struct gsh_buffdesc *key,
 				       uint32_t flags)
 {
@@ -111,7 +111,7 @@ cache_inode_status_t fsal_invalidate(const struct gsh_buffdesc *key,
 /**
  * @brief Update cached attributes
  *
- * @param[in] export FSAL export
+ * @param[in] namespace FSAL namespace
  * @param[in] obj    Key to specify object
  * @param[in] attr   New attributes
  * @param[in] flags  Flags to govern update
@@ -119,7 +119,7 @@ cache_inode_status_t fsal_invalidate(const struct gsh_buffdesc *key,
  * @return CACHE_INODE_SUCCESS or errors.
  */
 
-static cache_inode_status_t update(struct fsal_export *export,
+static cache_inode_status_t update(struct fsal_namespace *namespace,
 				   const struct gsh_buffdesc *obj,
 				   struct attrlist *attr, uint32_t flags)
 {
@@ -307,7 +307,7 @@ static cache_inode_status_t update(struct fsal_export *export,
 /**
  * @brief Initiate a lock grant
  *
- * @param[in] export     The export in question
+ * @param[in] namespace     The namespace in question
  * @param[in] file       The file in question
  * @param[in] owner      The lock owner
  * @param[in] lock_param description of the lock
@@ -315,7 +315,7 @@ static cache_inode_status_t update(struct fsal_export *export,
  * @return STATE_SUCCESS or errors.
  */
 
-static state_status_t lock_grant(struct fsal_export *export,
+static state_status_t lock_grant(struct fsal_namespace *namespace,
 				 const struct gsh_buffdesc *file, void *owner,
 				 fsal_lock_param_t *lock_param)
 {
@@ -339,7 +339,7 @@ static state_status_t lock_grant(struct fsal_export *export,
 /**
  * @brief Signal lock availability
  *
- * @param[in] export     The export in question
+ * @param[in] namespace     The namespace in question
  * @param[in] file       The file in question
  * @param[in] owner      The lock owner
  * @param[in] lock_param description of the lock
@@ -347,7 +347,7 @@ static state_status_t lock_grant(struct fsal_export *export,
  * @return STATE_SUCCESS or errors.
  */
 
-static state_status_t lock_avail(struct fsal_export *export,
+static state_status_t lock_avail(struct fsal_namespace *namespace,
 				 const struct gsh_buffdesc *file, void *owner,
 				 fsal_lock_param_t *lock_param)
 {
@@ -374,7 +374,7 @@ static state_status_t lock_avail(struct fsal_export *export,
  * Add a link to a directory and, if the entry's attributes are valid,
  * increment the link count by one.
  *
- * @param[in] export FSAL export
+ * @param[in] namespace FSAL namespace
  * @param[in] dirkey The directory holding the new link
  * @param[in] name   The name of the newly created link
  * @param[in] tarkey The target of the link, may be NULL if unknown
@@ -382,7 +382,7 @@ static state_status_t lock_avail(struct fsal_export *export,
  * @returns CACHE_INODE_SUCCESS or errors.
  */
 
-cache_inode_status_t up_link(struct fsal_export *export,
+cache_inode_status_t up_link(struct fsal_namespace *namespace,
 			     const struct gsh_buffdesc *dirkey,
 			     const char *name,
 			     const struct gsh_buffdesc *tarkey)
@@ -447,14 +447,14 @@ cache_inode_status_t up_link(struct fsal_export *export,
  * Remove the name from the directory, and if the entry is cached,
  * decrement its link count.
  *
- * @param[in] export FSAL export
+ * @param[in] namespace FSAL namespace
  * @param[in] dirkey Directory holding the link
  * @param[in] name   The name to be removed
  *
  * @return CACHE_INODE_SUCCESS or errors.
  */
 
-cache_inode_status_t up_unlink(struct fsal_export *export,
+cache_inode_status_t up_unlink(struct fsal_namespace *namespace,
 			       const struct gsh_buffdesc *dirkey,
 			       const char *name)
 {
@@ -515,14 +515,14 @@ cache_inode_status_t up_unlink(struct fsal_export *export,
  * This function removes the name from the directory, but does not
  * modify the link count.
  *
- * @param[in] export FSAL export
+ * @param[in] namespace FSAL namespace
  * @param[in] dirkey Directory holding the name
  * @param[in] name The name to be moved
  *
  * @return CACHE_INODE_STATUS or errors.
  */
 
-cache_inode_status_t move_from(struct fsal_export *export,
+cache_inode_status_t move_from(struct fsal_namespace *namespace,
 			       const struct gsh_buffdesc *dirkey,
 			       const char *name)
 {
@@ -553,7 +553,7 @@ cache_inode_status_t move_from(struct fsal_export *export,
  * This function adds a name to a directory, but does not touch the
  * number of links on the entry.
  *
- * @param[in] export FSAL export
+ * @param[in] namespace FSAL namespace
  * @param[in] dirkey Directory receiving the link
  * @param[in] name   The name of the link
  * @param[in] tarkey The target of the link, may be NULL if unknown
@@ -561,7 +561,7 @@ cache_inode_status_t move_from(struct fsal_export *export,
  * @return CACHE_INODE_SUCCESS or errors.
  */
 
-cache_inode_status_t move_to(struct fsal_export *export,
+cache_inode_status_t move_to(struct fsal_namespace *namespace,
 			     const struct gsh_buffdesc *dirkey,
 			     const char *name,
 			     const struct gsh_buffdesc *tarkey)
@@ -621,7 +621,7 @@ cache_inode_status_t move_to(struct fsal_export *export,
  * error, invalidate the whole thing.
  *
  *
- * @param[in] export FSAL export
+ * @param[in] namespace FSAL namespace
  * @param[in] dirkey Directory holding the names
  * @param[in] old    The original name
  * @param[in] new    The new name
@@ -629,7 +629,7 @@ cache_inode_status_t move_to(struct fsal_export *export,
  * @return CACHE_INODE_SUCCESS or errors.
  */
 
-cache_inode_status_t up_rename(struct fsal_export *export,
+cache_inode_status_t up_rename(struct fsal_namespace *namespace,
 			       const struct gsh_buffdesc *dirkey,
 			       const char *old, const char *new)
 {
@@ -838,7 +838,7 @@ struct layoutrecall_cb_data {
  * This function validates the recall, creates the recall object, and
  * sends out CB_LAYOUTRECALL messages.
  *
- * @param[in] export      FSAL export
+ * @param[in] namespace      FSAL namespace
  * @param[in] handle      Handle on which the layout is held
  * @param[in] layout_type The type of layout to recall
  * @param[in] changed     Whether the layout has changed and the
@@ -856,7 +856,7 @@ struct layoutrecall_cb_data {
  * @retval STATE_MALLOC_ERROR if there was insufficient memory to construct the
  *         recall state.
  */
-state_status_t layoutrecall(struct fsal_export *export,
+state_status_t layoutrecall(struct fsal_namespace *namespace,
 			    const struct gsh_buffdesc *handle,
 			    layouttype4 layout_type, bool changed,
 			    const struct pnfs_segment *segment, void *cookie,
@@ -1298,24 +1298,24 @@ static bool devnotify_client_callback(nfs_client_id_t *clientid,
 /**
  * @brief Remove or change a deviceid
  *
- * @param[in] export      Export responsible for the device ID
+ * @param[in] namespace   Namespace responsible for the device ID
  * @param[in] notify_type Change or remove
  * @param[in] layout_type The layout type affected
  * @param[in] devid       The lower quad of the device id, unique
- *                        within this export
+ *                        within this namespace
  * @param[in] immediate   Whether the change is immediate (in the case
  *                        of a change.)
  *
  * @return STATE_SUCCESS or errors.
  */
 
-state_status_t notify_device(struct fsal_export *export,
+state_status_t notify_device(struct fsal_namespace *namespace,
 			     notify_deviceid_type4 notify_type,
 			     layouttype4 layout_type, uint64_t devid,
 			     bool immediate)
 {
 	struct devnotify_cb_data cb_data = {
-		.exportid = export->exp_entry->id,
+		.exportid = namespace->exp_entry->id,
 		.notify_type = notify_type,
 		.layout_type = layout_type,
 		.devid = devid
@@ -1454,13 +1454,13 @@ static void delegrecall_one(state_lock_entry_t *found_entry,
 /**
  * @brief Recall a delegation
  *
- * @param[in] export FSAL export
+ * @param[in] namespace FSAL namespace
  * @param[in] handle Handle on which the delegation is held
  *
  * @return STATE_SUCCESS or errors.
  */
 
-state_status_t delegrecall(struct fsal_export *export,
+state_status_t delegrecall(struct fsal_namespace *namespace,
 			   const struct gsh_buffdesc *handle)
 {
 	cache_entry_t *entry = NULL;
