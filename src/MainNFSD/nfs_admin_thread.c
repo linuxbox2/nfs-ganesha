@@ -489,6 +489,7 @@ static void do_shutdown(void)
 			 "Worker threads successfully shut down.");
 
 	/* finalize RPC package */
+	Clean_RPC(); /* we MUST do this first */
 	(void)svc_shutdown(SVC_SHUTDOWN_FLAG_NONE);
 
 	rc = general_fridge_shutdown();
