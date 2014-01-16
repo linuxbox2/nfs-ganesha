@@ -961,12 +961,7 @@ int ptfsal_open(struct pt_fsal_obj_handle *p_parent_directory_handle,
 // -----------------------------------------------------------------------------
 int ptfsal_close_mount_root(fsal_export_context_t * p_export_context)
 {
-	ccl_context_t ccl_context;
 	ptfsal_export_context_t *fsi_export_context = p_export_context;
-
-	ccl_context.export_id = fsi_export_context->pt_export_id;
-	ccl_context.uid = 0;
-	ccl_context.gid = 0;
 
 	// Change to NFS_CLOSE only if it is NFS_OPEN. The calling function will ignore
 	// other nfs state.
