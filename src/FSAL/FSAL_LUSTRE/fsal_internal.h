@@ -111,7 +111,7 @@ extern bool pnfs_enabled;
 
 /* Add missing prototype in vfs.h */
 int fd_to_handle(int fd, void **hanp, size_t *hlen);
-void lustre_export_ops_init(struct export_ops *ops);
+void lustre_namespace_ops_init(struct namespace_ops *ops);
 void lustre_handle_ops_init(struct fsal_obj_ops *ops);
 extern struct lustre_pnfs_parameter pnfs_param;
 

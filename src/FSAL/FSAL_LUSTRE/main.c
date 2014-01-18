@@ -83,7 +83,7 @@ static struct fsal_staticfsinfo_t lustre_info = {
 	.pnfs_file = true,
 };
 
-/* private helper for export object
+/* private helper for namespace object
  */
 
 struct fsal_staticfsinfo_t *lustre_staticinfo(struct fsal_module *hdl)
@@ -142,7 +142,7 @@ static fsal_status_t lustre_init_config(struct fsal_module *fsal_hdl,
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
-/* Internal LUSTRE method linkage to export object
+/* Internal LUSTRE method linkage to namespace object
  */
 
 fsal_status_t lustre_create_export(struct fsal_module *fsal_hdl,
@@ -151,7 +151,7 @@ fsal_status_t lustre_create_export(struct fsal_module *fsal_hdl,
 				   struct exportlist *exp_entry,
 				   struct fsal_module *next_fsal,
 				   const struct fsal_up_vector *up_ops,
-				   struct fsal_export **export);
+				   struct fsal_namespace **namespace);
 
 /* Module initialization.
  * Called by dlopen() to register the module
@@ -163,7 +163,7 @@ fsal_status_t lustre_create_export(struct fsal_module *fsal_hdl,
 
 static struct lustre_fsal_module LUSTRE;
 
-/* linkage to the exports and handle ops initializers
+/* linkage to the namespaces and handle ops initializers
  */
 
 

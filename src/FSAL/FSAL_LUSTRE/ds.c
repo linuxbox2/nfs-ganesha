@@ -30,8 +30,8 @@
  *
  * This file implements the read, write, commit, and dispose
  * operations for GPFS data-server handles.  The functionality to
- * create a data server handle is in the export.c file, as it is part
- * of the export object's interface.
+ * create a data server handle is in the namespace.c file, as it is part
+ * of the namespace object's interface.
  */
 
 #include "config.h"
@@ -117,7 +117,7 @@ lustre_ds_read(struct fsal_ds_handle *const ds_pub,
 	lustre_handle = &ds->wire;
 
 	/* get the path of the file in Lustre */
-	lustre_handle_to_path(lustre_get_root_path(ds_pub->export),
+	lustre_handle_to_path(lustre_get_root_path(ds_pub->namespace),
 			      lustre_handle, mypath);
 
 	/* @todo: we could take care of parameter stability_wanted here */
@@ -188,7 +188,7 @@ lustre_ds_write(struct fsal_ds_handle *const ds_pub,
 	/** @todo Add some debug code here about the fh to be used */
 
 	/* get the path of the file in Lustre */
-	lustre_handle_to_path(lustre_get_root_path(ds_pub->export),
+	lustre_handle_to_path(lustre_get_root_path(ds_pub->namespace),
 			      lustre_handle, mypath);
 
 	/* @todo: we could take care of parameter stability_wanted here */

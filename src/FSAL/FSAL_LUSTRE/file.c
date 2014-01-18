@@ -69,7 +69,7 @@ fsal_status_t lustre_open(struct fsal_obj_handle *obj_hdl,
 		     openflags, posix_flags);
 
 	fd = CRED_WRAP(opctx->creds, int, lustre_open_by_handle,
-		       lustre_get_root_path(obj_hdl->export), myself->handle,
+		       lustre_get_root_path(obj_hdl->namespace), myself->handle,
 		       posix_flags);
 	if (fd < 0) {
 		if ((errno == EACCES)
@@ -87,7 +87,7 @@ fsal_status_t lustre_open(struct fsal_obj_handle *obj_hdl,
 			 * it is writable so we default on root's
 			 * superpower to open it */
 			fd = lustre_open_by_handle(lustre_get_root_path
-						   (obj_hdl->export),
+						   (obj_hdl->namespace),
 						   myself->handle, posix_flags);
 			if (fd < 0) {
 				fsal_error = posix2fsal_error(errno);

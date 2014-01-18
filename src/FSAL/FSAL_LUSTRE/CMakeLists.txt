@@ -6,7 +6,7 @@ SET(fsallustre_LIB_SRCS
    fsal_internal.c
    fsal_internal.h
    main.c
-   export.c
+   namespace.c
    handle.c
    file.c
    xattrs.c

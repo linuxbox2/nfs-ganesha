@@ -25,8 +25,8 @@
  *
  */
 
-/* export.c
- * VFS FSAL export object
+/* namespace.c
+ * LUSTRE FSAL namespace object
  */
 
 #include "config.h"
@@ -59,11 +59,11 @@
 #endif
 
 /*
- * VFS internal export
+ * LUSTRE internal namespace
  */
 
-struct lustre_fsal_export {
-	struct fsal_export export;
+struct lustre_fsal_namespace {
+	struct fsal_namespace namespace;
 	char *mntdir;
 	char *fs_spec;
 	char *fstype;
@@ -73,11 +73,12 @@ struct lustre_fsal_export {
 	bool  pnfs_enabled;
 };
 
-char *lustre_get_root_path(struct fsal_export *exp_hdl)
+char *lustre_get_root_path(struct fsal_namespace *namespace)
 {
-	struct lustre_fsal_export *myself;
+	struct lustre_fsal_namespace *myself;
 
-	myself = container_of(exp_hdl, struct lustre_fsal_export, export);
+	myself = container_of(namespace, struct lustre_fsal_namespace,
+			      namespace);
 	return myself->mntdir;
 }
 
@@ -86,35 +87,37 @@ char *lustre_get_root_path(struct fsal_export *exp_hdl)
 
 struct fsal_staticfsinfo_t *lustre_staticinfo(struct fsal_module *hdl);
 
-int lustre_get_root_fd(struct fsal_export *exp_hdl)
+int lustre_get_root_fd(struct fsal_namespace *namespace)
 {
-	struct lustre_fsal_export *myself;
+	struct lustre_fsal_namespace *myself;
 
-	myself = container_of(exp_hdl, struct lustre_fsal_export, export);
+	myself = container_of(namespace, struct lustre_fsal_namespace,
+			      namespace);
 	return myself->root_fd;
 }
 
-/* export object methods
+/* namespace object methods
  */
 
-static fsal_status_t lustre_release(struct fsal_export *exp_hdl)
+static fsal_status_t lustre_release(struct fsal_namespace *namespace)
 {
-	struct lustre_fsal_export *myself;
+	struct lustre_fsal_namespace *myself;
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 	int retval = 0;
 
-	myself = container_of(exp_hdl, struct lustre_fsal_export, export);
+	myself = container_of(namespace, struct lustre_fsal_namespace,
+			      namespace);
 
-	pthread_mutex_lock(&exp_hdl->lock);
-	if (exp_hdl->refs > 0 || !glist_empty(&exp_hdl->handles)) {
-		LogMajor(COMPONENT_FSAL, "VFS release: export (0x%p)busy",
-			 exp_hdl);
+	pthread_mutex_lock(&namespace->lock);
+	if (namespace->refs > 0 || !glist_empty(&namespace->handles)) {
+		LogMajor(COMPONENT_FSAL, "namespace (0x%p)busy",
+			 namespace);
 		fsal_error = posix2fsal_error(EBUSY);
 		retval = EBUSY;
 		goto errout;
 	}
-	fsal_detach_export(exp_hdl->fsal, &exp_hdl->exports);
-	free_export_ops(exp_hdl);
+	fsal_detach_namespace(namespace->fsal, &namespace->namespaces);
+	free_namespace_ops(namespace);
 	if (myself->root_fd >= 0)
 		close(myself->root_fd);
 	if (myself->root_handle != NULL)
@@ -125,23 +128,23 @@ static fsal_status_t lustre_release(struct fsal_export *exp_hdl)
 		gsh_free(myself->mntdir);
 	if (myself->fs_spec != NULL)
 		gsh_free(myself->fs_spec);
-	myself->export.ops = NULL;	/* poison myself */
-	pthread_mutex_unlock(&exp_hdl->lock);
+	myself->namespace.ops = NULL;	/* poison myself */
+	pthread_mutex_unlock(&namespace->lock);
 
-	pthread_mutex_destroy(&exp_hdl->lock);
+	pthread_mutex_destroy(&namespace->lock);
 	gsh_free(myself);		/* elvis has left the building */
 	return fsalstat(fsal_error, retval);
 
  errout:
-	pthread_mutex_unlock(&exp_hdl->lock);
+	pthread_mutex_unlock(&namespace->lock);
 	return fsalstat(fsal_error, retval);
 }
 
-static fsal_status_t lustre_get_dynamic_info(struct fsal_export *exp_hdl,
+static fsal_status_t lustre_get_dynamic_info(struct fsal_namespace *namespace,
 					     const struct req_op_context *opctx,
 					     fsal_dynamicfsinfo_t *infop)
 {
-	struct lustre_fsal_export *myself;
+	struct lustre_fsal_namespace *myself;
 	struct statvfs buffstatvfs;
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 	int retval = 0;
@@ -150,7 +153,8 @@ static fsal_status_t lustre_get_dynamic_info(struct fsal_export *exp_hdl,
 		fsal_error = ERR_FSAL_FAULT;
 		goto out;
 	}
-	myself = container_of(exp_hdl, struct lustre_fsal_export, export);
+	myself = container_of(namespace, struct lustre_fsal_namespace,
+			      namespace);
 	retval = fstatvfs(myself->root_fd, &buffstatvfs);
 	if (retval < 0) {
 		fsal_error = posix2fsal_error(errno);
@@ -170,119 +174,119 @@ static fsal_status_t lustre_get_dynamic_info(struct fsal_export *exp_hdl,
 	return fsalstat(fsal_error, retval);
 }
 
-static bool lustre_fs_supports(struct fsal_export *exp_hdl,
+static bool lustre_fs_supports(struct fsal_namespace *namespace,
 			       fsal_fsinfo_options_t option)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = lustre_staticinfo(exp_hdl->fsal);
+	info = lustre_staticinfo(namespace->fsal);
 	return fsal_supports(info, option);
 }
 
-static uint64_t lustre_fs_maxfilesize(struct fsal_export *exp_hdl)
+static uint64_t lustre_fs_maxfilesize(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = lustre_staticinfo(exp_hdl->fsal);
+	info = lustre_staticinfo(namespace->fsal);
 	return fsal_maxfilesize(info);
 }
 
-static uint32_t lustre_fs_maxread(struct fsal_export *exp_hdl)
+static uint32_t lustre_fs_maxread(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = lustre_staticinfo(exp_hdl->fsal);
+	info = lustre_staticinfo(namespace->fsal);
 	return fsal_maxread(info);
 }
 
-static uint32_t lustre_fs_maxwrite(struct fsal_export *exp_hdl)
+static uint32_t lustre_fs_maxwrite(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = lustre_staticinfo(exp_hdl->fsal);
+	info = lustre_staticinfo(namespace->fsal);
 	return fsal_maxwrite(info);
 }
 
-static uint32_t lustre_fs_maxlink(struct fsal_export *exp_hdl)
+static uint32_t lustre_fs_maxlink(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = lustre_staticinfo(exp_hdl->fsal);
+	info = lustre_staticinfo(namespace->fsal);
 	return fsal_maxlink(info);
 }
 
-static uint32_t lustre_fs_maxnamelen(struct fsal_export *exp_hdl)
+static uint32_t lustre_fs_maxnamelen(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = lustre_staticinfo(exp_hdl->fsal);
+	info = lustre_staticinfo(namespace->fsal);
 	return fsal_maxnamelen(info);
 }
 
-static uint32_t lustre_fs_maxpathlen(struct fsal_export *exp_hdl)
+static uint32_t lustre_fs_maxpathlen(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = lustre_staticinfo(exp_hdl->fsal);
+	info = lustre_staticinfo(namespace->fsal);
 	return fsal_maxpathlen(info);
 }
 
-static struct timespec lustre_fs_lease_time(struct fsal_export *exp_hdl)
+static struct timespec lustre_fs_lease_time(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = lustre_staticinfo(exp_hdl->fsal);
+	info = lustre_staticinfo(namespace->fsal);
 	return fsal_lease_time(info);
 }
 
-static fsal_aclsupp_t lustre_fs_acl_support(struct fsal_export *exp_hdl)
+static fsal_aclsupp_t lustre_fs_acl_support(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = lustre_staticinfo(exp_hdl->fsal);
+	info = lustre_staticinfo(namespace->fsal);
 	return fsal_acl_support(info);
 }
 
-static attrmask_t lustre_fs_supported_attrs(struct fsal_export *exp_hdl)
+static attrmask_t lustre_fs_supported_attrs(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = lustre_staticinfo(exp_hdl->fsal);
+	info = lustre_staticinfo(namespace->fsal);
 	return fsal_supported_attrs(info);
 }
 
-static uint32_t lustre_fs_umask(struct fsal_export *exp_hdl)
+static uint32_t lustre_fs_umask(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = lustre_staticinfo(exp_hdl->fsal);
+	info = lustre_staticinfo(namespace->fsal);
 	return fsal_umask(info);
 }
 
-static uint32_t lustre_fs_xattr_access_rights(struct fsal_export *exp_hdl)
+static uint32_t lustre_fs_xattr_access_rights(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = lustre_staticinfo(exp_hdl->fsal);
+	info = lustre_staticinfo(namespace->fsal);
 	return fsal_xattr_access_rights(info);
 }
 
 /* get_quota
- * return quotas for this export.
+ * return quotas for this namespace.
  * path could cross a lower mount boundary which could
- * mask lower mount values with those of the export root
+ * mask lower mount values with those of the namespace root
  * if this is a real issue, we can scan each time with setmntent()
  * better yet, compare st_dev of the file with st_dev of root_fd.
  * on linux, can map st_dev -> /proc/partitions name -> /dev/<name>
  */
 
-static fsal_status_t lustre_get_quota(struct fsal_export *exp_hdl,
+static fsal_status_t lustre_get_quota(struct fsal_namespace *namespace,
 				      const char *filepath,
 				      int quota_type,
 				      struct req_op_context *req_ctx,
 				      fsal_quota_t *pquota)
 {
-	struct lustre_fsal_export *myself;
+	struct lustre_fsal_namespace *myself;
 	struct if_quotactl dataquota;
 
 	struct stat path_stat;
@@ -290,7 +294,8 @@ static fsal_status_t lustre_get_quota(struct fsal_export *exp_hdl,
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 	int retval;
 
-	myself = container_of(exp_hdl, struct lustre_fsal_export, export);
+	myself = container_of(namespace, struct lustre_fsal_namespace,
+			      namespace);
 	retval = stat(filepath, &path_stat);
 	if (retval < 0) {
 		LogMajor(COMPONENT_FSAL,
@@ -356,19 +361,20 @@ static fsal_status_t lustre_get_quota(struct fsal_export *exp_hdl,
  * same lower mount restriction applies
  */
 
-static fsal_status_t lustre_set_quota(struct fsal_export *exp_hdl,
+static fsal_status_t lustre_set_quota(struct fsal_namespace *namespace,
 			       const char *filepath,
 			       int quota_type,
 			       struct req_op_context *req_ctx,
 			       fsal_quota_t *pquota, fsal_quota_t *presquota)
 {
-	struct lustre_fsal_export *myself;
+	struct lustre_fsal_namespace *myself;
 	struct stat path_stat;
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 	int retval;
 	struct if_quotactl dataquota;
 
-	myself = container_of(exp_hdl, struct lustre_fsal_export, export);
+	myself = container_of(namespace, struct lustre_fsal_namespace,
+			      namespace);
 	retval = stat(filepath, &path_stat);
 	if (retval < 0) {
 		LogMajor(COMPONENT_FSAL,
@@ -430,7 +436,7 @@ static fsal_status_t lustre_set_quota(struct fsal_export *exp_hdl,
 		goto err;
 	}
 	if (presquota != NULL)
-		return lustre_get_quota(exp_hdl, filepath, quota_type,
+		return lustre_get_quota(namespace, filepath, quota_type,
 				 req_ctx, presquota);
  err:
 	return fsalstat(fsal_error, retval);
@@ -443,7 +449,7 @@ static fsal_status_t lustre_set_quota(struct fsal_export *exp_hdl,
  * is the option to also adjust the start pointer.
  */
 
-static fsal_status_t lustre_extract_handle(struct fsal_export *exp_hdl,
+static fsal_status_t lustre_extract_handle(struct fsal_namespace *namespace,
 				    fsal_digesttype_t in_type,
 				    struct gsh_buffdesc *fh_desc)
 {
@@ -474,13 +480,13 @@ static fsal_status_t lustre_extract_handle(struct fsal_export *exp_hdl,
  * since PUTFH is the only operation that can return
  * NFS4ERR_BADHANDLE.
  *
- * @param[in]  export_pub The export in which to create the handle
+ * @param[in]  namespace  The namespace in which to create the handle
  * @param[in]  desc       Buffer from which to create the file
  * @param[out] ds_pub     FSAL data server handle
  *
  * @return NFSv4.1 error codes.
  */
-nfsstat4 lustre_create_ds_handle(struct fsal_export *const export_pub,
+nfsstat4 lustre_create_ds_handle(struct fsal_namespace *const namespace,
 				 const struct gsh_buffdesc *const desc,
 				 struct fsal_ds_handle **const ds_pub)
 {
@@ -504,8 +510,8 @@ nfsstat4 lustre_create_ds_handle(struct fsal_export *const export_pub,
 	memcpy(&ds->wire, desc->addr, desc->len);
 
 	if (fsal_ds_handle_init(&ds->ds,
-				export_pub->ds_ops,
-				export_pub)) {
+				namespace->ds_ops,
+				namespace)) {
 		gsh_free(ds);
 		return NFS4ERR_SERVERFAULT;
 	}
@@ -514,11 +520,11 @@ nfsstat4 lustre_create_ds_handle(struct fsal_export *const export_pub,
 	return NFS4_OK;
 }
 
-/* lustre_export_ops_init
+/* lustre_namespace_ops_init
  * overwrite vector entries with the methods that we support
  */
 
-void lustre_export_ops_init(struct export_ops *ops)
+void lustre_namespace_ops_init(struct namespace_ops *ops)
 {
 	ops->release = lustre_release;
 	ops->lookup_path = lustre_lookup_path;
@@ -543,10 +549,10 @@ void lustre_export_ops_init(struct export_ops *ops)
 }
 
 /* create_export
- * Create an export point and return a handle to it to be kept
+ * Create an namespace point and return a handle to it to be kept
  * in the export list.
- * First lookup the fsal, then create the export and then put the fsal back.
- * returns the export with one reference taken.
+ * First lookup the fsal, then create the namespace and then put the fsal back.
+ * returns the namespace with one reference taken.
  */
 
 fsal_status_t lustre_create_export(struct fsal_module *fsal_hdl,
@@ -555,9 +561,9 @@ fsal_status_t lustre_create_export(struct fsal_module *fsal_hdl,
 				   struct exportlist *exp_entry,
 				   struct fsal_module *next_fsal,
 				   const struct fsal_up_vector *up_ops,
-				   struct fsal_export **export)
+				   struct fsal_namespace **namespace)
 {
-	struct lustre_fsal_export *myself;
+	struct lustre_fsal_namespace *myself;
 	FILE *fp;
 	struct mntent *p_mnt;
 	size_t pathlen, outlen = 0;
@@ -567,11 +573,11 @@ fsal_status_t lustre_create_export(struct fsal_module *fsal_hdl,
 	int retval = 0;
 	fsal_errors_t fsal_error = ERR_FSAL_NO_ERROR;
 
-	*export = NULL;		/* poison it first */
+	*namespace = NULL;		/* poison it first */
 	if (export_path == NULL || strlen(export_path) == 0
 	    || strlen(export_path) > MAXPATHLEN) {
 		LogMajor(COMPONENT_FSAL,
-			 "lustre_create_export: export path empty or too big");
+			 "export path empty or too big");
 		return fsalstat(ERR_FSAL_INVAL, 0);
 	}
 	if (next_fsal != NULL) {
@@ -579,32 +585,32 @@ fsal_status_t lustre_create_export(struct fsal_module *fsal_hdl,
 		return fsalstat(ERR_FSAL_INVAL, 0);
 	}
 
-	myself = gsh_malloc(sizeof(struct lustre_fsal_export));
+	myself = gsh_malloc(sizeof(struct lustre_fsal_namespace));
 	if (myself == NULL) {
 		LogMajor(COMPONENT_FSAL,
-			 "lustre_fsal_create: out of memory for object");
+			 "out of memory for object");
 		return fsalstat(posix2fsal_error(errno), errno);
 	}
-	memset(myself, 0, sizeof(struct lustre_fsal_export));
+	memset(myself, 0, sizeof(struct lustre_fsal_namespace));
 	myself->root_fd = -1;
 
-	retval = fsal_export_init(&myself->export, exp_entry);
+	retval = fsal_namespace_init(&myself->namespace, exp_entry);
 	if (retval != 0)
 		goto errout;
 
-	lustre_export_ops_init(myself->export.ops);
-	lustre_handle_ops_init(myself->export.obj_ops);
-	myself->export.up_ops = up_ops;
+	lustre_namespace_ops_init(myself->namespace.ops);
+	lustre_handle_ops_init(myself->namespace.obj_ops);
+	myself->namespace.up_ops = up_ops;
 
 	/* lock myself before attaching to the fsal.
 	 * keep myself locked until done with creating myself.
 	 */
 
-	pthread_mutex_lock(&myself->export.lock);
-	retval = fsal_attach_export(fsal_hdl, &myself->export.exports);
+	pthread_mutex_lock(&myself->namespace.lock);
+	retval = fsal_attach_namespace(fsal_hdl, &myself->namespace.namespaces);
 	if (retval != 0)
 		goto errout;	/* seriously bad */
-	myself->export.fsal = fsal_hdl;
+	myself->namespace.fsal = fsal_hdl;
 
 	/* start looking for the mount point */
 	fp = setmntent(MOUNTED, "r");
@@ -716,15 +722,15 @@ fsal_status_t lustre_create_export(struct fsal_module *fsal_hdl,
 	myself->fstype = gsh_strdup(type);
 	myself->fs_spec = gsh_strdup(fs_spec);
 	myself->mntdir = gsh_strdup(mntdir);
-	*export = &myself->export;
-	pthread_mutex_unlock(&myself->export.lock);
+	*namespace = &myself->namespace;
+	pthread_mutex_unlock(&myself->namespace.lock);
 
 	LogInfo(COMPONENT_FSAL,
-		"lustre_fsal_create: pnfs was enabled for [%s]",
+		"pnfs was enabled for [%s]",
 		export_path);
-	export_ops_pnfs(myself->export.ops);
-	handle_ops_pnfs(myself->export.obj_ops);
-	ds_ops_init(myself->export.ds_ops);
+	namespace_ops_pnfs(myself->namespace.ops);
+	handle_ops_pnfs(myself->namespace.obj_ops);
+	ds_ops_init(myself->namespace.ds_ops);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 
@@ -739,9 +745,9 @@ fsal_status_t lustre_create_export(struct fsal_module *fsal_hdl,
 		gsh_free(myself->mntdir);
 	if (myself->fs_spec != NULL)
 		gsh_free(myself->fs_spec);
-	myself->export.ops = NULL;	/* poison myself */
-	pthread_mutex_unlock(&myself->export.lock);
-	pthread_mutex_destroy(&myself->export.lock);
+	myself->namespace.ops = NULL;	/* poison myself */
+	pthread_mutex_unlock(&myself->namespace.lock);
+	pthread_mutex_destroy(&myself->namespace.lock);
 	gsh_free(myself);		/* elvis has left the building */
 	return fsalstat(fsal_error, retval);
 }

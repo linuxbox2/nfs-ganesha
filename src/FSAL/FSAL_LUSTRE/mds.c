@@ -44,19 +44,19 @@
 #include "nfs_exports.h"
 
 /**
- * @brief Get layout types supported by export
+ * @brief Get layout types supported by namespace
  *
  * We just return a pointer to the single type and set the count to 1.
  *
- * @param[in]  export_pub Public export handle
+ * @param[in]  namespace  Public namespace handle
  * @param[out] count      Number of layout types in array
  * @param[out] types      Static array of layout types that must not be
  *                        freed or modified and must not be dereferenced
- *                        after export reference is relinquished
+ *                        after namespace reference is relinquished
  */
 
 static void
-lustre_fs_layouttypes(struct fsal_export *export_hdl,
+lustre_fs_layouttypes(struct fsal_namespace *namespace,
 		      size_t *count,
 		      const layouttype4 **types)
 {
@@ -69,16 +69,16 @@ lustre_fs_layouttypes(struct fsal_export *export_hdl,
 }
 
 /**
- * @brief Get layout block size for export
+ * @brief Get layout block size for namespace
  *
  * This function just return the GPFS default.
  *
- * @param[in] export_pub Public export handle
+ * @param[in] namespace Public namespace handle
  *
  * @return 4 MB.
  */
 static uint32_t
-lustre_fs_layout_blocksize(struct fsal_export *export_pub)
+lustre_fs_layout_blocksize(struct fsal_namespace *namespace)
 {
 	return 0x400000;
 }
@@ -88,12 +88,12 @@ lustre_fs_layout_blocksize(struct fsal_export *export_pub)
  *
  * Since current clients only support 1, that's what we'll use.
  *
- * @param[in] export_pub Public export handle
+ * @param[in] namespace Public namespace handle
  *
  * @return 1
  */
 static uint32_t
-lustre_fs_maximum_segments(struct fsal_export *export_pub)
+lustre_fs_maximum_segments(struct fsal_namespace *namespace)
 {
 	return 1;
 }
@@ -103,12 +103,12 @@ lustre_fs_maximum_segments(struct fsal_export *export_pub)
  *
  * Just a handle plus a bit.
  *
- * @param[in] export_pub Public export handle
+ * @param[in] namespace Public namespace handle
  *
  * @return Size of the buffer needed for a loc_body
  */
 static size_t
-lustre_fs_loc_body_size(struct fsal_export *export_pub)
+lustre_fs_loc_body_size(struct fsal_namespace *namespace)
 {
 	return 0x100;
 }
@@ -118,16 +118,17 @@ lustre_fs_loc_body_size(struct fsal_export *export_pub)
  *
  * This one is huge, due to the striping pattern.
  *
- * @param[in] export_pub Public export handle
+ * @param[in] namespace Public namespace handle
  *
  * @return Size of the buffer needed for a ds_addr
  */
-static size_t lustre_fs_da_addr_size(struct fsal_export *export_pub)
+static size_t lustre_fs_da_addr_size(struct fsal_namespace *namespace)
 {
 	return 0x1400;
 }
 
 /**
+ * @param[in]  namespace    The namespace
  * @param[out] da_addr_body Stream we write the result to
  * @param[in]  type         Type of layout that gave the device
  * @param[in]  deviceid     The device to look up
@@ -136,7 +137,7 @@ static size_t lustre_fs_da_addr_size(struct fsal_export *export_pub)
  */
 
 
-static nfsstat4 lustre_getdeviceinfo(struct fsal_export *export_pub,
+static nfsstat4 lustre_getdeviceinfo(struct fsal_namespace *namespace,
 				     XDR *da_addr_body,
 				     const layouttype4 type,
 				     const struct pnfs_deviceid *deviceid)
@@ -242,7 +243,7 @@ static nfsstat4 lustre_getdeviceinfo(struct fsal_export *export_pub,
  * We do not support listing devices and just set EOF without doing
  * anything.
  *
- * @param[in]     export_pub Export handle
+ * @param[in]     namespace The namespace handle
  * @param[in]     type      Type of layout to get devices for
  * @param[in]     cb        Function taking device ID halves
  * @param[in,out] res       In/out and output arguments of the function
@@ -251,7 +252,7 @@ static nfsstat4 lustre_getdeviceinfo(struct fsal_export *export_pub,
  */
 
 static nfsstat4
-lustre_getdevicelist(struct fsal_export *export_pub,
+lustre_getdevicelist(struct fsal_namespace *namespace,
 		     layouttype4 type,
 		     void *opaque,
 		     bool (*cb)(void *opaque,
@@ -263,7 +264,7 @@ lustre_getdevicelist(struct fsal_export *export_pub,
 }
 
 void
-export_ops_pnfs(struct export_ops *ops)
+namespace_ops_pnfs(struct namespace_ops *ops)
 {
 	ops->getdeviceinfo = lustre_getdeviceinfo;
 	ops->getdevicelist = lustre_getdevicelist;
