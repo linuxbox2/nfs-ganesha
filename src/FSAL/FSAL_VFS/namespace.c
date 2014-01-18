@@ -737,7 +737,7 @@ fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl,
 		retval = pnfs_panfs_init(myself->root_fd, &myself->pnfs_data);
 		if (retval) {
 			LogCrit(COMPONENT_FSAL,
-				"vfs export_ops_pnfs faild => %d [%s]", retval,
+				"vfs namespace_ops_pnfs faild => %d [%s]", retval,
 				strerror(retval));
 			goto errout;
 		}
