@@ -117,7 +117,7 @@ struct pxy_obj_handle {
 	struct pxy_handle_blob blob;
 };
 
-static struct pxy_obj_handle *pxy_alloc_handle(struct fsal_namespace *exp,
+static struct pxy_obj_handle *pxy_alloc_handle(struct fsal_namespace *namespace,
 					       const nfs_fh4 *fh,
 					       const struct attrlist *attr);
 
