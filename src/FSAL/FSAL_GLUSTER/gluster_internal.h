@@ -113,12 +113,12 @@ struct glusterfs_fsal_module {
 	struct fsal_module fsal;
 };
 
-struct glusterfs_export {
+struct glusterfs_namespace {
 	glfs_t *gl_fs;
 	char *export_path;
 	uid_t saveduid;
 	gid_t savedgid;
-	struct fsal_export export;
+	struct fsal_namespace namespace;
 };
 
 struct glusterfs_handle {
@@ -146,7 +146,7 @@ void stat2fsal_attributes(const struct stat *buffstat,
 
 struct fsal_staticfsinfo_t *gluster_staticinfo(struct fsal_module *hdl);
 
-int construct_handle(struct glusterfs_export *glexport, const struct stat *st,
+int construct_handle(struct glusterfs_namespace *glnamespace, const struct stat *st,
 		     struct glfs_object *glhandle, unsigned char *globjhdl,
 		     int len, struct glusterfs_handle **obj);
 
@@ -156,14 +156,14 @@ fsal_status_t glusterfs_create_export(struct fsal_module *fsal_hdl,
 				      struct exportlist *exp_entry,
 				      struct fsal_module *next_fsal,
 				      const struct fsal_up_vector *up_ops,
-				      struct fsal_export **export);
+				      struct fsal_namespace **namespace);
 
 void gluster_cleanup_vars(struct glfs_object *glhandle);
 
 bool fs_specific_has(const char *fs_specific, const char *key, char *val,
 		     int *max_val_bytes);
 
-int setglustercreds(struct glusterfs_export *glfs_export, uid_t * uid,
+int setglustercreds(struct glusterfs_namespace *glfs_namespace, uid_t * uid,
 		    gid_t * gid, unsigned int ngrps, gid_t * groups);
 
 #endif				/* GLUSTER_INTERNAL */

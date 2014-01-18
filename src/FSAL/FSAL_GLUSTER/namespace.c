@@ -22,11 +22,11 @@
  */
 
 /**
- * @file  export.c
+ * @file  namespace.c
  * @author Shyamsundar R <srangana@redhat.com>
  * @author Anand Subramanian <anands@redhat.com>
  *
- * @brief GLUSTERFS FSAL export object
+ * @brief GLUSTERFS FSAL namespace object
  */
 
 #include <fcntl.h>
@@ -39,48 +39,48 @@
 #include "gluster_internal.h"
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation release
+ * @brief Implements GLUSTER FSAL namespace operation release
  */
 
-static fsal_status_t export_release(struct fsal_export *exp_hdl)
+static fsal_status_t namespace_release(struct fsal_namespace *namespace)
 {
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
-	struct glusterfs_export *glfs_export =
-	    container_of(exp_hdl, struct glusterfs_export, export);
+	struct glusterfs_namespace *glfs_namespace =
+	    container_of(namespace, struct glusterfs_namespace, namespace);
 
-	/* check activity on the export */
-	pthread_mutex_lock(&glfs_export->export.lock);
-	if ((glfs_export->export.refs > 0)
-	    || (!glist_empty(&glfs_export->export.handles))) {
-		pthread_mutex_unlock(&glfs_export->export.lock);
+	/* check activity on the namespace */
+	pthread_mutex_lock(&glfs_namespace->namespace.lock);
+	if ((glfs_namespace->namespace.refs > 0)
+	    || (!glist_empty(&glfs_namespace->namespace.handles))) {
+		pthread_mutex_unlock(&glfs_namespace->namespace.lock);
 		status.major = ERR_FSAL_INVAL;
 		return status;
 	}
 
-	/* detach the export */
-	fsal_detach_export(glfs_export->export.fsal,
-			   &glfs_export->export.exports);
-	free_export_ops(&glfs_export->export);
-	glfs_export->export.ops = NULL;
-	pthread_mutex_unlock(&glfs_export->export.lock);
+	/* detach the namespace */
+	fsal_detach_namespace(glfs_namespace->namespace.fsal,
+			      &glfs_namespace->namespace.namespaces);
+	free_namespace_ops(&glfs_namespace->namespace);
+	glfs_namespace->namespace.ops = NULL;
+	pthread_mutex_unlock(&glfs_namespace->namespace.lock);
 
 	/* Gluster and memory cleanup */
-	glfs_fini(glfs_export->gl_fs);
-	glfs_export->gl_fs = NULL;
-	gsh_free(glfs_export->export_path);
-	glfs_export->export_path = NULL;
-	pthread_mutex_destroy(&glfs_export->export.lock);
-	gsh_free(glfs_export);
-	glfs_export = NULL;
+	glfs_fini(glfs_namespace->gl_fs);
+	glfs_namespace->gl_fs = NULL;
+	gsh_free(glfs_namespace->export_path);
+	glfs_namespace->export_path = NULL;
+	pthread_mutex_destroy(&glfs_namespace->namespace.lock);
+	gsh_free(glfs_namespace);
+	glfs_namespace = NULL;
 
 	return status;
 }
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation lookup_path
+ * @brief Implements GLUSTER FSAL namespace operation lookup_path
  */
 
-static fsal_status_t lookup_path(struct fsal_export *export_pub,
+static fsal_status_t lookup_path(struct fsal_namespace *namespace,
 				 const struct req_op_context *opctx,
 				 const char *path,
 				 struct fsal_obj_handle **pub_handle)
@@ -92,15 +92,15 @@ static fsal_status_t lookup_path(struct fsal_export *export_pub,
 	struct glfs_object *glhandle = NULL;
 	unsigned char globjhdl[GLAPI_HANDLE_LENGTH];
 	struct glusterfs_handle *objhandle = NULL;
-	struct glusterfs_export *glfs_export =
-	    container_of(export_pub, struct glusterfs_export, export);
+	struct glusterfs_namespace *glfs_namespace =
+	    container_of(namespace, struct glusterfs_namespace, namespace);
 
 	LogFullDebug(COMPONENT_FSAL, "In args: path = %s", path);
 
 	*pub_handle = NULL;
-	realpath = glfs_export->export_path;
+	realpath = glfs_namespace->export_path;
 
-	glhandle = glfs_h_lookupat(glfs_export->gl_fs, NULL, realpath, &sb);
+	glhandle = glfs_h_lookupat(glfs_namespace->gl_fs, NULL, realpath, &sb);
 	if (glhandle == NULL) {
 		status = gluster2fsal_error(errno);
 		goto out;
@@ -112,7 +112,7 @@ static fsal_status_t lookup_path(struct fsal_export *export_pub,
 		goto out;
 	}
 
-	rc = construct_handle(glfs_export, &sb, glhandle, globjhdl,
+	rc = construct_handle(glfs_namespace, &sb, glhandle, globjhdl,
 			      GLAPI_HANDLE_LENGTH, &objhandle);
 	if (rc != 0) {
 		status = gluster2fsal_error(rc);
@@ -129,10 +129,10 @@ static fsal_status_t lookup_path(struct fsal_export *export_pub,
 }
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation extract_handle
+ * @brief Implements GLUSTER FSAL namespace operation extract_handle
  */
 
-static fsal_status_t extract_handle(struct fsal_export *exp_hdl,
+static fsal_status_t extract_handle(struct fsal_namespace *namespace,
 				    fsal_digesttype_t in_type,
 				    struct gsh_buffdesc *fh_desc)
 {
@@ -172,10 +172,10 @@ static fsal_status_t extract_handle(struct fsal_export *exp_hdl,
 }
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation create_handle
+ * @brief Implements GLUSTER FSAL namespace operation create_handle
  */
 
-static fsal_status_t create_handle(struct fsal_export *export_pub,
+static fsal_status_t create_handle(struct fsal_namespace *namespace,
 				   const struct req_op_context *opctx,
 				   struct gsh_buffdesc *fh_desc,
 				   struct fsal_obj_handle **pub_handle)
@@ -186,8 +186,8 @@ static fsal_status_t create_handle(struct fsal_export *export_pub,
 	struct glfs_object *glhandle = NULL;
 	unsigned char globjhdl[GLAPI_HANDLE_LENGTH];
 	struct glusterfs_handle *objhandle = NULL;
-	struct glusterfs_export *glfs_export =
-	    container_of(export_pub, struct glusterfs_export, export);
+	struct glusterfs_namespace *glfs_namespace =
+	    container_of(namespace, struct glusterfs_namespace, namespace);
 #ifdef GLTIMING
 	struct timespec s_time, e_time;
 
@@ -204,14 +204,14 @@ static fsal_status_t create_handle(struct fsal_export *export_pub,
 	memcpy(globjhdl, fh_desc->addr, 16);
 
 	glhandle =
-	    glfs_h_create_from_handle(glfs_export->gl_fs, globjhdl,
+	    glfs_h_create_from_handle(glfs_namespace->gl_fs, globjhdl,
 				      GLAPI_HANDLE_LENGTH, &sb);
 	if (glhandle == NULL) {
 		status = gluster2fsal_error(errno);
 		goto out;
 	}
 
-	rc = construct_handle(glfs_export, &sb, glhandle, globjhdl,
+	rc = construct_handle(glfs_namespace, &sb, glhandle, globjhdl,
 			      GLAPI_HANDLE_LENGTH, &objhandle);
 	if (rc != 0) {
 		status = gluster2fsal_error(rc);
@@ -231,20 +231,20 @@ static fsal_status_t create_handle(struct fsal_export *export_pub,
 }
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation get_fs_dynamic_info
+ * @brief Implements GLUSTER FSAL namespace operation get_fs_dynamic_info
  */
 
-static fsal_status_t get_dynamic_info(struct fsal_export *exp_hdl,
+static fsal_status_t get_dynamic_info(struct fsal_namespace *namespace,
 				      const struct req_op_context *opctx,
 				      fsal_dynamicfsinfo_t * infop)
 {
 	int rc = 0;
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
 	struct statvfs vfssb;
-	struct glusterfs_export *glfs_export =
-	    container_of(exp_hdl, struct glusterfs_export, export);
+	struct glusterfs_namespace *glfs_namespace =
+	    container_of(namespace, struct glusterfs_namespace, namespace);
 
-	rc = glfs_statvfs(glfs_export->gl_fs, glfs_export->export_path, &vfssb);
+	rc = glfs_statvfs(glfs_namespace->gl_fs, glfs_namespace->export_path, &vfssb);
 	if (rc != 0) {
 		return gluster2fsal_error(rc);
 	}
@@ -266,155 +266,155 @@ static fsal_status_t get_dynamic_info(struct fsal_export *exp_hdl,
  * in case all are constants across all volumes etc. */
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation fs_supports
+ * @brief Implements GLUSTER FSAL namespace operation fs_supports
  */
 
-static bool fs_supports(struct fsal_export *exp_hdl,
+static bool fs_supports(struct fsal_namespace *namespace,
 			fsal_fsinfo_options_t option)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = gluster_staticinfo(exp_hdl->fsal);
+	info = gluster_staticinfo(namespace->fsal);
 	return fsal_supports(info, option);
 }
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation fs_maxfilesize
+ * @brief Implements GLUSTER FSAL namespace operation fs_maxfilesize
  */
 
-static uint64_t fs_maxfilesize(struct fsal_export *exp_hdl)
+static uint64_t fs_maxfilesize(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = gluster_staticinfo(exp_hdl->fsal);
+	info = gluster_staticinfo(namespace->fsal);
 	return fsal_maxfilesize(info);
 }
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation fs_maxread
+ * @brief Implements GLUSTER FSAL namespace operation fs_maxread
  */
 
-static uint32_t fs_maxread(struct fsal_export *exp_hdl)
+static uint32_t fs_maxread(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = gluster_staticinfo(exp_hdl->fsal);
+	info = gluster_staticinfo(namespace->fsal);
 	return fsal_maxread(info);
 }
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation fs_maxwrite
+ * @brief Implements GLUSTER FSAL namespace operation fs_maxwrite
  */
 
-static uint32_t fs_maxwrite(struct fsal_export *exp_hdl)
+static uint32_t fs_maxwrite(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = gluster_staticinfo(exp_hdl->fsal);
+	info = gluster_staticinfo(namespace->fsal);
 	return fsal_maxwrite(info);
 }
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation fs_maxlink
+ * @brief Implements GLUSTER FSAL namespace operation fs_maxlink
  */
 
-static uint32_t fs_maxlink(struct fsal_export *exp_hdl)
+static uint32_t fs_maxlink(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = gluster_staticinfo(exp_hdl->fsal);
+	info = gluster_staticinfo(namespace->fsal);
 	return fsal_maxlink(info);
 }
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation fs_maxnamelen
+ * @brief Implements GLUSTER FSAL namespace operation fs_maxnamelen
  */
 
-static uint32_t fs_maxnamelen(struct fsal_export *exp_hdl)
+static uint32_t fs_maxnamelen(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = gluster_staticinfo(exp_hdl->fsal);
+	info = gluster_staticinfo(namespace->fsal);
 	return fsal_maxnamelen(info);
 }
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation fs_maxpathlen
+ * @brief Implements GLUSTER FSAL namespace operation fs_maxpathlen
  */
 
-static uint32_t fs_maxpathlen(struct fsal_export *exp_hdl)
+static uint32_t fs_maxpathlen(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = gluster_staticinfo(exp_hdl->fsal);
+	info = gluster_staticinfo(namespace->fsal);
 	return fsal_maxpathlen(info);
 }
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation fs_lease_time
+ * @brief Implements GLUSTER FSAL namespace operation fs_lease_time
  */
 
-static struct timespec fs_lease_time(struct fsal_export *exp_hdl)
+static struct timespec fs_lease_time(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = gluster_staticinfo(exp_hdl->fsal);
+	info = gluster_staticinfo(namespace->fsal);
 	return fsal_lease_time(info);
 }
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation fs_acl_support
+ * @brief Implements GLUSTER FSAL namespace operation fs_acl_support
  */
 
-static fsal_aclsupp_t fs_acl_support(struct fsal_export *exp_hdl)
+static fsal_aclsupp_t fs_acl_support(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = gluster_staticinfo(exp_hdl->fsal);
+	info = gluster_staticinfo(namespace->fsal);
 	return fsal_acl_support(info);
 }
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation fs_supported_attrs
+ * @brief Implements GLUSTER FSAL namespace operation fs_supported_attrs
  */
 
-static attrmask_t fs_supported_attrs(struct fsal_export *exp_hdl)
+static attrmask_t fs_supported_attrs(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = gluster_staticinfo(exp_hdl->fsal);
+	info = gluster_staticinfo(namespace->fsal);
 	return fsal_supported_attrs(info);
 }
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation fs_umask
+ * @brief Implements GLUSTER FSAL namespace operation fs_umask
  */
 
-static uint32_t fs_umask(struct fsal_export *exp_hdl)
+static uint32_t fs_umask(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = gluster_staticinfo(exp_hdl->fsal);
+	info = gluster_staticinfo(namespace->fsal);
 	return fsal_umask(info);
 }
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation fs_xattr_access_rights
+ * @brief Implements GLUSTER FSAL namespace operation fs_xattr_access_rights
  */
 
-static uint32_t fs_xattr_access_rights(struct fsal_export *exp_hdl)
+static uint32_t fs_xattr_access_rights(struct fsal_namespace *namespace)
 {
 	struct fsal_staticfsinfo_t *info;
 
-	info = gluster_staticinfo(exp_hdl->fsal);
+	info = gluster_staticinfo(namespace->fsal);
 	return fsal_xattr_access_rights(info);
 }
 
 /**
- * @brief Implements GLUSTER FSAL exportoperation check_quota
+ * @brief Implements GLUSTER FSAL namespace operation check_quota
  */
 /*
-static fsal_status_t check_quota(struct fsal_export *exp_hdl,
+static fsal_status_t check_quota(struct fsal_namespace *namespace,
 				 const char * filepath,
 				 int quota_type,
 				 struct req_op_context *req_ctx)
@@ -423,10 +423,10 @@ static fsal_status_t check_quota(struct fsal_export *exp_hdl,
 }
 */
 /**
- * @brief Implements GLUSTER FSAL exportoperation get_quota
+ * @brief Implements GLUSTER FSAL namespace operation get_quota
  */
 /*
-static fsal_status_t get_quota(struct fsal_export *exp_hdl,
+static fsal_status_t get_quota(struct fsal_namespace *namespace,
 			       const char * filepath,
 			       int quota_type,
 			       struct req_op_context *req_ctx,
@@ -436,10 +436,10 @@ static fsal_status_t get_quota(struct fsal_export *exp_hdl,
 }
 */
 /**
- * @brief Implements GLUSTER FSAL exportoperation set_quota
+ * @brief Implements GLUSTER FSAL namespace operation set_quota
  */
 /*
-static fsal_status_t set_quota(struct fsal_export *exp_hdl,
+static fsal_status_t set_quota(struct fsal_namespace *namespace,
 			       const char *filepath,
 			       int quota_type,
 			       struct req_op_context *req_ctx,
@@ -451,7 +451,7 @@ static fsal_status_t set_quota(struct fsal_export *exp_hdl,
 */
 
 /**
- * @brief Registers GLUSTER FSAL exportoperation vector
+ * @brief Registers GLUSTER FSAL namespace operation vector
  *
  * This function overrides operations that we've implemented, leaving
  * the rest for the default.
@@ -459,9 +459,9 @@ static fsal_status_t set_quota(struct fsal_export *exp_hdl,
  * @param[in,out] ops Operations vector
  */
 
-void export_ops_init(struct export_ops *ops)
+void namespace_ops_init(struct namespace_ops *ops)
 {
-	ops->release = export_release;
+	ops->release = namespace_release;
 	ops->lookup_path = lookup_path;
 	ops->extract_handle = extract_handle;
 	ops->create_handle = create_handle;
@@ -492,14 +492,14 @@ fsal_status_t glusterfs_create_export(struct fsal_module *fsal_hdl,
 				      struct exportlist *exp_entry,
 				      struct fsal_module *next_fsal,
 				      const struct fsal_up_vector *up_ops,
-				      struct fsal_export **pub_export)
+				      struct fsal_namespace **namespace)
 {
 	int rc;
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
-	struct glusterfs_export *glfsexport = NULL;
+	struct glusterfs_namespace *glfsnamespace = NULL;
 	glfs_t *fs = NULL;
 	char *glvolname = NULL, *glhostname = NULL, *glvolpath = NULL;
-	int oplen = 0, export_inited = 0;
+	int oplen = 0, namespace_inited = 0;
 
 	LogDebug(COMPONENT_FSAL, "In args: export path = %s, fs options = %s",
 		 export_path, fs_options);
@@ -590,27 +590,27 @@ fsal_status_t glusterfs_create_export(struct fsal_module *fsal_hdl,
 			 glvolname, glvolpath);
 	}
 
-	glfsexport = gsh_calloc(1, sizeof(struct glusterfs_export));
-	if (glfsexport == NULL) {
+	glfsnamespace = gsh_calloc(1, sizeof(struct glusterfs_namespace));
+	if (glfsnamespace == NULL) {
 		status.major = ERR_FSAL_NOMEM;
 		LogCrit(COMPONENT_FSAL,
-			"Unable to allocate export object.  Export: %s",
+			"Unable to allocate namespace object.  Export: %s",
 			export_path);
 		goto out;
 	}
 
-	if (fsal_export_init(&glfsexport->export, exp_entry) != 0) {
+	if (fsal_namespace_init(&glfsnamespace->namespace, exp_entry) != 0) {
 		status.major = ERR_FSAL_NOMEM;
 		LogCrit(COMPONENT_FSAL,
-			"Unable to allocate export ops vectors.  Export: %s",
+			"Unable to allocate namespace ops vectors.  Export: %s",
 			export_path);
 		goto out;
 	}
 
-	export_ops_init(glfsexport->export.ops);
-	handle_ops_init(glfsexport->export.obj_ops);
-	glfsexport->export.up_ops = up_ops;
-	export_inited = 1;
+	namespace_ops_init(glfsnamespace->namespace.ops);
+	handle_ops_init(glfsnamespace->namespace.obj_ops);
+	glfsnamespace->namespace.up_ops = up_ops;
+	namespace_inited = 1;
 
 	fs = glfs_new(glvolname);
 	if (!fs) {
@@ -645,20 +645,20 @@ fsal_status_t glusterfs_create_export(struct fsal_module *fsal_hdl,
 	}
 
 	if ((rc =
-	     fsal_attach_export(fsal_hdl, &glfsexport->export.exports)) != 0) {
+	     fsal_attach_namespace(fsal_hdl, &glfsnamespace->namespace.namespaces)) != 0) {
 		status.major = ERR_FSAL_SERVERFAULT;
-		LogCrit(COMPONENT_FSAL, "Unable to attach export. Export: %s",
+		LogCrit(COMPONENT_FSAL, "Unable to attach namespace. Export: %s",
 			export_path);
 		goto out;
 	}
 
-	glfsexport->export_path = glvolpath;
-	glfsexport->gl_fs = fs;
-	glfsexport->saveduid = geteuid();
-	glfsexport->savedgid = getegid();
-	glfsexport->export.fsal = fsal_hdl;
+	glfsnamespace->export_path = glvolpath;
+	glfsnamespace->gl_fs = fs;
+	glfsnamespace->saveduid = geteuid();
+	glfsnamespace->savedgid = getegid();
+	glfsnamespace->namespace.fsal = fsal_hdl;
 
-	*pub_export = &glfsexport->export;
+	*namespace = &glfsnamespace->namespace;
 
  out:
 	if (glvolname)
@@ -670,14 +670,14 @@ fsal_status_t glusterfs_create_export(struct fsal_module *fsal_hdl,
 		if (glvolpath)
 			gsh_free(glvolpath);
 
-		if (export_inited)
-			pthread_mutex_destroy(&glfsexport->export.lock);
+		if (namespace_inited)
+			pthread_mutex_destroy(&glfsnamespace->namespace.lock);
 
 		if (fs)
 			glfs_fini(fs);
 
-		if (glfsexport)
-			gsh_free(glfsexport);
+		if (glfsnamespace)
+			gsh_free(glfsnamespace);
 	}
 
 	return status;

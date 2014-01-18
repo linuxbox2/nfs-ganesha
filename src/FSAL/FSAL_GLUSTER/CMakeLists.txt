@@ -16,7 +16,7 @@ set( LIB_PREFIX 64)
 
 SET(fsalgluster_LIB_SRCS
    main.c
-   export.c
+   namespace.c
    handle.c
    gluster_internal.h
    gluster_internal.c

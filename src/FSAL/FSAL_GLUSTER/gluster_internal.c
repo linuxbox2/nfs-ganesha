@@ -231,17 +231,17 @@ struct fsal_staticfsinfo_t *gluster_staticinfo(struct fsal_module *hdl)
  * @brief Construct a new filehandle
  *
  * This function constructs a new Gluster FSAL object handle and attaches
- * it to the export.  After this call the attributes have been filled
+ * it to the namespace.  After this call the attributes have been filled
  * in and the handdle is up-to-date and usable.
  *
  * @param[in]  st     Stat data for the file
- * @param[in]  export Export on which the object lives
+ * @param[in]  namespace The namespace on which the object lives
  * @param[out] obj    Object created
  *
  * @return 0 on success, negative error codes on failure.
  */
 
-int construct_handle(struct glusterfs_export *glexport, const struct stat *sb,
+int construct_handle(struct glusterfs_namespace *glnamespace, const struct stat *sb,
 		     struct glfs_object *glhandle, unsigned char *globjhdl,
 		     int len, struct glusterfs_handle **obj)
 {
@@ -262,7 +262,7 @@ int construct_handle(struct glusterfs_export *glexport, const struct stat *sb,
 	constructing->glfd = NULL;
 
 	rc = (fsal_obj_handle_init
-	      (&constructing->handle, &glexport->export,
+	      (&constructing->handle, &glnamespace->namespace,
 	       constructing->handle.attributes.type));
 	if (rc != 0) {
 		gsh_free(constructing);
@@ -331,25 +331,25 @@ bool fs_specific_has(const char *fs_specific, const char *key, char *val,
 	return ret;
 }
 
-int setglustercreds(struct glusterfs_export *glfs_export, uid_t * uid,
+int setglustercreds(struct glusterfs_namespace *glfs_namespace, uid_t * uid,
 		    gid_t * gid, unsigned int ngrps, gid_t * groups)
 {
 	int rc = 0;
 
 	if (uid) {
-		if (*uid != glfs_export->saveduid)
+		if (*uid != glfs_namespace->saveduid)
 			rc = glfs_setfsuid(*uid);
 	} else {
-		rc = glfs_setfsuid(glfs_export->saveduid);
+		rc = glfs_setfsuid(glfs_namespace->saveduid);
 	}
 	if (rc)
 		goto out;
 
 	if (gid) {
-		if (*gid != glfs_export->savedgid)
+		if (*gid != glfs_namespace->savedgid)
 			rc = glfs_setfsgid(*gid);
 	} else {
-		rc = glfs_setfsgid(glfs_export->savedgid);
+		rc = glfs_setfsgid(glfs_namespace->savedgid);
 	}
 	if (rc)
 		goto out;
