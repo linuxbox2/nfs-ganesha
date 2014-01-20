@@ -86,9 +86,9 @@ struct parser_state {
 };
 
 int ganesha_yyparse(struct parser_state *st);
-int ganesha_yy_init_parser(char *srcfile,
+int ganeshun_yy_init_parser(char *srcfile,
 			   struct parser_state *st);
-int ganesha_yylex_destroy (void *yyscanner);
+int ganeshun_yylex_destroy (void *yyscanner);
 
 /**
  *  Displays the content of parse tree.
