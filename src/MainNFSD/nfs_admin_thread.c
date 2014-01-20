@@ -535,9 +535,10 @@ static void do_shutdown(void)
 		   potentially invalid locks. */
 		emergency_cleanup_fsals();
 	} else {
-		LogEvent(COMPONENT_MAIN, "Destroying the inode cache.");
-		cache_inode_destroyer();
-		LogEvent(COMPONENT_MAIN, "Inode cache destroyed.");
+		LogEvent(COMPONENT_MAIN,
+			 "Not actually destroying the inode cache.");
+		LogEvent(COMPONENT_MAIN,
+			 "Inode cache not actually destroyed.");
 
 		LogEvent(COMPONENT_MAIN, "Destroying the FSAL system.");
 		destroy_fsals();

@@ -802,8 +802,6 @@ cache_inode_status_t cache_inode_read_conf_parameter(
 
 inline int cache_inode_set_time_current(struct timespec *time);
 
-void cache_inode_destroyer(void);
-
 /**
  * @brief Update cache_entry metadata from its attributes
  *
