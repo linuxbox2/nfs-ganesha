@@ -41,7 +41,7 @@ unsigned int reaper_delay = REAPER_DELAY;
 
 static struct fridgethr *reaper_fridge;
 
-static int reap_hash_table(hash_table_t *ht_reap)
+static int reap_hash_table(hash_table_t *ht_reap, bool unconditionally)
 {
 	struct rbt_head *head_rbt;
 	struct hash_data *addr = NULL;
@@ -79,7 +79,7 @@ static int reap_hash_table(hash_table_t *ht_reap)
 
 			pthread_mutex_lock(&pclientid->cid_mutex);
 
-			if (!valid_lease(pclientid)) {
+			if (unconditionally || !valid_lease(pclientid)) {
 				inc_client_id_ref(pclientid);
 
 				/* Take a reference to the client record */
@@ -169,8 +169,8 @@ static void reaper_run(struct fridgethr_context *ctx)
 	}
 
 	rst->count =
-	    (reap_hash_table(ht_confirmed_client_id) +
-	     reap_hash_table(ht_unconfirmed_client_id));
+		(reap_hash_table(ht_confirmed_client_id, false) +
+		 reap_hash_table(ht_unconfirmed_client_id, false));
 }
 
 int reaper_init(void)
@@ -223,4 +223,10 @@ int reaper_shutdown(void)
 			 "Failed shutting down reaper thread: %d", rc);
 	}
 	return rc;
+}
+
+void uncreate_clients(void)
+{
+	reap_hash_table(ht_confirmed_client_id, false);
+	reap_hash_table(ht_unconfirmed_client_id, false);
 }

@@ -356,5 +356,6 @@ int worker_init(void);
 int worker_shutdown(void);
 int worker_pause(void);
 int worker_resume(void);
+void uncreate_clients(void);
 
 #endif				/* !NFS_CORE_H */

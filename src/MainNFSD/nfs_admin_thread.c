@@ -536,6 +536,12 @@ static void do_shutdown(void)
 		emergency_cleanup_fsals();
 	} else {
 		LogEvent(COMPONENT_MAIN,
+			 "Uncreating clientids.");
+		uncreate_clients();
+		LogEvent(COMPONENT_MAIN,
+			 "Clientids uncreated.");
+
+		LogEvent(COMPONENT_MAIN,
 			 "Not actually destroying the inode cache.");
 		LogEvent(COMPONENT_MAIN,
 			 "Inode cache not actually destroyed.");
