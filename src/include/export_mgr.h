@@ -71,6 +71,7 @@ struct gsh_export {
 };
 
 void export_pkginit(void);
+void export_pkgshutdown(void);
 #ifdef USE_DBUS_STATS
 void dbus_export_init(void);
 #endif

@@ -1014,4 +1014,36 @@ void export_pkginit(void)
 	glist_init(&exportlist);
 }
 
+/**
+ * @brief Finalize export manager
+ */
+
+void export_pkgshutdown(void)
+{
+	struct avltree_node *node = NULL;
+
+	/* Not strictly necessary, since we're the only thread
+	   running, but shutting down isn't speed critical and if
+	   we're on the clean path we may as well be polite about
+	   things. */
+	PTHREAD_RWLOCK_rdlock(&export_by_id.lock);
+	while ((node = avltree_first(&export_by_id.t))) {
+		struct gsh_export *exp = avltree_container_of(
+			node, struct gsh_export, node_k);
+		PTHREAD_RWLOCK_unlock(&export_by_id.lock);
+		/**
+		 * @todo ACE: unexport currently does nothing with
+		 * the cache_entry_t, revisit this when we find out
+		 * what it's for. We might have to pass a real value. */
+		unexport(exp, NULL);
+		PTHREAD_RWLOCK_rdlock(&export_by_id.lock);
+	}
+	PTHREAD_RWLOCK_unlock(&export_by_id.lock);
+
+	pthread_rwlock_destroy(&export_by_id.lock);
+	gsh_free(export_by_id.cache);
+	export_by_id.cache_sz = 0;
+	export_by_id.cache = NULL;
+}
+
 /** @} */

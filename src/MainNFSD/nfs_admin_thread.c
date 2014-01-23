@@ -42,6 +42,7 @@
 #include "cache_inode_lru.h"
 #include "idmapper.h"
 #include "delayed_exec.h"
+#include "export_mgr.h"
 #ifdef USE_DBUS
 #include "ganesha_dbus.h"
 #endif
@@ -542,9 +543,10 @@ static void do_shutdown(void)
 			 "Clientids uncreated.");
 
 		LogEvent(COMPONENT_MAIN,
-			 "Not actually destroying the inode cache.");
+			 "Uncreating exports.");
+		export_pkgshutdown();
 		LogEvent(COMPONENT_MAIN,
-			 "Inode cache not actually destroyed.");
+			 "Expors uncreated.");
 
 		LogEvent(COMPONENT_MAIN, "Destroying the FSAL system.");
 		destroy_fsals();
