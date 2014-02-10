@@ -91,13 +91,13 @@ int nfs4_op_read(struct nfs_argop4 *op, compound_data_t *data,
 	res_READ4->status = NFS4_OK;
 
 	/* Do basic checks on a filehandle Only files can be read */
+	if (nfs4_Is_Fh_DSHandle(&data->currentFH))
+		return op_dsread(op, data, resp);
+
 	res_READ4->status = nfs4_sanity_check_FH(data, REGULAR_FILE, true);
 
 	if (res_READ4->status != NFS4_OK)
 		return res_READ4->status;
-
-	if (nfs4_Is_Fh_DSHandle(&data->currentFH))
-		return op_dsread(op, data, resp);
 
 	/* Manage access type MDONLY */
 	if ((data->export->access_type == ACCESSTYPE_MDONLY)

@@ -86,6 +86,10 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t *data,
 	resp->resop = NFS4_OP_WRITE;
 	res_WRITE4->status = NFS4_OK;
 
+	if ((data->minorversion == 1)
+	    && (nfs4_Is_Fh_DSHandle(&data->currentFH)))
+		return op_dswrite(op, data, resp);
+
 	/*
 	 * Do basic checks on a filehandle
 	 * Only files can be written
@@ -106,10 +110,6 @@ int nfs4_op_write(struct nfs_argop4 *op, compound_data_t *data,
 		res_WRITE4->status = NFS4ERR_DQUOT;
 		return res_WRITE4->status;
 	}
-
-	if ((data->minorversion == 1)
-	    && (nfs4_Is_Fh_DSHandle(&data->currentFH)))
-		return op_dswrite(op, data, resp);
 
 
 	/* Manage access type */
