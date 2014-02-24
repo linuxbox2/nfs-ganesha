@@ -39,8 +39,8 @@ extern struct fsal_ds_ops def_ds_ops;
  */
 
 extern pthread_mutex_t fsal_lock;
-
-extern struct glist_head fsal_list;
+extern struct avltree fsal_by_name;
+extern struct avltree fsal_by_num;
 
 /* Definitions for Pseudo FSAL */
 void pseudo_fsal_init(void);

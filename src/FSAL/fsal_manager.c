@@ -55,14 +55,39 @@
 #include "fsal_private.h"
 
 /**
- * @brief List of loaded fsal modules
+ * @brief Tree of loaded FSAL modules, by name
  *
- * Static to be private to the functions in this module
- * fsal_lock is taken whenever the list is walked.
+ * Tree, for fast name lookups. The fsal_lock must be held.
+ */
+
+struct avltree fsal_by_name;
+
+/**
+ * @brief Tree of loaded FSAL modules, by ID
+ *
+ * Tree, for fast ID lookups. The fsal_lock must be held.
+ */
+
+struct avltree fsal_by_num;
+
+/**
+ * @brief FSAL lock
+ *
+ * Must be held for tree traversals and similar.
  */
 
 pthread_mutex_t fsal_lock = PTHREAD_MUTEX_INITIALIZER;
-GLIST_HEAD(fsal_list);
+
+/**
+ * @brief The next ID
+ *
+ * It must only be read or incremented with the lock held.
+ *
+ * @todo This must be destroyed and replaced with a statically
+ * assigned FSAL ID, to be done by Lieb.
+ */
+
+static uint8_t next_fsal_id;
 
 /**
  * @{
@@ -143,6 +168,59 @@ static void load_fsal_pseudo(void)
 }
 
 /**
+ * @brief Comparison for FSAL names
+ *
+ * @param[in] node1 A node
+ * @param[in] nodea Another node
+ *
+ * @retval -1 if node1 is less than nodea
+ * @retval 0 if node1 and nodea are equal
+ * @retval 1 if node1 is greater than nodea
+ */
+
+static int name_comparator(const struct avltree_node *node1,
+			   const struct avltree_node *nodea)
+{
+	struct fsal_module *fsal1 =
+	    avltree_container_of(node1, struct fsal_module,
+				 by_name);
+	struct fsal_module *fsala =
+	    avltree_container_of(nodea, struct fsal_module,
+				 by_name);
+
+	return strcasecmp(fsal1->name, fsala->name);
+}
+
+/**
+ * @brief Comparison for FSAL IDs
+ *
+ * @param[in] node1 A node
+ * @param[in] nodea Another node
+ *
+ * @retval -1 if node1 is less than nodea
+ * @retval 0 if node1 and nodea are equal
+ * @retval 1 if node1 is greater than nodea
+ */
+
+static int num_comparator(const struct avltree_node *node1,
+			  const struct avltree_node *nodea)
+{
+	struct fsal_module *fsal1 =
+	    avltree_container_of(node1, struct fsal_module,
+				 by_num);
+	struct fsal_module *fsala =
+	    avltree_container_of(nodea, struct fsal_module,
+				 by_num);
+
+	if (fsal1->id < fsala->id)
+		return -1;
+	else if (fsal1->id > fsala->id)
+		return 1;
+	else
+		return 0;
+}
+
+/**
  * @brief Start_fsals
  *
  * Called early server initialization.  Set load_state to idle
@@ -151,6 +229,8 @@ static void load_fsal_pseudo(void)
 
 void start_fsals(void)
 {
+	avltree_init(&fsal_by_name, name_comparator, 0);
+	avltree_init(&fsal_by_num, num_comparator, 0);
 
 	/* .init was a long time ago... */
 	load_state = idle;
@@ -323,7 +403,7 @@ int load_fsal(const char *name,
 }
 
 /**
- * @brief Look up an FSAL
+ * @brief Look up an FSAL by name
  *
  * Acquire a handle to the named FSAL and take a reference to it. This
  * must be done before using any methods.  Once done, release it with
@@ -337,22 +417,78 @@ int load_fsal(const char *name,
 struct fsal_module *lookup_fsal(const char *name)
 {
 	struct fsal_module *fsal;
-	struct glist_head *entry;
+	struct fsal_module prototype = {
+		.name = name
+	};
+	struct avltree_node *found;
 
 	pthread_mutex_lock(&fsal_lock);
-	glist_for_each(entry, &fsal_list) {
-		fsal = glist_entry(entry, struct fsal_module, fsals);
-		pthread_mutex_lock(&fsal->lock);
-		if (strcasecmp(name, fsal->name) == 0) {
-			fsal->refs++;
-			pthread_mutex_unlock(&fsal->lock);
-			pthread_mutex_unlock(&fsal_lock);
-			return fsal;
-		}
-		pthread_mutex_unlock(&fsal->lock);
+	found = avltree_lookup(&prototype.by_name, &fsal_by_name);
+
+	if (unlikely(!found)) {
+		pthread_mutex_unlock(&fsal_lock);
+		return NULL;
 	}
+	fsal = avltree_container_of(found, struct fsal_module,
+				    by_name);
+
+	/**
+	 * @warning This is locking behavior differs from the
+	 * original. The original locked before doing the comparison,
+	 * this locks after finding the node. This should be fine,
+	 * since the name and ID are only modified by unregister_fsal.
+	 * unregister_fsal should only be called when an FSAL is
+	 * removed from the tree which should require the tree lock
+	 * which we have. If this is not the case, then we will have
+	 * to hack at the avltree code or do something deliciously
+	 * perverse and delightfully eeeeeeevil with the prototype and
+	 * comparator.
+	 */
+	pthread_mutex_lock(&fsal->lock);
+	fsal->refs++;
+	pthread_mutex_unlock(&fsal->lock);
 	pthread_mutex_unlock(&fsal_lock);
-	return NULL;
+	return fsal;
+}
+
+/**
+ * @brief Look up an FSAL by ID
+ *
+ * Acquire a handle to the denumerated FSAL and take a reference to
+ * it. This must be done before using any methods.  Once done, release
+ * it with @c put_fsal.
+ *
+ * @param[in] num ID to look up
+ *
+ * @return Module pointer or NULL if not found.
+ */
+
+struct fsal_module *lookup_fsal_id(const uint8_t num)
+{
+	struct fsal_module *fsal;
+	struct fsal_module prototype = {
+		.id = num
+	};
+	struct avltree_node *found;
+
+	pthread_mutex_lock(&fsal_lock);
+	found = avltree_lookup(&prototype.by_num, &fsal_by_num);
+
+	if (unlikely(!found)) {
+		pthread_mutex_unlock(&fsal_lock);
+		return NULL;
+	}
+	fsal = avltree_container_of(found, struct fsal_module,
+				    by_name);
+
+	/**
+	 * @warning See warning for lookup_fsal
+	 */
+	pthread_mutex_lock(&fsal->lock);
+	fsal->refs++;
+	pthread_mutex_unlock(&fsal->lock);
+	pthread_mutex_unlock(&fsal_lock);
+	return fsal;
 }
 
 /* functions only called by modules at ctor/dtor time
@@ -415,6 +551,7 @@ int register_fsal(struct fsal_module *fsal_hdl, const char *name,
 			goto errout;
 		}
 	}
+	fsal_hdl->id = next_fsal_id++;
 
 /* allocate and init ops vector to system wide defaults
  * from FSAL/default_methods.c
@@ -431,9 +568,9 @@ int register_fsal(struct fsal_module *fsal_hdl, const char *name,
 	pthread_mutexattr_settype(&attrs, PTHREAD_MUTEX_ADAPTIVE_NP);
 #endif
 	pthread_mutex_init(&fsal_hdl->lock, &attrs);
-	glist_init(&fsal_hdl->fsals);
 	glist_init(&fsal_hdl->exports);
-	glist_add_tail(&fsal_list, &fsal_hdl->fsals);
+	avltree_insert(&fsal_hdl->by_name, &fsal_by_name);
+	avltree_insert(&fsal_hdl->by_num, &fsal_by_num);
 	if (load_state == loading)
 		load_state = registered;
 	pthread_mutex_unlock(&fsal_lock);
@@ -443,7 +580,7 @@ int register_fsal(struct fsal_module *fsal_hdl, const char *name,
 	if (fsal_hdl->path)
 		gsh_free(fsal_hdl->path);
 	if (fsal_hdl->name)
-		gsh_free(fsal_hdl->name);
+		gsh_free((char *)fsal_hdl->name);
 	if (fsal_hdl->ops)
 		gsh_free(fsal_hdl->ops);
 	load_state = error;
@@ -476,7 +613,7 @@ int unregister_fsal(struct fsal_module *fsal_hdl)
 	if (fsal_hdl->path)
 		gsh_free(fsal_hdl->path);
 	if (fsal_hdl->name)
-		gsh_free(fsal_hdl->name);
+		gsh_free((char *)fsal_hdl->name);
 	if (fsal_hdl->ops)
 		gsh_free(fsal_hdl->ops);
 	retval = 0;

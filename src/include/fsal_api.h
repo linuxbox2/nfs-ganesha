@@ -41,6 +41,7 @@
 #define FSAL_API
 
 #include "fsal_pnfs.h"
+#include "avltree.h"
 
 /**
  * @page newapi New FSAL API
@@ -342,19 +343,21 @@ struct io_hints {
  */
 
 struct fsal_module {
-	struct glist_head fsals;	/*< link in list of loaded fsals */
-	pthread_mutex_t lock;	/*< Lock to be held when
-				   incrementing/decrementing the
-				   reference count or manipulating the
-				   list of exports. */
-	int refs;		/*< Reference count */
-	struct glist_head exports;	/*< Head of list of exports from
-					   this FSAL */
-	char *name;		/*< Name set from .so and/or config */
-	char *path;		/*< Path to .so file */
-	void *dl_handle;	/*< Handle to the dlopen()d shared
-				   library. NULL if statically linked */
-	struct fsal_ops *ops;	/*< FSAL module methods vector */
+	struct avltree_node by_name; /*< Tree, sorted by names */
+	struct avltree_node by_num; /*< Tree, sorted by numbers */
+	pthread_mutex_t lock; /*< Lock to be held when
+				  incrementing/decrementing the
+				  reference count or manipulating the
+				  list of exports. */
+	int refs; /*< Reference count */
+	struct glist_head exports; /*< Head of list of exports from
+				       this FSAL */
+	uint8_t id; /* ID number */
+	const char *name; /*< Name set from .so and/or config */
+	char *path; /*< Path to .so file */
+	void *dl_handle; /*< Handle to the dlopen()d shared
+			     library. NULL if statically linked */
+	struct fsal_ops *ops; /*< FSAL module methods vector */
 };
 
 /**
@@ -597,6 +600,15 @@ int unregister_fsal(struct fsal_module *fsal_hdl);
  * should be used  to release the reference before unloading.
  */
 struct fsal_module *lookup_fsal(const char *name);
+
+/**
+ * @brief Find and take a reference on an FSAL, by ID
+ *
+ * This function finds an FSAL by id and increments its reference
+ * count.  @c put method should be used to release the reference
+ * before unloading.
+ */
+struct fsal_module *lookup_fsal_id(const uint8_t id);
 
 /**
  * @brief Export object

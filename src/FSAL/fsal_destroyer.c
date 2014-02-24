@@ -32,6 +32,7 @@
 #include "nfs_exports.h"
 #include "nfs_core.h"
 #include "fsal_private.h"
+#include "avltree.h"
 
 /**
  * @file fsal_destroyer.c
@@ -136,20 +137,23 @@ static void shutdown_export(struct fsal_export *export)
 
 /**
  * @brief Destroy FSALs
+ *
+ * @todo It is unclear whether we will still need this once unexport
+ * is completed, if FSALs will be unloaded when the last exports using
+ * them are unexported.
  */
 
 void destroy_fsals(void)
 {
-	/* Module iterator */
-	struct glist_head *mi = NULL;
-	/* Next module */
-	struct glist_head *mn = NULL;
+	struct avltree_node *node = avltree_first(&fsal_by_num);
 
-	glist_for_each_safe(mi, mn, &fsal_list) {
-		/* The module to destroy */
-		struct fsal_module *m = glist_entry(mi,
-						    struct fsal_module,
-						    fsals);
+	while (node) {
+		struct avltree_node *next = avltree_next(node);
+		struct fsal_module *m
+			= avltree_container_of(node,
+					       struct fsal_module,
+					       by_num);
+
 		/* Iterator over exports */
 		struct glist_head *ei = NULL;
 		/* Next export */
@@ -159,11 +163,12 @@ void destroy_fsals(void)
 			 m->name);
 		glist_for_each_safe(ei, en, &m->exports) {
 			/* The module to destroy */
-			struct fsal_export *e = glist_entry(ei,
-							    struct fsal_export,
-							    exports);
+			struct fsal_export *e
+				= glist_entry(ei, struct fsal_export,
+					      exports);
 			shutdown_export(e);
 		}
+
 		LogEvent(COMPONENT_FSAL, "Exports for FSAL %s shut down",
 			 m->name);
 		if (m->refs != 0) {
@@ -181,21 +186,41 @@ void destroy_fsals(void)
 			 */
 			m->refs = 0;
 		}
-		if (m->dl_handle) {
-			int rc = 0;
-			char *fsal_name = gsh_strdup(m->name);
 
-			LogEvent(COMPONENT_FSAL, "Unloading FSAL %s",
-				 fsal_name);
-			rc = m->ops->unload(m);
-			if (rc != 0) {
-				LogMajor(COMPONENT_FSAL,
-					 "Unload of %s failed with error %d",
-					 fsal_name, rc);
+		LogEvent(COMPONENT_FSAL, "Exports for FSAL %s shut down",
+			 m->name);
+		if (m->refs != 0) {
+			LogDebug(COMPONENT_FSAL,
+				 "Extra references hanging around to "
+				 "FSAL %s", m->name);
+			/**
+			 * @todo Forcibly blowing away all references
+			 * should work fine on files and objects if
+			 * we're shutting down, however it will cause
+			 * trouble once we have stackable FSALs.  As a
+			 * practical matter, though, if the system is
+			 * working properly we shouldn't even reach
+			 * this point.
+			 */
+			m->refs = 0;
+			if (m->dl_handle) {
+				int rc = 0;
+				char *fsal_name = gsh_strdup(m->name);
+
+				LogEvent(COMPONENT_FSAL, "Unloading FSAL %s",
+					 fsal_name);
+				rc = m->ops->unload(m);
+				if (rc != 0) {
+					LogMajor(COMPONENT_FSAL,
+						"%s failed unload, error %d",
+						 fsal_name, rc);
+				}
+				LogEvent(COMPONENT_FSAL,
+					 "FSAL %s unloaded", fsal_name);
+				gsh_free(fsal_name);
 			}
-			LogEvent(COMPONENT_FSAL, "FSAL %s unloaded", fsal_name);
-			gsh_free(fsal_name);
 		}
+		node = next;
 	}
 }
 
@@ -205,17 +230,16 @@ void destroy_fsals(void)
 
 void emergency_cleanup_fsals(void)
 {
-	/* Module iterator */
-	struct glist_head *mi = NULL;
-	/* Next module */
-	struct glist_head *mn = NULL;
+	struct avltree_node *node = avltree_first(&fsal_by_num);
 
-	glist_for_each_safe(mi, mn, &fsal_list) {
-		/* The module to destroy */
-		struct fsal_module *m = glist_entry(mi,
-						    struct fsal_module,
-						    fsals);
+	node = avltree_first(&fsal_by_num);
+	while (node) {
+		struct fsal_module *m
+			= avltree_container_of(node,
+					       struct fsal_module,
+					       by_num);
 		m->ops->emergency_cleanup();
+		node = avltree_next(node);
 	}
 }
 

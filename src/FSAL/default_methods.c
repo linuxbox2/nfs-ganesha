@@ -96,7 +96,7 @@ static int put_fsal(struct fsal_module *fsal_hdl)
 
 static const char *get_name(struct fsal_module *fsal_hdl)
 {
-	char *name;
+	const char *name;
 
 	pthread_mutex_lock(&fsal_hdl->lock);
 	if (fsal_hdl->refs <= 0) {
@@ -150,7 +150,8 @@ static int unload_fsal(struct fsal_module *fsal_hdl)
 		retval = EACCES;	/* cannot unload static linked fsals */
 		goto err;
 	}
-	glist_del(&fsal_hdl->fsals);
+	avltree_remove(&fsal_hdl->by_name, &fsal_by_name);
+	avltree_remove(&fsal_hdl->by_num, &fsal_by_num);
 	pthread_mutex_unlock(&fsal_hdl->lock);
 	pthread_mutex_destroy(&fsal_hdl->lock);
 	fsal_hdl->refs = 0;
