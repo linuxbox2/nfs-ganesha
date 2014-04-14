@@ -210,6 +210,9 @@ endif( "${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" VERSION_GREATER "2.6" )
 # CUnit
 option(USE_CUNIT "Use Cunit test framework" OFF)
 
+# NFS RDMA
+option(USE_NFS_MSK "enable NFS/MSK support" ON)
+
 # Enable 9P Support
 option(USE_9P "enable 9P support" ON)
 option(USE_9P_RDMA "enable 9P_RDMA support" OFF)
@@ -748,13 +751,13 @@ endif(USE_DBUS)
 
 set(GANESHA_CORE ${GANESHA_CORE} NodeList)
 
-if(USE_9P_RDMA)
+if(USE_9P_RDMA OR USE_NFS_MSK)
   find_package(PkgConfig)
   pkg_check_modules(MOOSHIKA REQUIRED libmooshika>=0.6)
   set(GANESHA_CORE ${GANESHA_CORE} ${MOOSHIKA_LIBRARIES})
   include_directories(${MOOSHIKA_INCLUDE_DIRS})
   link_directories (${MOOSHIKA_LIBRARY_DIRS})
-endif(USE_9P_RDMA)
+endif(USE_9P_RDMA OR USE_NFS_MSK)
 
 # All the plumbing in the basement
 set(SYSTEM_LIBRARIES
@@ -969,7 +972,6 @@ set( DISTNAME_HAS_GIT_DATA ${DISTNAME_HAS_GIT_DATA}
   "Distribution package's name carries git data"
   FORCE)
 
-
 set(USE_9P ${USE_9P}
   CACHE BOOL
    "enable 9P support"
@@ -984,6 +986,16 @@ set(_USE_9P_RDMA ${_USE_9P_RDMA}
   CACHE BOOL
    "enable 9P_RDMA support"
    FORCE)
+
+set(USE_NFS_MSK ${USE_NFS_MSK}
+  CACHE BOOL
+  "enable nfs msk"
+  FORCE)
+
+set(_USE_NFS_MSK ${USE_NFS_MSK}
+  CACHE BOOL
+  "enable nfs msk"
+  FORCE)
 
 # Now create a useable config.h
 configure_file(

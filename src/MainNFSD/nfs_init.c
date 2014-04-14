@@ -236,6 +236,10 @@ pthread_t _9p_dispatcher_thrid;
 pthread_t _9p_rdma_dispatcher_thrid;
 #endif
 
+#ifdef _USE_NFS_MSK
+pthread_t nfs_msk_dispatcher_thrid;
+#endif
+
 char *config_path = "/etc/ganesha/ganesha.conf";
 
 char *pidfile_path = "/var/run/ganesha.pid";
@@ -623,6 +627,20 @@ static void nfs_Start_threads(void)
 	}
 	LogEvent(COMPONENT_THREAD,
 		 "9P/RDMA dispatcher thread was started successfully");
+#endif
+
+#ifdef _USE_NFS_MSK
+	/* Starting the NFS/MSK dispatcher thread */
+	rc = pthread_create(&nfs_msk_dispatcher_thrid, &attr_thr,
+			    nfs_msk_dispatcher_thread, NULL);
+
+	if (rc != 0) {
+		LogFatal(COMPONENT_THREAD,
+			 "Could not create NFS/MSK dispatcher, error = %D (%s)",
+			 errno, strerror(errno));
+	}
+	LogEvent(COMPONENT_THREAD,
+		 "NFS/MSK dispatcher thread was started successfully");
 #endif
 
 #ifdef USE_DBUS
