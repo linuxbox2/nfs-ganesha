@@ -118,6 +118,9 @@ void* nfs_msk_thread(void* arg) {
   }
   pthread_mutex_unlock(&clx.lock);
 
+  /* We never get here for some reason */
+  msk_destroy_trans(&trans);
+
   return NULL;
 }
 
@@ -130,6 +133,7 @@ void* nfs_msk_dispatcher_thread(void* nullarg) {
   pthread_t thrid_handle_trans;
 
   memset(&trans_attr, 0, sizeof(trans_attr));
+  trans_attr.debug = MSK_DEBUG_EVENT;
   trans_attr.server = 10;
   trans_attr.rq_depth = 32;
   trans_attr.sq_depth = 32;
