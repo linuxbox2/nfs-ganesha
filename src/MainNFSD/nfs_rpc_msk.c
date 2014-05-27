@@ -67,6 +67,9 @@
 #include "nfs_file_handle.h"
 #include <mooshika.h>
 
+enum xprt_stat thr_decode_rpc_request(struct fridgethr_context
+				      *thr_ctx, SVCXPRT *xprt);
+
 
 void nfs_msk_callback_disconnect(msk_trans_t *trans) {
 

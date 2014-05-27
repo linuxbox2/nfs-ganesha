@@ -636,7 +636,7 @@ static void nfs_Start_threads(void)
 
 	if (rc != 0) {
 		LogFatal(COMPONENT_THREAD,
-			 "Could not create NFS/MSK dispatcher, error = %D (%s)",
+			 "Could not create NFS/MSK dispatcher, error = %d (%s)",
 			 errno, strerror(errno));
 	}
 	LogEvent(COMPONENT_THREAD,
