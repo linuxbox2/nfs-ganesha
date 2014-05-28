@@ -1,4 +1,5 @@
 [submodule "src/libntirpc"]
 	path = src/libntirpc
-	url = https://github.com/nfs-ganesha/ntirpc.git
+	url = git@github.com:linuxbox2/ntirpc
+	branch = duplex-10-expires
 
