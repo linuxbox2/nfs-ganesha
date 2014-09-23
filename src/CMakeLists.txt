@@ -820,6 +820,9 @@ set(SYSTEM_LIBRARIES
   ${LIBRT}
 )
 
+include(${CMAKE_SOURCE_DIR}/cmake/modules/InstallPackageConfigFile.cmake)
+InstallPackageConfigFile(${CMAKE_SOURCE_DIR}/config_samples/vfs.conf ${CMAKE_INSTALL_PREFIX}/etc/ganesha ganesha.conf)
+
 IF( NOT EXISTS ${PROJECT_SOURCE_DIR}/libntirpc/CMakeLists.txt )
 message( FATAL_ERROR
 "No CMakeLists.txt found in libntirpc
