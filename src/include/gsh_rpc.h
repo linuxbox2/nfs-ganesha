@@ -32,6 +32,7 @@
 #include "gsh_list.h"
 #include "log.h"
 #include "fridgethr.h"
+#include "zipkin.h"
 
 #define NFS_LOOKAHEAD_NONE 0x0000
 #define NFS_LOOKAHEAD_MOUNT 0x0001
@@ -150,6 +151,9 @@ typedef struct gsh_xprt_private {
 	uint32_t req_cnt; /*< outstanding requests counter */
 	struct drc *drc; /*< TCP DRC */
 	struct glist_head stallq;
+#ifdef USE_ZIPKIN
+	struct blkin_endpoint endpoint;
+#endif
 } gsh_xprt_private_t;
 
 static inline gsh_xprt_private_t *alloc_gsh_xprt_private(SVCXPRT *xprt,
@@ -161,7 +165,9 @@ static inline gsh_xprt_private_t *alloc_gsh_xprt_private(SVCXPRT *xprt,
 	xu->flags = XPRT_PRIVATE_FLAG_NONE;
 	xu->req_cnt = 0;
 	xu->drc = NULL;
-
+#ifdef USE_ZIPKIN /* TODO: format ip address for endpoint */
+	blkin_init_endpoint(&xu->endpoint, "0.0.0.0", xprt->xp_port, "ntirpc");
+#endif
 	return xu;
 }
 

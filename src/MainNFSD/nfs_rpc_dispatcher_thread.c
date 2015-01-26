@@ -1204,7 +1204,7 @@ request_data_t *nfs_rpc_dequeue_req(nfs_worker_data_t *worker)
 		LogFullDebug(COMPONENT_DISPATCH, "wqe wakeup %p", wqe);
 		goto retry_deq;
 	}
-
+	BLKIN_TIMESTAMP(&nfsreq->trace, nfsreq->trace.endpoint, "dequeue req");
 	return nfsreq;
 }
 
@@ -1219,6 +1219,7 @@ static inline request_data_t *alloc_nfs_request(SVCXPRT *xprt)
 {
 	request_data_t *nfsreq;
 	struct svc_req *req;
+	gsh_xprt_private_t *xu;
 
 	nfsreq = pool_alloc(request_pool, NULL);
 	if (!nfsreq) {
@@ -1245,6 +1246,10 @@ static inline request_data_t *alloc_nfs_request(SVCXPRT *xprt)
 	req->rq_xprt = xprt;
 	req->rq_rtaddr.len = 0;
 
+#ifdef USE_ZIPKIN /* set up trace */
+	xu = (gsh_xprt_private_t*)xprt->xp_u1;
+	blkin_init_new_trace(&nfsreq->trace, "nfs", &xu->endpoint);
+#endif
 	return nfsreq;
 }
 
@@ -1571,6 +1576,8 @@ enum xprt_stat thr_decode_rpc_request(struct fridgethr_context
 				 "Client on socket=%d, addr=%s has unknown status (%d)",
 				 xprt->xp_fd, addrbuf, stat);
 		}
+		BLKIN_KEYVAL_INTEGER(&nfsreq->trace, nfsreq->trace.endpoint,
+				"xprt error", stat);
 		goto done;
 	} else {
 		/* XXX so long as nfs_rpc_get_funcdesc calls is_rpc_call_valid
@@ -1586,6 +1593,10 @@ enum xprt_stat thr_decode_rpc_request(struct fridgethr_context
 		    no_dispatch)
 			goto finish;
 
+		BLKIN_KEYVAL_INTEGER(&nfsreq->trace, nfsreq->trace.endpoint,
+				"xid", nfsreq->r_u.nfs->req.rq_xid);
+		BLKIN_TIMESTAMP(&nfsreq->trace, nfsreq->trace.endpoint,
+				"decode args");
 		if (!nfs_rpc_get_args(thr_ctx, nfsreq->r_u.nfs))
 			goto finish;
 
@@ -1595,6 +1606,8 @@ enum xprt_stat thr_decode_rpc_request(struct fridgethr_context
 			stat = XPRT_DIED;
 			goto finish;
 		}
+		BLKIN_TIMESTAMP(&nfsreq->trace, nfsreq->trace.endpoint,
+				"enqueue req");
 
 		/* XXX as above, the call has already passed is_rpc_call_valid,
 		 * the former check here is removed. */

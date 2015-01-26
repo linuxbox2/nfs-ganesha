@@ -40,6 +40,7 @@
 
 #include "sal_data.h"
 #include "gsh_config.h"
+#include "zipkin.h"
 
 #ifdef _USE_9P
 #include "9p.h"
@@ -118,6 +119,9 @@ typedef struct request_data {
 	struct timespec time_queued;	/*< The time at which a request was
 					 *  added to the worker thread queue.
 					 */
+#ifdef USE_ZIPKIN
+	struct blkin_trace trace;
+#endif
 } request_data_t;
 
 extern pool_t *request_pool;
