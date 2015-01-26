@@ -2,3 +2,6 @@
 	path = src/libntirpc
 	url = https://github.com/nfs-ganesha/ntirpc.git
 
+[submodule "src/blkin"]
+	path = src/blkin
+	url = https://github.com/linuxbox2/blkin.git
