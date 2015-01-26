@@ -14,7 +14,7 @@ endif( "${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}" VERSION_GREATER "2.6" )
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
 
-project(nfs-ganesha C)
+project(nfs-ganesha)
 # Project versioning
 set(GANESHA_MAJOR_VERSION 2)
 set(GANESHA_MINOR_VERSION 2)
@@ -256,6 +256,8 @@ option(USE_TSAN "Enable GCC Thread-Sanitizer" OFF)
 # Enable LTTng tracing
 option(USE_LTTNG "Enable LTTng tracing" OFF)
 
+# Enable LTTng tracepoints for Zipkin
+option(USE_ZIPKIN "Enable Zipkin tracing with LTTng" OFF)
 #
 # End build options
 #
@@ -691,8 +693,9 @@ if(USE_LTTNG)
   find_package(LTTng)
   if(LTTNG_FOUND)
   else(LTTNG_FOUND)
-    message(WARNING "LTTng libraries not found. Disabling USE_LTTNG")
+    message(WARNING "LTTng libraries not found. Disabling USE_LTTNG and USE_ZIPKIN")
     set(USE_LTTNG OFF)
+    set(USE_ZIPKIN OFF)
   endif(LTTNG_FOUND)
 endif(USE_LTTNG)
 
@@ -835,6 +838,9 @@ set(GANESHA_CORE
 if(USE_DBUS)
   set(GANESHA_CORE ${GANESHA_CORE} gshdbus)
 endif(USE_DBUS)
+if(USE_ZIPKIN)
+  set(GANESHA_CORE ${GANESHA_CORE} blkin)
+endif(USE_ZIPKIN)
 
 set(GANESHA_CORE ${GANESHA_CORE} NodeList)
 
@@ -873,6 +879,11 @@ Please run the following command to do that and use cmake again:
 Alternatively, if you are not using git, get the current version at
     https://github.com/nfs-ganesha/ntirpc" )
 ENDIF( NOT EXISTS ${PROJECT_SOURCE_DIR}/libntirpc/CMakeLists.txt )
+
+if(USE_ZIPKIN)
+  add_subdirectory(blkin/blkin-lib)
+  include_directories(blkin/blkin-lib)
+endif(USE_ZIPKIN)
 
 add_subdirectory(log)
 add_subdirectory(config_parsing)
@@ -967,6 +978,7 @@ message(STATUS "USE_ADMIN_TOOLS = ${USE_ADMIN_TOOLS}")
 message(STATUS "MODULES_PATH = ${MODULES_PATH}")
 message(STATUS "USE_TSAN = ${USE_TSAN}")
 message(STATUS "USE_LTTNG = ${USE_LTTNG}")
+message(STATUS "USE_ZIPKIN = ${USE_ZIPKIN}")
 
 #force command line options to be stored in cache
 set(USE_FSAL_VFS ${USE_FSAL_VFS}
@@ -1109,6 +1121,11 @@ set(USE_LTTNG ${USE_LTTNG}
   "Enable LTTng tracing"
   FORCE)
 
+set(USE_ZIPKIN ${USE_ZIPKIN}
+  CACHE BOOL
+  "Enable Zipkin tracing"
+  FORCE)
+
 set(USE_NFS_MSK ${USE_NFS_MSK}
   CACHE BOOL
   "enable nfs Mooshika"
@@ -1213,6 +1230,12 @@ if(USE_LTTNG)
 else(USE_LTTNG)
     set(BCOND_LTTNG "%bcond_with")
 endif(USE_LTTNG)
+
+if(USE_ZIPKIN)
+    set(BCOND_ZIPKIN "%bcond_without")
+else(USE_ZIPKIN)
+    set(BCOND_ZIPKIN "%bcond_with")
+endif(USE_ZIPKIN)
 
 if(${ALLOCATOR} STREQUAL "jemalloc")
     set(BCOND_JEMALLOC "%bcond_without")

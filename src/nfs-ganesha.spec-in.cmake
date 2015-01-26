@@ -66,6 +66,9 @@
 @BCOND_LTTNG@ lttng
 %global use_lttng %{on_off_switch lttng}
 
+@BCOND_ZIPKIN@ zipkin
+%global use_zipkin %{on_off_switch zipkin}
+
 @BCOND_UTILS@ utils
 %global use_utils %{on_off_switch utils}
 
@@ -332,6 +335,7 @@ cmake .	-DCMAKE_BUILD_TYPE=Debug			\
 	-DUSE_9P_RDMA=%{use_rdma}			\
 	-DUSE_FSAL_LUSTRE_UP=%{use_lustre_up}		\
 	-DUSE_LTTNG=%{use_lttng}			\
+	-DUSE_ZIPKIN=%{use_zipkin}			\
 	-DUSE_ADMIN_TOOLS=%{use_utils}			\
 	-DUSE_FSAL_VFS=ON				\
 	-DUSE_FSAL_PROXY=ON				\
