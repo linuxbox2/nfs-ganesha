@@ -45,6 +45,7 @@
 #include "config_parsing.h"
 #include "avltree.h"
 #include "abstract_atomic.h"
+#include "zipkin.h"
 
 /**
 ** Forward declarations to resolve circular dependency conflicts
@@ -414,6 +415,9 @@ struct req_op_context {
 	void *fsal_private;		/*< private for FSAL use */
 	struct fsal_module *fsal_module;	/*< current fsal module */
 	struct fsal_pnfs_ds *fsal_pnfs_ds;	/*< current pNFS DS */
+#ifdef USE_ZIPKIN
+	struct blkin_trace trace;		/*< zipkin trace info */
+#endif
 	/* add new context members here */
 };
 

@@ -455,13 +455,18 @@ int nfs4_Compound(nfs_arg_t *arg,
 	struct timespec ts;
 	int perm_flags;
 	char *tagname = NULL;
-
+#ifdef USE_ZIPKIN
+	const struct blkin_trace parent = op_ctx->trace;
+	struct blkin_endpoint endpoint;
+#endif
 	if (compound4_minor > 2) {
 		LogCrit(COMPONENT_NFS_V4, "Bad Minor Version %d",
 			compound4_minor);
 
 		res->res_compound4.status = NFS4ERR_MINOR_VERS_MISMATCH;
 		res->res_compound4.resarray.resarray_len = 0;
+		BLKIN_KEYVAL_INTEGER(&parent, parent.endpoint,
+				"status", res->res_compound4.status);
 		return NFS_REQ_OK;
 	}
 
@@ -491,6 +496,8 @@ int nfs4_Compound(nfs_arg_t *arg,
 			status = NFS4ERR_INVAL;
 			res->res_compound4.status = status;
 			res->res_compound4.resarray.resarray_len = 0;
+			BLKIN_KEYVAL_INTEGER(&parent, parent.endpoint,
+					"status", status);
 			return NFS_REQ_OK;
 		}
 		gsh_free(tagname);
@@ -506,6 +513,8 @@ int nfs4_Compound(nfs_arg_t *arg,
 
 		res->res_compound4.status = NFS4_OK;
 		res->res_compound4.resarray.resarray_len = 0;
+		BLKIN_KEYVAL_INTEGER(&parent, parent.endpoint,
+				"status", res->res_compound4.status);
 		return NFS_REQ_OK;
 	}
 
@@ -517,6 +526,8 @@ int nfs4_Compound(nfs_arg_t *arg,
 
 		res->res_compound4.status = NFS4ERR_RESOURCE;
 		res->res_compound4.resarray.resarray_len = 0;
+		BLKIN_KEYVAL_INTEGER(&parent, parent.endpoint,
+				"status", res->res_compound4.status);
 		return NFS_REQ_OK;
 	}
 
@@ -551,6 +562,8 @@ int nfs4_Compound(nfs_arg_t *arg,
 	LogDebug(COMPONENT_NFS_V4,
 		 "COMPOUND: There are %d operations",
 		 argarray_len);
+	BLKIN_KEYVAL_INTEGER(&parent, parent.endpoint,
+			"arguments", argarray_len);
 
 	/* Manage errors NFS4ERR_OP_NOT_IN_SESSION and NFS4ERR_NOT_ONLY_OP.
 	 * These checks apply only to 4.1 */
@@ -566,6 +579,8 @@ int nfs4_Compound(nfs_arg_t *arg,
 			status = NFS4ERR_OP_NOT_IN_SESSION;
 			res->res_compound4.status = status;
 			res->res_compound4.resarray.resarray_len = 0;
+			BLKIN_KEYVAL_INTEGER(&parent, parent.endpoint,
+					"status", status);
 			return NFS_REQ_OK;
 		}
 
@@ -590,6 +605,8 @@ int nfs4_Compound(nfs_arg_t *arg,
 				status = NFS4ERR_NOT_ONLY_OP;
 				res->res_compound4.status = status;
 				res->res_compound4.resarray.resarray_len = 0;
+				BLKIN_KEYVAL_INTEGER(&parent, parent.endpoint,
+						"status", status);
 				return NFS_REQ_OK;
 			}
 		}
@@ -608,6 +625,8 @@ int nfs4_Compound(nfs_arg_t *arg,
 			status = NFS4ERR_NOT_ONLY_OP;
 			res->res_compound4.status = status;
 			res->res_compound4.resarray.resarray_len = 0;
+			BLKIN_KEYVAL_INTEGER(&parent, parent.endpoint,
+					"status", status);
 			return NFS_REQ_OK;
 		}
 	}
@@ -640,9 +659,16 @@ int nfs4_Compound(nfs_arg_t *arg,
 		}
 		LogDebug(COMPONENT_NFS_V4, "Request %d: opcode %d is %s", i,
 			 argarray[i].argop, optabv4[opcode].name);
+#ifdef USE_ZIPKIN
+		/* create a child span for each compound operation */
+		blkin_init_endpoint(&endpoint, parent.endpoint->ip,
+				parent.endpoint->port, optabv4[opcode].name);
+		/* store the child span in op_ctx for use in fsals */
+		blkin_init_child(&op_ctx->trace, &parent, &endpoint, "op");
+		BLKIN_TIMESTAMP(&op_ctx->trace, &endpoint, "op start");
+#endif
 		perm_flags =
 		    optabv4[opcode].exp_perm_flags & EXPORT_OPTION_ACCESS_TYPE;
-
 		if (perm_flags != 0) {
 			status = nfs4_Is_Fh_Empty(&data.currentFH);
 			if (status != NFS4_OK) {
@@ -700,6 +726,7 @@ int nfs4_Compound(nfs_arg_t *arg,
 						  &resarray[i]);
 
 		LogCompoundFH(&data);
+		BLKIN_TIMESTAMP(&op_ctx->trace, &endpoint, "op done");
 
 		/* All the operation, like NFS4_OP_ACESS, have a first replyied
 		 * field called .status
@@ -791,6 +818,10 @@ int nfs4_Compound(nfs_arg_t *arg,
 		LogDebug(COMPONENT_NFS_V4, "End status = %s lastindex = %d",
 			 nfsstat4_to_str(status), i);
 
+#ifdef USE_ZIPKIN
+	BLKIN_KEYVAL_INTEGER(&parent, parent.endpoint, "status", status);
+	op_ctx->trace = parent; /* restore op_ctx to parent trace */
+#endif
 	compound_data_Free(&data);
 
 	return NFS_REQ_OK;

@@ -740,6 +740,9 @@ static void nfs_rpc_execute(request_data_t *req,
 	op_ctx->nfs_vers = svcreq->rq_vers;
 	op_ctx->req_type = req->rtype;
 	op_ctx->export_perms = &export_perms;
+#ifdef USE_ZIPKIN
+	op_ctx->trace = req->trace;
+#endif
 
 	/* Initialized user_credentials */
 	init_credentials();
@@ -1392,6 +1395,7 @@ out:
 #ifdef USE_LTTNG
 	tracepoint(nfs_rpc, end, req);
 #endif
+	BLKIN_TIMESTAMP(&req->trace, req->trace.endpoint, "done");
 
 	return;
 }
