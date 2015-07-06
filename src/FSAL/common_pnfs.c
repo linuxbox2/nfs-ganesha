@@ -279,9 +279,9 @@ nfsstat4 FSAL_encode_file_layout(XDR *xdrs,
 
 	for (i = 0; i < num_fhs; i++) {
 		nfs_fh4 handle;
-		struct alloc_file_handle_v4 buffer;
+		char buffer[NFS4_FHSIZE];
 
-		handle.nfs_fh4_val = (char *)&buffer;
+		handle.nfs_fh4_val = (caddr_t) &buffer;
 		handle.nfs_fh4_len = sizeof(buffer);
 		memset(&buffer, 0, sizeof(buffer));
 
