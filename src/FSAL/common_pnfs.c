@@ -283,9 +283,9 @@ nfsstat4 FSAL_encode_file_layout(XDR *xdrs,
 		nfs_fh4 handle;
 		char buffer[NFS4_FHSIZE];
 
-		handle.nfs_fh4_val = (caddr_t) &buffer;
+		handle.nfs_fh4_val = buffer;
 		handle.nfs_fh4_len = sizeof(buffer);
-		memset(&buffer, 0, sizeof(buffer));
+		memset(buffer, 0, sizeof(buffer));
 
 		nfs_status = make_file_handle_ds(fhs + i,
 						 server_id,
