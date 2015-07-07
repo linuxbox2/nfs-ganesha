@@ -119,7 +119,7 @@ int vfs_fd_to_handle(int fd, struct fsal_filesystem *fs,
 	int error;
 	struct v_fhandle *handle = (struct v_fhandle *) fh->handle_data;
 
-	error = getfhat(fd, NULL, (fhandle_t *) handle, AT_SYMLINK_FOLLOW);
+	error = getfhat(fd, NULL, (struct fhandle *) handle, AT_SYMLINK_FOLLOW);
 
 	if (error == 0)
 		fh->handle_len = vfs_sizeof_handle(handle);
@@ -135,7 +135,7 @@ int vfs_name_to_handle(int atfd,
 	int error;
 	struct v_fhandle *handle = (struct v_fhandle *) fh->handle_data;
 
-	error = getfhat(atfd, (char *)name, (fhandle_t *) handle,
+	error = getfhat(atfd, (char *)name, (struct fhandle *) handle,
 			AT_SYMLINK_NOFOLLOW);
 
 	if (error == 0)
@@ -150,7 +150,7 @@ int vfs_open_by_handle(struct vfs_filesystem *fs,
 {
 	int fd;
 
-	fd = fhopen((struct fhandle *)fh->handle_data, openflags);
+	fd = fhopen((struct fhandle *) fh->handle_data, openflags);
 
 	if (fd < 0) {
 		fd = -errno;
