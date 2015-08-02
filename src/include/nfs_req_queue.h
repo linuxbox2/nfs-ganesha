@@ -55,11 +55,7 @@ struct req_q_pair {
 	GSH_CACHE_PAD(2);
 };
 
-#define REQ_Q_MOUNT 0
-#define REQ_Q_CALL 1
-#define REQ_Q_LOW_LATENCY 2	/*< GETATTR, RENEW, etc */
-#define REQ_Q_HIGH_LATENCY 3	/*< READ, WRITE, COMMIT, etc */
-#define N_REQ_QUEUES 4
+#define N_REQ_QUEUES 16 /* power of 2 would be better */
 
 extern const char *req_q_s[N_REQ_QUEUES];	/* for debug prints */
 
