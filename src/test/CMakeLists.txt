@@ -17,10 +17,3 @@ SET(test_glist_SRCS
 )
 add_executable(test_glist EXCLUDE_FROM_ALL ${test_glist_SRCS})
 target_link_libraries(test_glist ${CMAKE_THREAD_LIBS_INIT})
-
-set(test_ci_hash_dist1_SRCS
-  test_ci_hash_dist1.cc
-)
-add_executable(test_ci_hash_dist1 EXCLUDE_FROM_ALL
-  ${test_ci_hash_dist1_SRCS})
-target_link_libraries(test_ci_hash_dist1 ${CMAKE_THREAD_LIBS_INIT})
