@@ -31,6 +31,7 @@
 #include "gtest/gtest.h"
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/exception.hpp>
+#include <boost/program_options.hpp>
 
 extern "C" {
 /* Ganesha headers */
@@ -43,8 +44,9 @@ namespace bf = boost::filesystem;
 
 namespace {
 
-  const uint16_t export_id = 77; // parameterize
   struct gsh_export* a_export = nullptr;
+  char* ganesha_conf = (char*) config_path; // Ganesha global
+  uint16_t export_id = 77;
 
 #if 0
   std::uniform_int_distribution<uint8_t> uint_dist;
@@ -55,7 +57,7 @@ namespace {
 
   int ganesha_server() {
     /* XXX */
-    return nfs_libmain();
+    return nfs_libmain(ganesha_conf);
   }
 
 } /* namespace */
@@ -68,11 +70,51 @@ TEST(CI_HASH_DIST1, INIT)
 
 int main(int argc, char *argv[])
 {
-  int code;
-  ::testing::InitGoogleTest(&argc, argv);
-  std::thread ganesha(ganesha_server);
-  code  = RUN_ALL_TESTS();
-  ganesha.join();
+  int code = 0;
+
+  using namespace std;
+  namespace po = boost::program_options;
+
+  po::options_description opts("program options");
+  po::variables_map vm;
+
+  try {
+
+    opts.add_options()
+      ("config", po::value<string>(),
+	"path to Ganesha conf file")
+      ("export", po::value<uint16_t>(),
+	"id of export on which to operate (must exist)")
+      ;
+
+    po::variables_map::iterator vm_iter;
+    po::store(po::parse_command_line(argc, argv, opts), vm);
+    po::notify(vm);
+
+    // use config vars--leaves them on the stack
+    vm_iter = vm.find("config");
+    if (vm_iter != vm.end()) {
+      ganesha_conf = (char*) vm_iter->second.as<std::string>().c_str();
+    }
+    vm_iter = vm.find("export");
+    if (vm_iter != vm.end()) {
+      export_id = vm_iter->second.as<uint16_t>();
+    }
+
+    ::testing::InitGoogleTest(&argc, argv);
+
+    std::thread ganesha(ganesha_server);
+    code  = RUN_ALL_TESTS();
+    ganesha.join();
+  }
+
+  catch(po::error& e) {
+    cout << "Error parsing opts " << e.what() << endl;
+  }
+
+  catch(...) {
+    cout << "Unhandled exception in main()" << endl;
+  }
 
   return code;
 }
