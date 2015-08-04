@@ -134,8 +134,8 @@ void export_pkginit(void);
 void dbus_export_init(void);
 #endif
 struct gsh_export *alloc_export(void);
-void free_export(struct gsh_export *export);
-bool insert_gsh_export(struct gsh_export *export);
+void free_export(struct gsh_export *a_export);
+bool insert_gsh_export(struct gsh_export *a_export);
 struct gsh_export *get_gsh_export(uint16_t export_id);
 struct gsh_export *get_gsh_export_by_path(char *path, bool exact_match);
 struct gsh_export *get_gsh_export_by_path_locked(char *path,
@@ -145,7 +145,7 @@ struct gsh_export *get_gsh_export_by_pseudo_locked(char *path,
 						   bool exact_match);
 struct gsh_export *get_gsh_export_by_tag(char *tag);
 bool mount_gsh_export(struct gsh_export *exp);
-void put_gsh_export(struct gsh_export *export);
+void put_gsh_export(struct gsh_export *a_export);
 void remove_gsh_export(uint16_t export_id);
 bool foreach_gsh_export(bool(*cb) (struct gsh_export *exp, void *state),
 			void *state);
@@ -163,20 +163,20 @@ bool foreach_gsh_export(bool(*cb) (struct gsh_export *exp, void *state),
  *
  * @retval true if the export is ready
  */
-static inline bool export_ready(struct gsh_export *export)
+static inline bool export_ready(struct gsh_export *a_export)
 {
-	return export->export_status == EXPORT_READY;
+	return a_export->export_status == EXPORT_READY;
 }
 
-static inline void get_gsh_export_ref(struct gsh_export *export)
+static inline void get_gsh_export_ref(struct gsh_export *a_export)
 {
-	atomic_inc_int64_t(&export->refcnt);
+	atomic_inc_int64_t(&a_export->refcnt);
 }
 
-void export_revert(struct gsh_export *export);
-void export_add_to_mount_work(struct gsh_export *export);
-void export_add_to_unexport_work_locked(struct gsh_export *export);
-void export_add_to_unexport_work(struct gsh_export *export);
+void export_revert(struct gsh_export *a_export);
+void export_add_to_mount_work(struct gsh_export *a_export);
+void export_add_to_unexport_work_locked(struct gsh_export *a_export);
+void export_add_to_unexport_work(struct gsh_export *a_export);
 struct gsh_export *export_take_mount_work(void);
 struct gsh_export *export_take_unexport_work(void);
 

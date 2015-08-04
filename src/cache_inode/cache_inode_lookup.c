@@ -53,7 +53,7 @@
 
 static inline bool trust_negative_cache(cache_entry_t *parent)
 {
-	return ((op_ctx->export->options &
+	return ((op_ctx->ctx_export->options &
 		 EXPORT_OPTION_TRUST_READIR_NEGATIVE_CACHE) != 0) &&
 		(parent->icreate_refcnt == 0) &&
 	       ((parent->flags & CACHE_INODE_DIR_POPULATED) != 0);
@@ -178,8 +178,8 @@ cache_inode_lookup_impl(cache_entry_t *parent,
 		status = cache_inode_error_convert(fsal_status);
 		LogFullDebug(COMPONENT_CACHE_INODE,
 			     "FSAL %d %s returned %s",
-			     (int) op_ctx->export->export_id,
-			     op_ctx->export->fullpath,
+			     (int) op_ctx->ctx_export->export_id,
+			     op_ctx->ctx_export->fullpath,
 			     cache_inode_err_str(status));
 		*entry = NULL;
 		goto out;

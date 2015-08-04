@@ -594,7 +594,7 @@ static int fsal_commit(void *node, void *link_mem, void *self_struct,
 			"Could not create export for (%s) to (%s)",
 			export->pseudopath,
 			export->fullpath);
-		err_type->export = true;
+		err_type->export_ = true;
 		errcnt++;
 		goto err;
 	}
@@ -2093,7 +2093,7 @@ bool export_check_security(struct svc_req *req)
 		     EXPORT_OPTION_AUTH_NONE) == 0) {
 			LogInfo(COMPONENT_EXPORT,
 				"Export %s does not support AUTH_NONE",
-				op_ctx->export->fullpath);
+				op_ctx->ctx_export->fullpath);
 			return false;
 		}
 		break;
@@ -2103,7 +2103,7 @@ bool export_check_security(struct svc_req *req)
 		     EXPORT_OPTION_AUTH_UNIX) == 0) {
 			LogInfo(COMPONENT_EXPORT,
 				"Export %s does not support AUTH_UNIX",
-				op_ctx->export->fullpath);
+				op_ctx->ctx_export->fullpath);
 			return false;
 		}
 		break;
@@ -2116,7 +2116,7 @@ bool export_check_security(struct svc_req *req)
 				 EXPORT_OPTION_RPCSEC_GSS_PRIV)) == 0) {
 			LogInfo(COMPONENT_EXPORT,
 				"Export %s does not support RPCSEC_GSS",
-				op_ctx->export->fullpath);
+				op_ctx->ctx_export->fullpath);
 			return false;
 		} else {
 			struct svc_rpc_gss_data *gd;
@@ -2132,7 +2132,7 @@ bool export_check_security(struct svc_req *req)
 				     EXPORT_OPTION_RPCSEC_GSS_NONE) == 0) {
 					LogInfo(COMPONENT_EXPORT,
 						"Export %s does not support RPCSEC_GSS_SVC_NONE",
-						op_ctx->export->fullpath);
+						op_ctx->ctx_export->fullpath);
 					return false;
 				}
 				break;
@@ -2142,7 +2142,7 @@ bool export_check_security(struct svc_req *req)
 				     EXPORT_OPTION_RPCSEC_GSS_INTG) == 0) {
 					LogInfo(COMPONENT_EXPORT,
 						"Export %s does not support RPCSEC_GSS_SVC_INTEGRITY",
-						op_ctx->export->fullpath);
+						op_ctx->ctx_export->fullpath);
 					return false;
 				}
 				break;
@@ -2152,7 +2152,7 @@ bool export_check_security(struct svc_req *req)
 				     EXPORT_OPTION_RPCSEC_GSS_PRIV) == 0) {
 					LogInfo(COMPONENT_EXPORT,
 						"Export %s does not support RPCSEC_GSS_SVC_PRIVACY",
-						op_ctx->export->fullpath);
+						op_ctx->ctx_export->fullpath);
 					return false;
 				}
 				break;
@@ -2160,7 +2160,7 @@ bool export_check_security(struct svc_req *req)
 			default:
 				LogInfo(COMPONENT_EXPORT,
 					"Export %s does not support unknown RPCSEC_GSS_SVC %d",
-					op_ctx->export->fullpath,
+					op_ctx->ctx_export->fullpath,
 					(int)svc);
 				return false;
 			}
@@ -2170,7 +2170,7 @@ bool export_check_security(struct svc_req *req)
 	default:
 		LogInfo(COMPONENT_EXPORT,
 			"Export %s does not support unknown oa_flavor %d",
-			op_ctx->export->fullpath,
+			op_ctx->ctx_export->fullpath,
 			(int)req->rq_cred.oa_flavor);
 		return false;
 	}
@@ -2242,7 +2242,7 @@ void export_check_access(void)
 	op_ctx->export_perms->anonymous_uid = (uid_t) ANON_UID;
 	op_ctx->export_perms->anonymous_gid = (gid_t) ANON_GID;
 
-	assert(op_ctx != NULL && op_ctx->export != NULL);
+	assert(op_ctx != NULL && op_ctx->ctx_export != NULL);
 
 	hostaddr = convert_ipv6_to_ipv4(op_ctx->caller_addr, &alt_hostaddr);
 
@@ -2254,12 +2254,12 @@ void export_check_access(void)
 				     ipstring, sizeof(ipstring));
 		LogMidDebug(COMPONENT_EXPORT,
 			    "Check for address %s for export id %u fullpath %s",
-			    ipstring, op_ctx->export->export_id,
-			    op_ctx->export->fullpath);
+			    ipstring, op_ctx->ctx_export->export_id,
+			    op_ctx->ctx_export->fullpath);
 	}
 
 	/* Does the client match anyone on the client list? */
-	client = client_match_any(hostaddr, op_ctx->export);
+	client = client_match_any(hostaddr, op_ctx->ctx_export);
 	if (client != NULL) {
 		/* Take client options */
 		op_ctx->export_perms->options = client->client_perms.options &
@@ -2278,23 +2278,23 @@ void export_check_access(void)
 
 	/* Any options not set by the client, take from the export */
 	op_ctx->export_perms->options |=
-				op_ctx->export->export_perms.options &
-				op_ctx->export->export_perms.set &
+				op_ctx->ctx_export->export_perms.options &
+				op_ctx->ctx_export->export_perms.set &
 				~op_ctx->export_perms->set;
 
 	if ((op_ctx->export_perms->set & EXPORT_OPTION_ANON_UID_SET) == 0 &&
-	    (op_ctx->export->export_perms.set &
+	    (op_ctx->ctx_export->export_perms.set &
 	     EXPORT_OPTION_ANON_UID_SET) != 0)
 		op_ctx->export_perms->anonymous_uid =
-			op_ctx->export->export_perms.anonymous_uid;
+			op_ctx->ctx_export->export_perms.anonymous_uid;
 
 	if ((op_ctx->export_perms->set & EXPORT_OPTION_ANON_GID_SET) == 0 &&
-	    (op_ctx->export->export_perms.set &
+	    (op_ctx->ctx_export->export_perms.set &
 	     EXPORT_OPTION_ANON_GID_SET) != 0)
 		op_ctx->export_perms->anonymous_gid =
-			op_ctx->export->export_perms.anonymous_gid;
+			op_ctx->ctx_export->export_perms.anonymous_gid;
 
-	op_ctx->export_perms->set |= op_ctx->export->export_perms.set;
+	op_ctx->export_perms->set |= op_ctx->ctx_export->export_perms.set;
 
 	/* Any options not set by the client or export, take from the
 	 *  EXPORT_DEFAULTS block.
@@ -2338,7 +2338,7 @@ void export_check_access(void)
 				    "CLIENT          (%s)",
 				    perms);
 		}
-		StrExportOptions(&op_ctx->export->export_perms, perms);
+		StrExportOptions(&op_ctx->ctx_export->export_perms, perms);
 		LogMidDebug(COMPONENT_EXPORT,
 			    "EXPORT          (%s)",
 			    perms);

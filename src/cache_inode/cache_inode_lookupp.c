@@ -84,9 +84,9 @@ cache_inode_lookupp_impl(cache_entry_t *entry,
 	/* Never even think of calling FSAL_lookup on root/.. */
 
 	if (entry->type == DIRECTORY) {
-		PTHREAD_RWLOCK_rdlock(&op_ctx->export->lock);
+		PTHREAD_RWLOCK_rdlock(&op_ctx->ctx_export->lock);
 
-		if (entry == op_ctx->export->exp_root_cache_inode) {
+		if (entry == op_ctx->ctx_export->exp_root_cache_inode) {
 			/* This entry is the root of the current export, so if
 			 * we get this far, return itself. Note that NFS v4
 			 * LOOKUPP will not come here, it catches the root entry
@@ -96,13 +96,13 @@ cache_inode_lookupp_impl(cache_entry_t *entry,
 			 * caller's releasing decrementing it doesn't take us
 			 * below the sentinel count)
 			 */
-			PTHREAD_RWLOCK_unlock(&op_ctx->export->lock);
+			PTHREAD_RWLOCK_unlock(&op_ctx->ctx_export->lock);
 			status = cache_inode_lru_ref(entry, LRU_FLAG_NONE);
 			*parent = entry;
 			return status;
 		}
 
-		PTHREAD_RWLOCK_unlock(&op_ctx->export->lock);
+		PTHREAD_RWLOCK_unlock(&op_ctx->ctx_export->lock);
 	}
 
 	/* Try to lookup by key (fh) */

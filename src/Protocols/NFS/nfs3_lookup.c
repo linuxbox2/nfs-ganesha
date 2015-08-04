@@ -111,7 +111,7 @@ int nfs3_lookup(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 			if (nfs3_FSALToFhandle(
 				    &res->res_lookup3.LOOKUP3res_u.resok.object,
 				    entry_file->obj_handle,
-				    op_ctx->export)) {
+				    op_ctx->ctx_export)) {
 				/* Build entry attributes */
 				nfs_SetPostOpAttr(entry_file,
 						  &(res->res_lookup3.

@@ -394,7 +394,7 @@ cache_inode_new_entry(struct fsal_obj_handle *new_obj,
 
 	if (nentry->obj_handle->attrs->expire_time_attr == 0) {
 		nentry->obj_handle->attrs->expire_time_attr =
-					op_ctx->export->expire_time_attr;
+					op_ctx->ctx_export->expire_time_attr;
 	}
 
 	cache_inode_fixup_md(nentry);
@@ -418,7 +418,7 @@ cache_inode_new_entry(struct fsal_obj_handle *new_obj,
 	}
 
 	/* Map this new entry and the active export */
-	if (!check_mapping(nentry, op_ctx->export)) {
+	if (!check_mapping(nentry, op_ctx->ctx_export)) {
 		LogCrit(COMPONENT_CACHE_INODE,
 			"Unable to create export mapping on new entry");
 		/* Release the LRU reference and return error.
@@ -440,7 +440,7 @@ cache_inode_new_entry(struct fsal_obj_handle *new_obj,
  out:
 
 	if (status == CACHE_INODE_ENTRY_EXISTS) {
-		if (!check_mapping(*entry, op_ctx->export)) {
+		if (!check_mapping(*entry, op_ctx->ctx_export)) {
 			LogCrit(COMPONENT_CACHE_INODE,
 				"Unable to create export mapping on existing entry");
 			status = CACHE_INODE_MALLOC_ERROR;
@@ -553,7 +553,7 @@ void cache_inode_unexport(struct gsh_export *export)
 		} else {
 			/* Make sure first export pointer is still valid */
 			atomic_store_voidptr(&entry->first_export,
-					     expmap->export);
+					     expmap->eem_export);
 
 			PTHREAD_RWLOCK_unlock(&export->lock);
 			PTHREAD_RWLOCK_unlock(&entry->attr_lock);

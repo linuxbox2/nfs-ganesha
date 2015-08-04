@@ -192,7 +192,7 @@ static int nfs4_write(struct nfs_argop4 *op, compound_data_t *data,
 	   allows inode creation or not */
 	fsal_status = op_ctx->fsal_export->exp_ops.check_quota(
 						op_ctx->fsal_export,
-						op_ctx->export->fullpath,
+						op_ctx->ctx_export->fullpath,
 						FSAL_QUOTA_INODES);
 
 	if (FSAL_IS_ERROR(fsal_status)) {
@@ -338,25 +338,25 @@ static int nfs4_write(struct nfs_argop4 *op, compound_data_t *data,
 		     "offset = %" PRIu64 "  length = %" PRIu64 "  stable = %d",
 		     offset, size, stable_how);
 
-	if (op_ctx->export->MaxOffsetWrite < UINT64_MAX) {
+	if (op_ctx->ctx_export->MaxOffsetWrite < UINT64_MAX) {
 		LogFullDebug(COMPONENT_NFS_V4,
 			     "Write offset=%" PRIu64 " count=%" PRIu64
 			     " MaxOffSet=%" PRIu64, offset, size,
-			     op_ctx->export->MaxOffsetWrite);
+			     op_ctx->ctx_export->MaxOffsetWrite);
 
-		if ((offset + size) > op_ctx->export->MaxOffsetWrite) {
+		if ((offset + size) > op_ctx->ctx_export->MaxOffsetWrite) {
 			LogEvent(COMPONENT_NFS_V4,
 				 "A client tryed to violate max file size %"
 				 PRIu64 " for exportid #%hu",
-				 op_ctx->export->MaxOffsetWrite,
-				 op_ctx->export->export_id);
+				 op_ctx->ctx_export->MaxOffsetWrite,
+				 op_ctx->ctx_export->export_id);
 
 			res_WRITE4->status = NFS4ERR_DQUOT;
 			goto done;
 		}
 	}
 
-	if (size > op_ctx->export->MaxWrite) {
+	if (size > op_ctx->ctx_export->MaxWrite) {
 		/*
 		 * The client asked for too much data, we
 		 * must restrict him
@@ -367,8 +367,8 @@ static int nfs4_write(struct nfs_argop4 *op, compound_data_t *data,
 			LogFullDebug(COMPONENT_NFS_V4,
 				     "write requested size = %" PRIu64
 				     " write allowed size = %" PRIu64,
-				     size, op_ctx->export->MaxWrite);
-			size = op_ctx->export->MaxWrite;
+				     size, op_ctx->ctx_export->MaxWrite);
+			size = op_ctx->ctx_export->MaxWrite;
 		}
 	}
 

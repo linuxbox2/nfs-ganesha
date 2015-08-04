@@ -77,7 +77,7 @@ fsal_status_t GPFSFSAL_unlink(struct fsal_obj_handle *dir_hdl,
 
 	gpfs_hdl =
 	    container_of(dir_hdl, struct gpfs_fsal_obj_handle, obj_handle);
-	gpfs_fs = dir_hdl->fs->private;
+	gpfs_fs = dir_hdl->fs->private_data;
 
 	/* build the child path */
 

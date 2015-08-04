@@ -85,14 +85,14 @@ cache_inode_getattr(cache_entry_t *entry,
 		return status;
 	}
 
-	PTHREAD_RWLOCK_rdlock(&op_ctx->export->lock);
+	PTHREAD_RWLOCK_rdlock(&op_ctx->ctx_export->lock);
 
-	if (entry == op_ctx->export->exp_root_cache_inode)
-		mounted_on_fileid = op_ctx->export->exp_mounted_on_file_id;
+	if (entry == op_ctx->ctx_export->exp_root_cache_inode)
+		mounted_on_fileid = op_ctx->ctx_export->exp_mounted_on_file_id;
 	else
 		mounted_on_fileid = entry->obj_handle->attrs->fileid;
 
-	PTHREAD_RWLOCK_unlock(&op_ctx->export->lock);
+	PTHREAD_RWLOCK_unlock(&op_ctx->ctx_export->lock);
 
 	status = cb(opaque,
 		    entry,
@@ -101,7 +101,7 @@ cache_inode_getattr(cache_entry_t *entry,
 		    cb_state);
 
 	if (status == CACHE_INODE_CROSS_JUNCTION) {
-		PTHREAD_RWLOCK_rdlock(&op_ctx->export->lock);
+		PTHREAD_RWLOCK_rdlock(&op_ctx->ctx_export->lock);
 
 		/* Get a reference to the junction_export and remember it
 		 * only if the junction export is valid.
@@ -112,7 +112,7 @@ cache_inode_getattr(cache_entry_t *entry,
 			junction_export = entry->object.dir.junction_export;
 		}
 
-		PTHREAD_RWLOCK_unlock(&op_ctx->export->lock);
+		PTHREAD_RWLOCK_unlock(&op_ctx->ctx_export->lock);
 	}
 
 	PTHREAD_RWLOCK_unlock(&entry->attr_lock);
@@ -172,16 +172,16 @@ cache_inode_fileid(cache_entry_t *entry,
 {
 	cache_inode_status_t status;
 
-	PTHREAD_RWLOCK_rdlock(&op_ctx->export->lock);
+	PTHREAD_RWLOCK_rdlock(&op_ctx->ctx_export->lock);
 
-	if (entry == op_ctx->export->exp_root_cache_inode) {
+	if (entry == op_ctx->ctx_export->exp_root_cache_inode) {
 
-		*fileid = op_ctx->export->exp_mounted_on_file_id;
+		*fileid = op_ctx->ctx_export->exp_mounted_on_file_id;
 		status = CACHE_INODE_SUCCESS;
 
-		PTHREAD_RWLOCK_unlock(&op_ctx->export->lock);
+		PTHREAD_RWLOCK_unlock(&op_ctx->ctx_export->lock);
 	} else {
-		PTHREAD_RWLOCK_unlock(&op_ctx->export->lock);
+		PTHREAD_RWLOCK_unlock(&op_ctx->ctx_export->lock);
 
 		/* Lock (and refresh if necessary) the attributes, copy them
 		   out, and unlock. */

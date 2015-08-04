@@ -254,12 +254,12 @@ static nfsstat4 open4_do_open(struct nfs_argop4 *op, compound_data_t *data,
 		glist_init(&(file_state->state_data.share.share_lockstates));
 	} else {
 		/* Check if open from another export */
-		if (!state_same_export(file_state, op_ctx->export)) {
+		if (!state_same_export(file_state, op_ctx->ctx_export)) {
 			LogEvent(COMPONENT_STATE,
 				 "Lock Owner Export Conflict, Lock held for export %"
 				 PRIu16" request for export %"PRIu16,
 				 state_export_id(file_state),
-				 op_ctx->export->export_id);
+				 op_ctx->ctx_export->export_id);
 			dec_state_t_ref(file_state);
 			return NFS4ERR_INVAL;
 		}
@@ -358,7 +358,7 @@ static nfsstat4 open4_create_fh(compound_data_t *data, cache_entry_t *entry)
 	/* Building a new fh */
 	if (!nfs4_FSALToFhandle(&newfh4,
 				entry->obj_handle,
-				op_ctx->export)) {
+				op_ctx->ctx_export)) {
 		cache_inode_put(entry);
 		return NFS4ERR_SERVERFAULT;
 	}
@@ -618,7 +618,7 @@ static nfsstat4 open4_create(OPEN4args *arg, compound_data_t *data,
 	   the FSAL allows inode creation or not */
 	fsal_status = op_ctx->fsal_export->exp_ops.check_quota(
 						op_ctx->fsal_export,
-						op_ctx->export->fullpath,
+						op_ctx->ctx_export->fullpath,
 						FSAL_QUOTA_INODES);
 
 	if (FSAL_IS_ERROR(fsal_status))

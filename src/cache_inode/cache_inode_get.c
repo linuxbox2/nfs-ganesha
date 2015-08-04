@@ -91,7 +91,7 @@ again:
 				     export_per_entry);
 
 		/* Found active export on list */
-		if (expmap->export == export) {
+		if (expmap->eem_export == export) {
 			PTHREAD_RWLOCK_unlock(&entry->attr_lock);
 			return true;
 		}
@@ -126,7 +126,7 @@ again:
 	if (glist_empty(&entry->export_list))
 		atomic_store_voidptr(&entry->first_export, export);
 
-	expmap->export = export;
+	expmap->eem_export = export;
 	expmap->entry = entry;
 
 	glist_add_tail(&entry->export_list,
@@ -166,7 +166,7 @@ void clean_mapping(cache_entry_t *entry)
 				     struct entry_export_map,
 				     export_per_entry);
 
-		PTHREAD_RWLOCK_wrlock(&expmap->export->lock);
+		PTHREAD_RWLOCK_wrlock(&expmap->eem_export->lock);
 
 		/* Remove from list of exports for this entry */
 		glist_del(&expmap->export_per_entry);
@@ -174,7 +174,7 @@ void clean_mapping(cache_entry_t *entry)
 		/* Remove from list of entries for this export */
 		glist_del(&expmap->entry_per_export);
 
-		PTHREAD_RWLOCK_unlock(&expmap->export->lock);
+		PTHREAD_RWLOCK_unlock(&expmap->eem_export->lock);
 
 		gsh_free(expmap);
 	}
@@ -206,9 +206,9 @@ cache_inode_get(cache_inode_fsal_data_t *fsdata,
 	cih_latch_t latch;
 	cache_inode_key_t key;
 
-	key.fsal = fsdata->export->fsal;
+	key.fsal = fsdata->cifd_export->fsal;
 
-	(void) cih_hash_key(&key, fsdata->export->fsal, &fsdata->fh_desc,
+	(void) cih_hash_key(&key, fsdata->cifd_export->fsal, &fsdata->fh_desc,
 			    CIH_HASH_KEY_PROTOTYPE);
 
 	(void)atomic_inc_uint64_t(&cache_stp->inode_req);
@@ -222,7 +222,7 @@ cache_inode_get(cache_inode_fsal_data_t *fsdata,
 		(void) cache_inode_lru_ref(*entry, LRU_REQ_INITIAL);
 		cih_latch_rele(&latch);
 
-		if (!check_mapping(*entry, op_ctx->export)) {
+		if (!check_mapping(*entry, op_ctx->ctx_export)) {
 			/* Return error instead of entry */
 			cache_inode_put(*entry);
 			*entry = NULL;
@@ -234,7 +234,7 @@ cache_inode_get(cache_inode_fsal_data_t *fsdata,
 	}
 
 	/* Cache miss, allocate a new entry */
-	exp_hdl = fsdata->export;
+	exp_hdl = fsdata->cifd_export;
 	fsal_status =
 	    exp_hdl->exp_ops.create_handle(exp_hdl, &fsdata->fh_desc,
 					&new_hdl);
@@ -295,7 +295,7 @@ cache_inode_get_keyed(cache_inode_key_t *key,
 		/* Release the subtree hash table lock */
 		cih_latch_rele(&latch);
 
-		if (!check_mapping(entry, op_ctx->export)) {
+		if (!check_mapping(entry, op_ctx->ctx_export)) {
 			/* Return error instead of entry */
 			cache_inode_put(entry);
 			return NULL;

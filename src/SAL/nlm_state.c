@@ -358,7 +358,7 @@ int get_nlm_state(enum state_type state_type,
 	key.state_type = state_type;
 	key.state_entry = state_entry;
 	key.state_owner = state_owner;
-	key.state_export = op_ctx->export;
+	key.state_export = op_ctx->ctx_export;
 	key.state_seqid = nsm_state;
 
 	if (isFullDebug(COMPONENT_STATE)) {

@@ -532,7 +532,7 @@ struct entry_export_map {
 	/** The relevant cache inode entry */
 	cache_entry_t *entry;
 	/** The export the entry belongs to */
-	struct gsh_export *export;
+	struct gsh_export *eem_export;
 	/** List of entries per export */
 	struct glist_head entry_per_export;
 	/** List of exports per entry */
@@ -544,7 +544,7 @@ struct entry_export_map {
  */
 
 typedef struct cache_inode_fsal_data {
-	struct fsal_export *export;	/*< export owning this handle */
+	struct fsal_export *cifd_export;	/*< export owning this handle */
 	struct gsh_buffdesc fh_desc;	/*< FSAL handle descriptor  */
 } cache_inode_fsal_data_t;
 
@@ -661,7 +661,7 @@ cache_inode_status_t cache_inode_init(void);
 #define CIG_KEYED_FLAG_CACHED_ONLY  0x0001
 
 bool check_mapping(cache_entry_t *entry,
-		   struct gsh_export *export);
+		   struct gsh_export *export_);
 void clean_mapping(cache_entry_t *entry);
 cache_inode_status_t cache_inode_get(cache_inode_fsal_data_t *fsdata,
 				     cache_entry_t **entry);
@@ -669,7 +669,7 @@ cache_entry_t *cache_inode_get_keyed(cache_inode_key_t *key,
 				     uint32_t flags,
 				     cache_inode_status_t *status);
 
-void cache_inode_unexport(struct gsh_export *export);
+void cache_inode_unexport(struct gsh_export *export_);
 
 cache_inode_status_t cache_inode_access_sw(cache_entry_t *entry,
 					   fsal_accessflags_t access_type,

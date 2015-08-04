@@ -142,12 +142,12 @@ cache_entry_t *nfs3_FhandleToCache(nfs_fh3 *fh3,
 	/* Cast the fh as a non opaque structure */
 	v3_handle = (file_handle_v3_t *) (fh3->data.data_val);
 
-	assert(v3_handle->exportid == op_ctx->export->export_id);
+	assert(v3_handle->exportid == op_ctx->ctx_export->export_id);
 
 	export = op_ctx->fsal_export;
 
 	/* Give the export a crack at it */
-	fsal_data.export = export;
+	fsal_data.cifd_export = export;
 	fsal_data.fh_desc.len = v3_handle->fs_len;
 	fsal_data.fh_desc.addr = &v3_handle->fsopaque;
 

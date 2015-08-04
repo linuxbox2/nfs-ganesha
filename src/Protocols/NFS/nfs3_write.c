@@ -159,7 +159,7 @@ int nfs3_write(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	   FSAL allows inode creation or not */
 	fsal_status =
 	    op_ctx->fsal_export->exp_ops.check_quota(op_ctx->fsal_export,
-						   op_ctx->export->fullpath,
+						   op_ctx->ctx_export->fullpath,
 						   FSAL_QUOTA_BLOCKS);
 
 	if (FSAL_IS_ERROR(fsal_status)) {
@@ -178,18 +178,18 @@ int nfs3_write(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	data = arg->arg_write3.data.data_val;
 
 	/* Do not exceed maxium WRITE offset if set */
-	if (op_ctx->export->MaxOffsetWrite < UINT64_MAX) {
+	if (op_ctx->ctx_export->MaxOffsetWrite < UINT64_MAX) {
 		LogFullDebug(COMPONENT_NFSPROTO,
 			     "Write offset=%" PRIu64 " count=%" PRIu64
 			     " MaxOffSet=%" PRIu64, offset, size,
-			     op_ctx->export->MaxOffsetWrite);
+			     op_ctx->ctx_export->MaxOffsetWrite);
 
-		if ((offset + size) > op_ctx->export->MaxOffsetWrite) {
+		if ((offset + size) > op_ctx->ctx_export->MaxOffsetWrite) {
 			LogEvent(COMPONENT_NFSPROTO,
 				 "A client tryed to violate max file size %"
 				 PRIu64 " for exportid #%hu",
-				 op_ctx->export->MaxOffsetWrite,
-				 op_ctx->export->export_id);
+				 op_ctx->ctx_export->MaxOffsetWrite,
+				 op_ctx->ctx_export->export_id);
 
 			res->res_write3.status = NFS3ERR_INVAL;
 
@@ -205,9 +205,9 @@ int nfs3_write(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	}
 
 	/* We should take care not to exceed FSINFO wtmax field for the size */
-	if (size > op_ctx->export->MaxWrite) {
+	if (size > op_ctx->ctx_export->MaxWrite) {
 		/* The client asked for too much data, we must restrict him */
-		size = op_ctx->export->MaxWrite;
+		size = op_ctx->ctx_export->MaxWrite;
 	}
 
 	if (size == 0) {

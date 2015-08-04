@@ -159,7 +159,7 @@ int _9p_attach(struct _9p_request_data *req9p, u32 *plenout, char *preply)
 	/* Keep track of the export in the req_ctx */
 	pfid->export = export;
 	get_gsh_export_ref(export);
-	op_ctx->export = export;
+	op_ctx->ctx_export = export;
 	op_ctx->fsal_export = export->fsal_export;
 	op_ctx->caller_addr = &req9p->pconn->addrpeer;
 	op_ctx->export_perms = &req9p->pconn->export_perms;
@@ -189,7 +189,7 @@ int _9p_attach(struct _9p_request_data *req9p, u32 *plenout, char *preply)
 
 		pfsal_handle->obj_ops.handle_to_key(pfsal_handle,
 						 &fsal_data.fh_desc);
-		fsal_data.export = export->fsal_export;
+		fsal_data.cifd_export = export->fsal_export;
 
 		cache_status = cache_inode_get(&fsal_data, &pfid->pentry);
 		if (cache_status != CACHE_INODE_SUCCESS) {

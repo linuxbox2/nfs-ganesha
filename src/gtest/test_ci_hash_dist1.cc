@@ -35,11 +35,16 @@
 extern "C" {
 /* Ganesha headers */
 #include "nfs_lib.h"
+#include "export_mgr.h"
+#include "cache_inode.h"
 }
 
 namespace bf = boost::filesystem;
 
 namespace {
+
+  const uint16_t export_id = 77; // parameterize
+  struct gsh_export* a_export = nullptr;
 
 #if 0
   std::uniform_int_distribution<uint8_t> uint_dist;
@@ -57,6 +62,7 @@ namespace {
 
 TEST(CI_HASH_DIST1, INIT)
 {
+  a_export = get_gsh_export(export_id);
   ASSERT_EQ(0, 0);
 }
 

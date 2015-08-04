@@ -202,7 +202,7 @@ int nfs3_mknod(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	   FSAL allows inode creation or not */
 	fsal_status =
 	    op_ctx->fsal_export->exp_ops.check_quota(op_ctx->fsal_export,
-						   op_ctx->export->fullpath,
+						   op_ctx->ctx_export->fullpath,
 						   FSAL_QUOTA_INODES);
 	if (FSAL_IS_ERROR(fsal_status)) {
 		res->res_mknod3.status = NFS3ERR_DQUOT;
@@ -233,7 +233,7 @@ int nfs3_mknod(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 
 	if (nfs3_FSALToFhandle(&rok->obj.post_op_fh3_u.handle,
 			       node_entry->obj_handle,
-			       op_ctx->export) == 0) {
+			       op_ctx->ctx_export) == 0) {
 		gsh_free(rok->obj.post_op_fh3_u.handle.data.data_val);
 		res->res_mknod3.status = NFS3ERR_BADHANDLE;
 		rc = NFS_REQ_OK;

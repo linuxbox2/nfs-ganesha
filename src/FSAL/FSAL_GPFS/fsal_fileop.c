@@ -87,7 +87,7 @@ fsal_status_t GPFSFSAL_open(struct fsal_obj_handle *obj_hdl,
 		return fsalstat(ERR_FSAL_FAULT, 0);
 
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle, obj_handle);
-	gpfs_fs = obj_hdl->fs->private;
+	gpfs_fs = obj_hdl->fs->private_data;
 
 	/* convert fsal open flags to posix open flags */
 	rc = fsal2posix_openflags(openflags, &posix_flags);

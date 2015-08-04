@@ -109,7 +109,7 @@ cache_inode_rdwr_plus(cache_entry_t *entry,
 		 * FSAL_O_SYNC has no guaranty that this write will be
 		 * a stable write.
 		 */
-		perms = &op_ctx->export->export_perms;
+		perms = &op_ctx->ctx_export->export_perms;
 		if (perms->options & EXPORT_OPTION_COMMIT)
 			*sync = true;
 		openflags = FSAL_O_WRITE;

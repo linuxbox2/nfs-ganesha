@@ -124,7 +124,7 @@ fsal_status_t GPFSFSAL_getattrs(struct fsal_export *export,	/* IN */
 	buffxstat.fsal_fsid.major = 0;
 	buffxstat.fsal_fsid.minor = 0;
 
-	expire = p_context->export->expire_time_attr > 0;
+	expire = p_context->ctx_export->expire_time_attr > 0;
 
 	st = fsal_get_xstat_by_handle(gpfs_fs->root_fd, p_filehandle,
 				      &buffxstat, &expire_time_attr, expire);
@@ -236,7 +236,7 @@ fsal_status_t GPFSFSAL_setattrs(struct fsal_obj_handle *dir_hdl,	/* IN */
 		return fsalstat(ERR_FSAL_FAULT, 0);
 
 	myself = container_of(dir_hdl, struct gpfs_fsal_obj_handle, obj_handle);
-	gpfs_fs = dir_hdl->fs->private;
+	gpfs_fs = dir_hdl->fs->private_data;
 
 	/* First, check that FSAL attributes changes are allowed. */
 

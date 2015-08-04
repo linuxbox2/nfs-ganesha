@@ -206,7 +206,7 @@ int nfs3_readdir(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	 * unused (as in many NFS Servers) then only a set of zeros
 	 * is returned (trivial value).
 	 */
-	if (op_ctx->export->options & EXPORT_OPTION_USE_COOKIE_VERIFIER)
+	if (op_ctx->ctx_export->options & EXPORT_OPTION_USE_COOKIE_VERIFIER)
 		memcpy(cookie_verifier,
 		       &dir_entry->change_time,
 		       sizeof(dir_entry->change_time));
@@ -215,7 +215,7 @@ int nfs3_readdir(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	 * zero
 	 */
 	if ((cookie != 0) &&
-	    (op_ctx->export->options & EXPORT_OPTION_USE_COOKIE_VERIFIER)) {
+	    (op_ctx->ctx_export->options & EXPORT_OPTION_USE_COOKIE_VERIFIER)) {
 		/* Not the first call, so we have to check the cookie
 		 * verifier
 		 */

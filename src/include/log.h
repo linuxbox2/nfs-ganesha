@@ -175,7 +175,7 @@ typedef enum log_header_t {
  * @brief Prototype for special log facility logging functions
  */
 
-typedef int (lf_function_t) (log_header_t headers, void *private,
+typedef int (lf_function_t) (log_header_t headers, void *priv,
 			     log_levels_t level,
 			     struct display_buffer *buffer, char *compstr,
 			     char *message);
@@ -184,7 +184,7 @@ int create_log_facility(char *name,
 			lf_function_t *log_func,
 			log_levels_t max_level,
 			log_header_t header,
-			void *private);
+			void *priv);
 void release_log_facility(char *name);
 int enable_log_facility(char *name);
 int disable_log_facility(char *name);

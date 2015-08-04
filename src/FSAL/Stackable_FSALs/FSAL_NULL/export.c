@@ -419,7 +419,7 @@ fsal_status_t nullfs_create_export(struct fsal_module *fsal_hdl,
 	if (myself == NULL) {
 		LogMajor(COMPONENT_FSAL,
 			 "Could not allocate memory for export %s",
-			 op_ctx->export->fullpath);
+			 op_ctx->ctx_export->fullpath);
 		return fsalstat(ERR_FSAL_NOMEM, ENOMEM);
 	}
 

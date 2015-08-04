@@ -72,19 +72,19 @@ int nfs4_op_putrootfh(struct nfs_argop4 *op, compound_data_t *data,
 	resp->resop = NFS4_OP_PUTROOTFH;
 
 	/* Release any old export reference */
-	if (op_ctx->export != NULL)
-		put_gsh_export(op_ctx->export);
+	if (op_ctx->ctx_export != NULL)
+		put_gsh_export(op_ctx->ctx_export);
 
-	op_ctx->export = NULL;
+	op_ctx->ctx_export = NULL;
 	op_ctx->fsal_export = NULL;
 
 	/* Clear out current entry for now */
 	set_current_entry(data, NULL);
 
 	/* Get the root export of the Pseudo FS */
-	op_ctx->export = get_gsh_export_by_pseudo("/", true);
+	op_ctx->ctx_export = get_gsh_export_by_pseudo("/", true);
 
-	if (op_ctx->export == NULL) {
+	if (op_ctx->ctx_export == NULL) {
 		LogCrit(COMPONENT_EXPORT,
 			"Could not get export for Pseudo Root");
 
@@ -92,7 +92,7 @@ int nfs4_op_putrootfh(struct nfs_argop4 *op, compound_data_t *data,
 		return res_PUTROOTFH4->status;
 	}
 
-	op_ctx->fsal_export = op_ctx->export->fsal_export;
+	op_ctx->fsal_export = op_ctx->ctx_export->fsal_export;
 
 	/* Build credentials */
 	res_PUTROOTFH4->status = nfs4_export_check_access(data->req);
@@ -112,7 +112,7 @@ int nfs4_op_putrootfh(struct nfs_argop4 *op, compound_data_t *data,
 	}
 
 	/* Get the Pesudo Root inode of the mounted on export */
-	cache_status = nfs_export_get_root_entry(op_ctx->export,
+	cache_status = nfs_export_get_root_entry(op_ctx->ctx_export,
 						 &file_entry);
 
 	if (cache_status != CACHE_INODE_SUCCESS) {
@@ -139,7 +139,7 @@ int nfs4_op_putrootfh(struct nfs_argop4 *op, compound_data_t *data,
 	/* Convert it to a file handle */
 	if (!nfs4_FSALToFhandle(&data->currentFH,
 				data->current_entry->obj_handle,
-				op_ctx->export)) {
+				op_ctx->ctx_export)) {
 		LogCrit(COMPONENT_EXPORT,
 			"Could not get handle for Pseudo Root");
 

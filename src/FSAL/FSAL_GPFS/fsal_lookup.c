@@ -86,7 +86,7 @@ fsal_status_t GPFSFSAL_lookup(const struct req_op_context *p_context,
 
 	parent_hdl =
 	    container_of(parent, struct gpfs_fsal_obj_handle, obj_handle);
-	gpfs_fs = parent->fs->private;
+	gpfs_fs = parent->fs->private_data;
 
 	status = fsal_internal_handle2fd_at(gpfs_fs->root_fd,
 					    parent_hdl->handle,
@@ -150,7 +150,7 @@ fsal_status_t GPFSFSAL_lookup(const struct req_op_context *p_context,
 				 "Lookup of %s crosses filesystem boundary to file system %s",
 				 p_filename, (*new_fs)->path);
 		}
-		gpfs_fs = (*new_fs)->private;
+		gpfs_fs = (*new_fs)->private_data;
 	}
 
 	/* get object attributes */

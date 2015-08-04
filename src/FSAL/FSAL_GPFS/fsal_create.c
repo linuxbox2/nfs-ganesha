@@ -86,7 +86,7 @@ fsal_status_t GPFSFSAL_create(struct fsal_obj_handle *dir_hdl,	/* IN */
 	if (p_object_attributes) {
 		status =
 		    GPFSFSAL_getattrs(p_context->fsal_export,
-				      dir_hdl->fs->private,
+				      dir_hdl->fs->private_data,
 				      p_context,
 				      p_object_handle, p_object_attributes);
 
@@ -173,7 +173,7 @@ fsal_status_t GPFSFSAL_mkdir(struct fsal_obj_handle *dir_hdl,	/* IN */
 	/* retrieve file attributes */
 	if (p_object_attributes) {
 		status = GPFSFSAL_getattrs(p_context->fsal_export,
-					   dir_hdl->fs->private,
+					   dir_hdl->fs->private_data,
 					   p_context, p_object_handle,
 					   p_object_attributes);
 
@@ -232,7 +232,7 @@ fsal_status_t GPFSFSAL_link(struct fsal_obj_handle *destdir_hdl,	/* IN */
 
 	dest_dir =
 	    container_of(destdir_hdl, struct gpfs_fsal_obj_handle, obj_handle);
-	gpfs_fs = destdir_hdl->fs->private;
+	gpfs_fs = destdir_hdl->fs->private_data;
 
 	/* Tests if hardlinking is allowed by configuration. */
 
@@ -375,7 +375,7 @@ fsal_status_t GPFSFSAL_mknode(struct fsal_obj_handle *dir_hdl,	/* IN */
 	if (node_attributes) {
 
 		status = GPFSFSAL_getattrs(p_context->fsal_export,
-					   dir_hdl->fs->private,
+					   dir_hdl->fs->private_data,
 					   p_context, p_object_handle,
 					   node_attributes);
 

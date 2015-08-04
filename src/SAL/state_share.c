@@ -734,9 +734,9 @@ void remove_nlm_share(state_t *state, bool *unpin)
 	state_nlm_client_t *client = owner->so_owner.so_nlm_owner.so_client;
 
 	/* Remove from share list for export */
-	PTHREAD_RWLOCK_wrlock(&op_ctx->export->lock);
+	PTHREAD_RWLOCK_wrlock(&op_ctx->ctx_export->lock);
 	glist_del(&state->state_export_list);
-	PTHREAD_RWLOCK_unlock(&op_ctx->export->lock);
+	PTHREAD_RWLOCK_unlock(&op_ctx->ctx_export->lock);
 
 	/* Remove the share from the list for the file. */
 	glist_del(&state->state_list);
@@ -899,10 +899,10 @@ state_status_t state_nlm_share(cache_entry_t *entry,
 		       &state->state_list);
 
 	/* Add to share list for export */
-	PTHREAD_RWLOCK_wrlock(&op_ctx->export->lock);
-	glist_add_tail(&op_ctx->export->exp_nlm_share_list,
+	PTHREAD_RWLOCK_wrlock(&op_ctx->ctx_export->lock);
+	glist_add_tail(&op_ctx->ctx_export->exp_nlm_share_list,
 		       &state->state_export_list);
-	PTHREAD_RWLOCK_unlock(&op_ctx->export->lock);
+	PTHREAD_RWLOCK_unlock(&op_ctx->ctx_export->lock);
 
 	/* Get the current union of share states of this file. */
 	old_entry_share_access = state_share_get_share_access(entry);
@@ -1128,14 +1128,14 @@ void state_export_unshare_all(void)
 	state_status_t status;
 
 	while (errcnt < STATE_ERR_MAX) {
-		PTHREAD_RWLOCK_wrlock(&op_ctx->export->lock);
+		PTHREAD_RWLOCK_wrlock(&op_ctx->ctx_export->lock);
 
-		state = glist_first_entry(&op_ctx->export->exp_nlm_share_list,
+		state = glist_first_entry(&op_ctx->ctx_export->exp_nlm_share_list,
 					  state_t,
 					  state_export_list);
 
 		if (state == NULL) {
-			PTHREAD_RWLOCK_unlock(&op_ctx->export->lock);
+			PTHREAD_RWLOCK_unlock(&op_ctx->ctx_export->lock);
 			break;
 		}
 
@@ -1160,7 +1160,7 @@ void state_export_unshare_all(void)
 		(void) cache_inode_lru_ref(entry, LRU_REQ_STALE_OK);
 
 		/* Drop the export mutex to call unshare */
-		PTHREAD_RWLOCK_unlock(&op_ctx->export->lock);
+		PTHREAD_RWLOCK_unlock(&op_ctx->ctx_export->lock);
 
 		/* Remove all shares held by this Owner on this export */
 		status = state_nlm_unshare(entry,
@@ -1189,7 +1189,7 @@ void state_export_unshare_all(void)
 	if (errcnt == STATE_ERR_MAX) {
 		LogFatal(COMPONENT_STATE,
 			 "Could not complete cleanup of NLM shares for %s",
-			 op_ctx->export->fullpath);
+			 op_ctx->ctx_export->fullpath);
 	}
 }
 

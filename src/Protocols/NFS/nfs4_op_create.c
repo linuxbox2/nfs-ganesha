@@ -96,7 +96,7 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t *data,
 	exp_hdl = op_ctx->fsal_export;
 
 	fsal_status = exp_hdl->exp_ops.check_quota(exp_hdl,
-						op_ctx->export->fullpath,
+						op_ctx->ctx_export->fullpath,
 						FSAL_QUOTA_INODES);
 
 	if (FSAL_IS_ERROR(fsal_status)) {
@@ -361,7 +361,7 @@ int nfs4_op_create(struct nfs_argop4 *op, compound_data_t *data,
 	/* Building the new file handle */
 	if (!nfs4_FSALToFhandle(&newfh4,
 				entry_new->obj_handle,
-				op_ctx->export)) {
+				op_ctx->ctx_export)) {
 		res_CREATE4->status = NFS4ERR_SERVERFAULT;
 		cache_inode_put(entry_new);
 		goto out;
