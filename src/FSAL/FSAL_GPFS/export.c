@@ -76,7 +76,7 @@ static fsal_status_t get_dynamic_info(struct fsal_export *exp_hdl,
 		fsal_error = ERR_FSAL_FAULT;
 		goto out;
 	}
-	gpfs_fs = obj_hdl->fs->private;
+	gpfs_fs = obj_hdl->fs->private_data;
 
 	status = GPFSFSAL_statfs(gpfs_fs->root_fd, obj_hdl, &buffstatgpfs);
 	if (FSAL_IS_ERROR(status))
@@ -551,7 +551,7 @@ int gpfs_claim_filesystem(struct fsal_filesystem *fs, struct fsal_export *exp)
 	map = gsh_calloc(1, sizeof(*map));
 
 	if (fs->fsal != NULL) {
-		gpfs_fs = fs->private;
+		gpfs_fs = fs->private_data;
 		if (gpfs_fs == NULL) {
 			LogCrit(COMPONENT_FSAL,
 				"Something wrong with export, fs %s appears already claimed but doesn't have private data",
@@ -563,7 +563,7 @@ int gpfs_claim_filesystem(struct fsal_filesystem *fs, struct fsal_export *exp)
 		goto already_claimed;
 	}
 
-	if (fs->private != NULL) {
+	if (fs->private_data != NULL) {
 			LogCrit(COMPONENT_FSAL,
 				"Something wrong with export, fs %s was not claimed but had non-NULL private",
 				fs->path);
@@ -617,7 +617,7 @@ int gpfs_claim_filesystem(struct fsal_filesystem *fs, struct fsal_export *exp)
 		goto errout;
 	}
 
-	fs->private = gpfs_fs;
+	fs->private_data = gpfs_fs;
 
 already_claimed:
 
@@ -646,7 +646,7 @@ errout:
  */
 void gpfs_unclaim_filesystem(struct fsal_filesystem *fs)
 {
-	struct gpfs_filesystem *gpfs_fs = fs->private;
+	struct gpfs_filesystem *gpfs_fs = fs->private_data;
 	struct glist_head *glist, *glistn;
 	struct gpfs_filesystem_export_map *map;
 	struct callback_arg callback;
@@ -686,7 +686,7 @@ void gpfs_unclaim_filesystem(struct fsal_filesystem *fs)
 			LogFullDebug(COMPONENT_FSAL, "Thread STOP successful");
 		pthread_join(gpfs_fs->up_thread, NULL);
 		free_gpfs_filesystem(gpfs_fs);
-		fs->private = NULL;
+		fs->private_data = NULL;
 	}
 
 	LogInfo(COMPONENT_FSAL,
@@ -757,8 +757,9 @@ fsal_status_t gpfs_create_export(struct fsal_module *fsal_hdl,
 	status.minor = fsal_internal_version();
 	LogInfo(COMPONENT_FSAL, "GPFS get version is %d options 0x%X id %d",
 		status.minor,
-		op_ctx->export_perms ? op_ctx->export_perms->options : 0,
-		op_ctx->export->export_id);
+		op_ctx->export_perms ?
+		op_ctx->export_perms->options : 0,
+		op_ctx->ctx_export->export_id);
 
 	fsal_export_init(&myself->export);
 	gpfs_export_ops_init(&myself->export.exp_ops);
@@ -778,7 +779,7 @@ fsal_status_t gpfs_create_export(struct fsal_module *fsal_hdl,
 		goto detach;
 	}
 
-	status.minor = resolve_posix_filesystem(op_ctx->export->fullpath,
+	status.minor = resolve_posix_filesystem(op_ctx->ctx_export->fullpath,
 						fsal_hdl, &myself->export,
 						gpfs_claim_filesystem,
 						gpfs_unclaim_filesystem,
@@ -787,13 +788,13 @@ fsal_status_t gpfs_create_export(struct fsal_module *fsal_hdl,
 	if (status.minor != 0) {
 		LogCrit(COMPONENT_FSAL,
 			"resolve_posix_filesystem(%s) returned %s (%d)",
-			op_ctx->export->fullpath,
+			op_ctx->ctx_export->fullpath,
 			strerror(status.minor), status.minor);
 		status.major = posix2fsal_error(status.minor);
 		goto uninit;
 	}
 
-	gpfs_fs = myself->root_fs->private;
+	gpfs_fs = myself->root_fs->private_data;
 	varg.fd = gpfs_fs->root_fd;
 	varg.buffer = (char *)&GPFS_write_verifier;
 	rc = gpfs_ganesha(OPENHANDLE_GET_VERIFIER, &varg);
@@ -806,7 +807,7 @@ fsal_status_t gpfs_create_export(struct fsal_module *fsal_hdl,
 		struct grace_period_arg gpa;
 		int nodeid;
 
-		gpfs_fs = myself->root_fs->private;
+		gpfs_fs = myself->root_fs->private_data;
 		gpa.mountdirfd = gpfs_fs->root_fd;
 
 		nodeid = gpfs_ganesha(OPENHANDLE_GET_NODEID, &gpa);
@@ -832,8 +833,8 @@ fsal_status_t gpfs_create_export(struct fsal_module *fsal_hdl,
 			goto uninit;
 
 		/* special case: server_id matches export_id */
-		pds->id_servers = op_ctx->export->export_id;
-		pds->mds_export = op_ctx->export;
+		pds->id_servers = op_ctx->ctx_export->export_id;
+		pds->mds_export = op_ctx->ctx_export;
 
 		if (!pnfs_ds_insert(pds)) {
 			LogCrit(COMPONENT_CONFIG,
@@ -847,7 +848,7 @@ fsal_status_t gpfs_create_export(struct fsal_module *fsal_hdl,
 
 		LogInfo(COMPONENT_FSAL,
 			"gpfs_fsal_create: pnfs ds was enabled for [%s]",
-			op_ctx->export->fullpath);
+			op_ctx->ctx_export->fullpath);
 		export_ops_pnfs(&myself->export.exp_ops);
 	}
 	myself->use_acl = !op_ctx_export_has_option(EXPORT_OPTION_DISABLE_ACL);
