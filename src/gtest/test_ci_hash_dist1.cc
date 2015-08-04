@@ -26,6 +26,7 @@
 #include <iostream>
 #include <vector>
 #include <map>
+#include <chrono>
 #include <thread>
 #include <random>
 #include "gtest/gtest.h"
@@ -45,7 +46,9 @@ namespace bf = boost::filesystem;
 namespace {
 
   struct gsh_export* a_export = nullptr;
-  char* ganesha_conf = (char*) config_path; // Ganesha global
+  char* ganesha_conf = nullptr;
+  char* lpath = nullptr;
+  int dlevel = -1;
   uint16_t export_id = 77;
 
 #if 0
@@ -57,7 +60,11 @@ namespace {
 
   int ganesha_server() {
     /* XXX */
-    return nfs_libmain(ganesha_conf);
+    return nfs_libmain(
+      ganesha_conf,
+      lpath,
+      dlevel
+      );
   }
 
 } /* namespace */
@@ -73,6 +80,7 @@ int main(int argc, char *argv[])
   int code = 0;
 
   using namespace std;
+  using namespace std::literals;
   namespace po = boost::program_options;
 
   po::options_description opts("program options");
@@ -83,8 +91,15 @@ int main(int argc, char *argv[])
     opts.add_options()
       ("config", po::value<string>(),
 	"path to Ganesha conf file")
+
+      ("logfile", po::value<string>(),
+	"log to the provided file path")
+
       ("export", po::value<uint16_t>(),
 	"id of export on which to operate (must exist)")
+
+      ("debug", po::value<string>(),
+	"ganesha debug level")
       ;
 
     po::variables_map::iterator vm_iter;
@@ -96,6 +111,15 @@ int main(int argc, char *argv[])
     if (vm_iter != vm.end()) {
       ganesha_conf = (char*) vm_iter->second.as<std::string>().c_str();
     }
+    vm_iter = vm.find("logfile");
+    if (vm_iter != vm.end()) {
+      lpath = (char*) vm_iter->second.as<std::string>().c_str();
+    }
+    vm_iter = vm.find("debug");
+    if (vm_iter != vm.end()) {
+      dlevel = ReturnLevelAscii(
+	(char*) vm_iter->second.as<std::string>().c_str());
+    }
     vm_iter = vm.find("export");
     if (vm_iter != vm.end()) {
       export_id = vm_iter->second.as<uint16_t>();
@@ -104,6 +128,8 @@ int main(int argc, char *argv[])
     ::testing::InitGoogleTest(&argc, argv);
 
     std::thread ganesha(ganesha_server);
+    std::this_thread::sleep_for(5s);
+
     code  = RUN_ALL_TESTS();
     ganesha.join();
   }
