@@ -64,7 +64,7 @@ int vfs_get_root_fd(struct fsal_export *exp_hdl)
 	struct vfs_filesystem *my_root_fs;
 
 	myself = EXPORT_VFS_FROM_FSAL(exp_hdl);
-	my_root_fs = myself->root_fs->private;
+	my_root_fs = myself->root_fs->private_data;
 	return my_root_fs->root_fd;
 }
 
@@ -413,7 +413,7 @@ void free_vfs_filesystem(struct vfs_filesystem *vfs_fs)
 
 int vfs_claim_filesystem(struct fsal_filesystem *fs, struct fsal_export *exp)
 {
-	struct vfs_filesystem *vfs_fs = fs->private;
+	struct vfs_filesystem *vfs_fs = fs->private_data;
 	int retval;
 	struct vfs_fsal_export *myself;
 	struct vfs_filesystem_export_map *map;
@@ -423,7 +423,7 @@ int vfs_claim_filesystem(struct fsal_filesystem *fs, struct fsal_export *exp)
 	map = gsh_calloc(1, sizeof(*map));
 
 	if (fs->fsal != NULL) {
-		vfs_fs = fs->private;
+		vfs_fs = fs->private_data;
 		if (vfs_fs == NULL) {
 			LogCrit(COMPONENT_FSAL,
 				"Something wrong with export, fs %s appears already claimed but doesn't have private data",
@@ -454,7 +454,7 @@ int vfs_claim_filesystem(struct fsal_filesystem *fs, struct fsal_export *exp)
 		goto errout;
 	}
 
-	fs->private = vfs_fs;
+	fs->private_data = vfs_fs;
 
 already_claimed:
 
@@ -479,7 +479,7 @@ errout:
 
 void vfs_unclaim_filesystem(struct fsal_filesystem *fs)
 {
-	struct vfs_filesystem *vfs_fs = fs->private;
+	struct vfs_filesystem *vfs_fs = fs->private_data;
 	struct glist_head *glist, *glistn;
 	struct vfs_filesystem_export_map *map;
 
@@ -505,7 +505,7 @@ void vfs_unclaim_filesystem(struct fsal_filesystem *fs)
 
 		free_vfs_filesystem(vfs_fs);
 
-		fs->private = NULL;
+		fs->private_data = NULL;
 	}
 
 	LogInfo(COMPONENT_FSAL,
@@ -578,7 +578,7 @@ fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl,
 		goto errout;
 	}
 	myself->export.fsal = fsal_hdl;
-	vfs_sub_init_export_ops(myself, op_ctx->export->fullpath);
+	vfs_sub_init_export_ops(myself, op_ctx->ctx_export->fullpath);
 
 	retval = fsal_attach_export(fsal_hdl, &myself->export.exports);
 	if (retval != 0) {
@@ -586,8 +586,7 @@ fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl,
 		goto errout;	/* seriously bad */
 	}
 
-
-	retval = resolve_posix_filesystem(op_ctx->export->fullpath,
+	retval = resolve_posix_filesystem(op_ctx->ctx_export->fullpath,
 					  fsal_hdl, &myself->export,
 					  vfs_claim_filesystem,
 					  vfs_unclaim_filesystem,
@@ -596,7 +595,7 @@ fsal_status_t vfs_create_export(struct fsal_module *fsal_hdl,
 	if (retval != 0) {
 		LogCrit(COMPONENT_FSAL,
 			"resolve_posix_filesystem(%s) returned %s (%d)",
-			op_ctx->export->fullpath,
+			op_ctx->ctx_export->fullpath,
 			strerror(retval), retval);
 		fsal_status = posix2fsal_status(retval);
 		goto errout;

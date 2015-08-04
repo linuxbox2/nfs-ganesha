@@ -261,7 +261,7 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 		status.major = ERR_FSAL_NOMEM;
 		LogCrit(COMPONENT_FSAL,
 			"Unable to allocate export object for %s.",
-			op_ctx->export->fullpath);
+			op_ctx->ctx_export->fullpath);
 		goto error;
 	}
 
@@ -293,7 +293,7 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 		status.major = ERR_FSAL_SERVERFAULT;
 		LogCrit(COMPONENT_FSAL,
 			"Unable to mount RGW cluster for %s.",
-			op_ctx->export->fullpath);
+			op_ctx->ctx_export->fullpath);
 		goto error;
 	}
 
@@ -301,7 +301,7 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 		status.major = ERR_FSAL_SERVERFAULT;
 		LogCrit(COMPONENT_FSAL,
 			"Unable to attach export for %s.",
-			op_ctx->export->fullpath);
+			op_ctx->ctx_export->fullpath);
 		goto error;
 	}
 
@@ -309,7 +309,7 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 
 	LogDebug(COMPONENT_FSAL,
 		 "RGW module export %s.",
-		 op_ctx->export->fullpath);
+		 op_ctx->ctx_export->fullpath);
 
 	rc = rgw_getattr(export->rgw_fs, export->rgw_fs->root_fh, &st,
 			RGW_GETATTR_FLAG_NONE);
