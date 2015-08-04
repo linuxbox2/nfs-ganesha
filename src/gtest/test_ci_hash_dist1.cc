@@ -72,7 +72,7 @@ namespace {
 TEST(CI_HASH_DIST1, INIT)
 {
   a_export = get_gsh_export(export_id);
-  ASSERT_EQ(0, 0);
+  ASSERT_NE(a_export, nullptr);
 }
 
 int main(int argc, char *argv[])
