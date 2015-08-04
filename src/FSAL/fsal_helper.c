@@ -188,15 +188,15 @@ uint64_t fsal_fileid(struct fsal_obj_handle *obj)
 {
 	uint64_t fileid;
 
-	PTHREAD_RWLOCK_rdlock(&op_ctx->export->lock);
+	PTHREAD_RWLOCK_rdlock(&op_ctx->ctx_export->lock);
 
-	if (obj == op_ctx->export->exp_root_obj) {
+	if (obj == op_ctx->ctx_export->exp_root_obj) {
 
-		fileid = op_ctx->export->exp_mounted_on_file_id;
+		fileid = op_ctx->ctx_export->exp_mounted_on_file_id;
 
-		PTHREAD_RWLOCK_unlock(&op_ctx->export->lock);
+		PTHREAD_RWLOCK_unlock(&op_ctx->ctx_export->lock);
 	} else {
-		PTHREAD_RWLOCK_unlock(&op_ctx->export->lock);
+		PTHREAD_RWLOCK_unlock(&op_ctx->ctx_export->lock);
 
 		/* No need to lock the attrs, fileid doesn't change. */
 		fileid = obj->attrs->fileid;
@@ -425,8 +425,8 @@ fsal_status_t open2_by_name(struct fsal_obj_handle *in_obj,
 	if (FSAL_IS_ERROR(status)) {
 		LogFullDebug(COMPONENT_FSAL,
 			     "FSAL %d %s returned %s",
-			     (int) op_ctx->export->export_id,
-			     op_ctx->export->fullpath,
+			     (int) op_ctx->ctx_export->export_id,
+			     op_ctx->ctx_export->fullpath,
 			     fsal_err_txt(status));
 		return status;
 	}
@@ -898,7 +898,7 @@ fsal_status_t fsal_lookupp(struct fsal_obj_handle *obj,
 		fsal_status_t status = {0, 0};
 		struct fsal_obj_handle *root_obj = NULL;
 
-		status = nfs_export_get_root_entry(op_ctx->export, &root_obj);
+		status = nfs_export_get_root_entry(op_ctx->ctx_export, &root_obj);
 		if (FSAL_IS_ERROR(status))
 			return status;
 
@@ -1190,7 +1190,7 @@ fsal_status_t fsal_write2(struct fsal_obj_handle *obj,
 	/* Error return from FSAL calls */
 	fsal_status_t status = { 0, 0 };
 
-	if (op_ctx->export->export_perms.options & EXPORT_OPTION_COMMIT) {
+	if (op_ctx->ctx_export->export_perms.options & EXPORT_OPTION_COMMIT) {
 		/* Force sync if export requires it */
 		*sync = true;
 	}
@@ -1270,7 +1270,7 @@ fsal_status_t fsal_rdwr(struct fsal_obj_handle *obj,
 		 * FSAL_O_SYNC has no guaranty that this write will be
 		 * a stable write.
 		 */
-		perms = &op_ctx->export->export_perms;
+		perms = &op_ctx->ctx_export->export_perms;
 		if (perms->options & EXPORT_OPTION_COMMIT)
 			*sync = true;
 		openflags = FSAL_O_WRITE;
@@ -2043,7 +2043,7 @@ fsal_status_t fsal_statfs(struct fsal_obj_handle *obj,
 	fsal_status_t fsal_status;
 	struct fsal_export *export;
 
-	export = op_ctx->export->fsal_export;
+	export = op_ctx->ctx_export->fsal_export;
 	/* Get FSAL to get dynamic info */
 	fsal_status =
 	    export->exp_ops.get_fs_dynamic_info(export, obj, dynamicinfo);

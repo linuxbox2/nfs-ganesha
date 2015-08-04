@@ -61,7 +61,7 @@ GPFSFSAL_create(struct fsal_obj_handle *dir_hdl, const char *filename,
 	if (fsal_attr) {
 		status =
 		    GPFSFSAL_getattrs(op_ctx->fsal_export,
-				      dir_hdl->fs->private,
+				      dir_hdl->fs->private_data,
 				      op_ctx,
 				      gpfs_fh, fsal_attr);
 
@@ -125,8 +125,8 @@ GPFSFSAL_mkdir(struct fsal_obj_handle *dir_hdl, const char *dir_name,
 	/* retrieve file attributes */
 	if (obj_attr) {
 		status = GPFSFSAL_getattrs(op_ctx->fsal_export,
-					   dir_hdl->fs->private,
-					   op_ctx, gpfs_fh, obj_attr);
+					dir_hdl->fs->private_data,
+					op_ctx, gpfs_fh, obj_attr);
 
 		/* on error, we set a special bit in the mask. */
 		if (FSAL_IS_ERROR(status)) {
@@ -164,8 +164,8 @@ GPFSFSAL_link(struct fsal_obj_handle *dir_hdl, struct gpfs_file_handle *gpfs_fh,
 		return fsalstat(ERR_FSAL_FAULT, 0);
 
 	dest_dir =
-	    container_of(dir_hdl, struct gpfs_fsal_obj_handle, obj_handle);
-	gpfs_fs = dir_hdl->fs->private;
+		container_of(dir_hdl, struct gpfs_fsal_obj_handle, obj_handle);
+	gpfs_fs = dir_hdl->fs->private_data;
 
 	/* Tests if hardlinking is allowed by configuration. */
 
@@ -282,11 +282,10 @@ GPFSFSAL_mknode(struct fsal_obj_handle *dir_hdl, const char *node_name,
 
 	/* Fills the attributes if needed */
 	if (fsal_attr) {
-
 		status = GPFSFSAL_getattrs(op_ctx->fsal_export,
-					   dir_hdl->fs->private,
-					   op_ctx, gpfs_fh,
-					   fsal_attr);
+					dir_hdl->fs->private_data,
+					op_ctx, gpfs_fh,
+					fsal_attr);
 
 		/* on error, we set a special bit in the mask. */
 

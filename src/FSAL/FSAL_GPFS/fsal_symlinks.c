@@ -69,7 +69,7 @@ GPFSFSAL_readlink(struct fsal_obj_handle *dir_hdl,
 
 	gpfs_hdl =
 	    container_of(dir_hdl, struct gpfs_fsal_obj_handle, obj_handle);
-	gpfs_fs = dir_hdl->fs->private;
+	gpfs_fs = dir_hdl->fs->private_data;
 
 	/* Read the link on the filesystem */
 	status = fsal_readlink_by_handle(gpfs_fs->root_fd, gpfs_hdl->handle,
@@ -138,7 +138,7 @@ GPFSFSAL_symlink(struct fsal_obj_handle *dir_hdl, const char *linkname,
 	gpfs_hdl =
 	    container_of(dir_hdl, struct gpfs_fsal_obj_handle, obj_handle);
 
-	gpfs_fs = dir_hdl->fs->private;
+	gpfs_fs = dir_hdl->fs->private_data;
 
 	/* Tests if symlinking is allowed by configuration. */
 

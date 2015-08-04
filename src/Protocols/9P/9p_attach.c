@@ -144,7 +144,7 @@ int _9p_attach(struct _9p_request_data *req9p, u32 *plenout, char *preply)
 	/* Keep track of the export in the req_ctx */
 	pfid->export = export;
 	get_gsh_export_ref(export);
-	op_ctx->export = export;
+	op_ctx->ctx_export = export;
 	op_ctx->fsal_export = export->fsal_export;
 	op_ctx->caller_addr = &req9p->pconn->addrpeer;
 	op_ctx->export_perms = &req9p->pconn->export_perms;
@@ -172,9 +172,9 @@ int _9p_attach(struct _9p_request_data *req9p, u32 *plenout, char *preply)
 		}
 
 		pfsal_handle->obj_ops.handle_to_key(pfsal_handle,
-						 &fh_desc);
+						&fh_desc);
 		fsal_status = export->fsal_export->exp_ops.create_handle(
-				 export->fsal_export, &fh_desc, &pfid->pentry);
+			export->fsal_export, &fh_desc, &pfid->pentry);
 		if (FSAL_IS_ERROR(fsal_status)) {
 			err = _9p_tools_errno(fsal_status);
 			goto errout;

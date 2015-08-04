@@ -62,12 +62,12 @@ struct nfs4_readdir_cb_data {
 static void restore_data(struct nfs4_readdir_cb_data *tracker)
 {
 	/* Restore export stuff */
-	if (op_ctx->export)
-		put_gsh_export(op_ctx->export);
+	if (op_ctx->ctx_export)
+		put_gsh_export(op_ctx->ctx_export);
 
 	*op_ctx->export_perms = tracker->save_export_perms;
-	op_ctx->export = tracker->saved_gsh_export;
-	op_ctx->fsal_export = op_ctx->export->fsal_export;
+	op_ctx->ctx_export = tracker->saved_gsh_export;
+	op_ctx->fsal_export = op_ctx->ctx_export->fsal_export;
 	tracker->saved_gsh_export = NULL;
 
 	/* Restore creds */
@@ -165,11 +165,11 @@ fsal_errors_t nfs4_readdir_callback(void *opaque,
 
 		/* Save the compound data context */
 		tracker->save_export_perms = *op_ctx->export_perms;
-		tracker->saved_gsh_export = op_ctx->export;
+		tracker->saved_gsh_export = op_ctx->ctx_export;
 
 		/* Cross the junction */
-		op_ctx->export = obj->state_hdl->dir.junction_export;
-		op_ctx->fsal_export = op_ctx->export->fsal_export;
+		op_ctx->ctx_export = obj->state_hdl->dir.junction_export;
+		op_ctx->fsal_export = op_ctx->ctx_export->fsal_export;
 
 		/* Build the credentials */
 		rdattr_error = nfs4_export_check_access(data->req);
@@ -181,8 +181,8 @@ fsal_errors_t nfs4_readdir_callback(void *opaque,
 			 */
 			LogDebug(COMPONENT_EXPORT,
 				 "NFS4ERR_ACCESS Skipping Export_Id %d Path %s",
-				 op_ctx->export->export_id,
-				 op_ctx->export->fullpath);
+				 op_ctx->ctx_export->export_id,
+				 op_ctx->ctx_export->fullpath);
 
 			/* Restore export and creds */
 			restore_data(tracker);
@@ -211,8 +211,8 @@ fsal_errors_t nfs4_readdir_callback(void *opaque,
 				 */
 				LogDebug(COMPONENT_EXPORT,
 					 "Ignoring NFS4ERR_WRONGSEC (only asked for MOUNTED_IN_FILEID) On ReadDir Export_Id %d Path %s",
-					 op_ctx->export->export_id,
-					 op_ctx->export->fullpath);
+					 op_ctx->ctx_export->export_id,
+					 op_ctx->ctx_export->fullpath);
 
 				/* Because we are not asking for any attributes
 				 * which are a property of the exported file
@@ -237,8 +237,8 @@ fsal_errors_t nfs4_readdir_callback(void *opaque,
 				 */
 				LogDebug(COMPONENT_EXPORT,
 					 "NFS4ERR_WRONGSEC On ReadDir Export_Id %d Path %s",
-					 op_ctx->export->export_id,
-					 op_ctx->export->fullpath);
+					 op_ctx->ctx_export->export_id,
+					 op_ctx->ctx_export->fullpath);
 			}
 		} else if (rdattr_error == NFS4_OK) {
 			/* Now we must traverse the junction to get the
@@ -251,8 +251,8 @@ fsal_errors_t nfs4_readdir_callback(void *opaque,
 			 */
 			LogDebug(COMPONENT_EXPORT,
 				 "Need to cross junction to Export_Id %d Path %s",
-				 op_ctx->export->export_id,
-				 op_ctx->export->fullpath);
+				op_ctx->ctx_export->export_id,
+				op_ctx->ctx_export->fullpath);
 			PTHREAD_RWLOCK_unlock(&obj->state_hdl->state_lock);
 			return ERR_FSAL_CROSS_JUNCTION;
 		}
@@ -264,8 +264,8 @@ fsal_errors_t nfs4_readdir_callback(void *opaque,
 		 */
 		LogDebug(COMPONENT_EXPORT,
 			 "Need to report error for junction to Export_Id %d Path %s",
-			 op_ctx->export->export_id,
-			 op_ctx->export->fullpath);
+			 op_ctx->ctx_export->export_id,
+			 op_ctx->ctx_export->fullpath);
 		restore_data(tracker);
 	}
 
@@ -322,7 +322,7 @@ not_junction:
 
 	if (cb_parms->attr_allowed &&
 	    attribute_is_set(tracker->req_attr, FATTR4_FILEHANDLE) &&
-	    !nfs4_FSALToFhandle(false, &entryFH, obj, op_ctx->export))
+	    !nfs4_FSALToFhandle(false, &entryFH, obj, op_ctx->ctx_export))
 		goto server_fault;
 
 	if (!cb_parms->attr_allowed) {
@@ -557,7 +557,7 @@ int nfs4_op_readdir(struct nfs_argop4 *op, compound_data_t *data,
 	 * then only a set of zeros is returned (trivial value)
 	 */
 	memset(cookie_verifier, 0, NFS4_VERIFIER_SIZE);
-	if (op_ctx->export->options & EXPORT_OPTION_USE_COOKIE_VERIFIER) {
+	if (op_ctx->ctx_export->options & EXPORT_OPTION_USE_COOKIE_VERIFIER) {
 		time_t change_time =
 			timespec_to_nsecs(&data->current_obj->attrs->chgtime);
 		memcpy(cookie_verifier, &(change_time), sizeof(change_time));
@@ -575,7 +575,7 @@ int nfs4_op_readdir(struct nfs_argop4 *op, compound_data_t *data,
 	 */
 
 	if ((cookie != 0) &&
-	    (op_ctx->export->options & EXPORT_OPTION_USE_COOKIE_VERIFIER)) {
+	    (op_ctx->ctx_export->options & EXPORT_OPTION_USE_COOKIE_VERIFIER)) {
 		if (memcmp(cookie_verifier,
 			   arg_READDIR4->cookieverf,
 			   NFS4_VERIFIER_SIZE) != 0) {

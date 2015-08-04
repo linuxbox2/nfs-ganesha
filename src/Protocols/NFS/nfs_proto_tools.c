@@ -557,10 +557,10 @@ static fattr_xdr_result encode_fsid(XDR *xdr, struct xdr_attrs_args *args)
 	fsid4 fsid = {0, 0};
 
 	if (args->data != NULL &&
-	    (op_ctx->export->options_set &
+	    (op_ctx->ctx_export->options_set &
 	     EXPORT_OPTION_FSID_SET) != 0) {
-		fsid.major = op_ctx->export->filesystem_id.major;
-		fsid.minor = op_ctx->export->filesystem_id.minor;
+		fsid.major = op_ctx->ctx_export->filesystem_id.major;
+		fsid.minor = op_ctx->ctx_export->filesystem_id.minor;
 	} else {
 		fsid.major = args->attrs->fsid.major;
 		fsid.minor = args->attrs->fsid.minor;
@@ -781,7 +781,7 @@ static fattr_xdr_result decode_acl(XDR *xdr, struct xdr_attrs_args *args)
 					&gname,
 					&ace->who.gid,
 					args->data
-					? op_ctx->export
+					? op_ctx->ctx_export
 					  ->export_perms .anonymous_gid
 					: -1))
 					goto baderr;
@@ -798,7 +798,7 @@ static fattr_xdr_result decode_acl(XDR *xdr, struct xdr_attrs_args *args)
 					&uname,
 					&ace->who.uid,
 					args->data
-					? op_ctx->export
+					? op_ctx->ctx_export
 					  ->export_perms .anonymous_uid
 					: -1))
 					goto baderr;
@@ -1367,7 +1367,7 @@ static fattr_xdr_result decode_maxname(XDR *xdr, struct xdr_attrs_args *args)
 
 static fattr_xdr_result encode_maxread(XDR *xdr, struct xdr_attrs_args *args)
 {
-	if (!inline_xdr_u_int64_t(xdr, &op_ctx->export->MaxRead))
+	if (!inline_xdr_u_int64_t(xdr, &op_ctx->ctx_export->MaxRead))
 		return FATTR_XDR_FAILED;
 	return FATTR_XDR_SUCCESS;
 }
@@ -1383,7 +1383,7 @@ static fattr_xdr_result decode_maxread(XDR *xdr, struct xdr_attrs_args *args)
 
 static fattr_xdr_result encode_maxwrite(XDR *xdr, struct xdr_attrs_args *args)
 {
-	if (!inline_xdr_u_int64_t(xdr, &op_ctx->export->MaxWrite))
+	if (!inline_xdr_u_int64_t(xdr, &op_ctx->ctx_export->MaxWrite))
 		return FATTR_XDR_FAILED;
 	return FATTR_XDR_SUCCESS;
 }
@@ -1512,7 +1512,7 @@ static fattr_xdr_result decode_owner(XDR *xdr, struct xdr_attrs_args *args)
 	if (!name2uid(&ownerdesc,
 		      &uid,
 		      args->data ?
-			op_ctx->export->export_perms.anonymous_uid
+			op_ctx->ctx_export->export_perms.anonymous_uid
 			: -1)) {
 		return FATTR_BADOWNER;
 	}
@@ -1559,7 +1559,7 @@ static fattr_xdr_result decode_group(XDR *xdr, struct xdr_attrs_args *args)
 	if (!name2gid(&groupdesc,
 		      &gid,
 		      args->data ?
-			op_ctx->export->export_perms.anonymous_gid
+			op_ctx->ctx_export->export_perms.anonymous_gid
 			: -1))
 		return FATTR_BADOWNER;
 
@@ -3706,7 +3706,7 @@ bool file_to_nfs3_Fattr(struct fsal_obj_handle *obj, fattr3 *Fattr)
 	if (FSAL_IS_ERROR(status))
 		return false;
 
-	return nfs3_FSALattr_To_Fattr(op_ctx->export, obj->attrs, Fattr);
+	return nfs3_FSALattr_To_Fattr(op_ctx->ctx_export, obj->attrs, Fattr);
 }
 #endif /* _USE_NFS3 */
 

@@ -384,7 +384,7 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 		seekloc = (off_t) *whence;
 
 	myself = container_of(dir_hdl, struct gpfs_fsal_obj_handle, obj_handle);
-	gpfs_fs = dir_hdl->fs->private;
+	gpfs_fs = dir_hdl->fs->private_data;
 
 	status = fsal_internal_handle2fd_at(gpfs_fs->root_fd, myself->handle,
 					    &dirfd, O_RDONLY | O_DIRECTORY, 0);
@@ -469,7 +469,7 @@ static fsal_status_t getattrs(struct fsal_obj_handle *obj_hdl)
 
 	myself->attributes.mask = op_ctx->fsal_export->exp_ops.
 		fs_supported_attrs(op_ctx->fsal_export);
-	status = GPFSFSAL_getattrs(op_ctx->fsal_export, obj_hdl->fs->private,
+	status = GPFSFSAL_getattrs(op_ctx->fsal_export, obj_hdl->fs->private_data,
 				   op_ctx, myself->handle,
 				   &myself->attributes);
 	if (FSAL_IS_ERROR(status)) {
@@ -487,7 +487,7 @@ static fsal_status_t getxattrs(struct fsal_obj_handle *obj_hdl,
 	int errsv;
 	struct getxattr_arg gxarg;
 	struct gpfs_fsal_obj_handle *myself;
-	struct gpfs_filesystem *gpfs_fs = obj_hdl->fs->private;
+	struct gpfs_filesystem *gpfs_fs = obj_hdl->fs->private_data;
 
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle,
 				obj_handle);
@@ -528,7 +528,7 @@ static fsal_status_t setxattrs(struct fsal_obj_handle *obj_hdl,
 	int errsv;
 	struct setxattr_arg sxarg;
 	struct gpfs_fsal_obj_handle *myself;
-	struct gpfs_filesystem *gpfs_fs = obj_hdl->fs->private;
+	struct gpfs_filesystem *gpfs_fs = obj_hdl->fs->private_data;
 
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle,
 				obj_handle);
@@ -558,7 +558,7 @@ static fsal_status_t removexattrs(struct fsal_obj_handle *obj_hdl,
 	int errsv;
 	struct removexattr_arg rxarg;
 	struct gpfs_fsal_obj_handle *myself;
-	struct gpfs_filesystem *gpfs_fs = obj_hdl->fs->private;
+	struct gpfs_filesystem *gpfs_fs = obj_hdl->fs->private_data;
 
 	myself = container_of(obj_hdl, struct gpfs_fsal_obj_handle,
 				obj_handle);
@@ -593,7 +593,7 @@ static fsal_status_t listxattrs(struct fsal_obj_handle *obj_hdl,
 	char *buf = NULL;
 	struct listxattr_arg lxarg;
 	struct gpfs_fsal_obj_handle *myself;
-	struct gpfs_filesystem *gpfs_fs = obj_hdl->fs->private;
+	struct gpfs_filesystem *gpfs_fs = obj_hdl->fs->private_data;
 	component4 *entry = lr_names->entries;
 
 	val = (char *)entry + la_maxcount;
@@ -868,7 +868,7 @@ static fsal_status_t gpfs_fs_locations(struct fsal_obj_handle *obj_hdl,
 	myself->attributes.mask = op_ctx->fsal_export->exp_ops.
 		fs_supported_attrs(op_ctx->fsal_export);
 
-	status = GPFSFSAL_fs_loc(op_ctx->fsal_export, obj_hdl->fs->private,
+	status = GPFSFSAL_fs_loc(op_ctx->fsal_export, obj_hdl->fs->private_data,
 				 op_ctx, myself->handle,
 				 &myself->attributes, fs_locs);
 
@@ -1084,7 +1084,7 @@ fsal_status_t gpfs_create_handle(struct fsal_export *exp_hdl,
 		return fsalstat(ERR_FSAL_STALE, ESTALE);
 	}
 
-	gpfs_fs = fs->private;
+	gpfs_fs = fs->private_data;
 
 	attrib.mask = exp_hdl->exp_ops.fs_supported_attrs(exp_hdl);
 	status = GPFSFSAL_getattrs(exp_hdl, gpfs_fs, op_ctx, fh, &attrib);

@@ -148,7 +148,7 @@ int nfs3_readdirplus(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 			 "REQUEST PROCESSING: Calling nfs3_readdirplus handle: %s",
 			 str);
 	}
-	if (op_ctx->export->options & EXPORT_OPTION_NO_READDIR_PLUS) {
+	if (op_ctx->ctx_export->options & EXPORT_OPTION_NO_READDIR_PLUS) {
 		res->res_readdirplus3.status = NFS3ERR_NOTSUPP;
 		LogFullDebug(COMPONENT_NFS_READDIR,
 			     "Request not supported");
@@ -208,12 +208,12 @@ int nfs3_readdirplus(nfs_arg_t *arg, struct svc_req *req, nfs_res_t *res)
 	 * directory. If verifier is unused (as in many NFS Servers) then
 	 * only a set of zeros is returned (trivial value)
 	 */
-	if (op_ctx->export->options & EXPORT_OPTION_USE_COOKIE_VERIFIER)
+	if (op_ctx->ctx_export->options & EXPORT_OPTION_USE_COOKIE_VERIFIER)
 		memcpy(cookie_verifier,
 		       &dir_obj->attrs->ctime.tv_sec,
 		       sizeof(dir_obj->attrs->ctime.tv_sec));
 
-	if (op_ctx->export->options & EXPORT_OPTION_USE_COOKIE_VERIFIER
+	if (op_ctx->ctx_export->options & EXPORT_OPTION_USE_COOKIE_VERIFIER
 	    && (begin_cookie != 0)) {
 		/* Not the first call, so we have to check the cookie
 		   verifier */
@@ -432,7 +432,7 @@ fsal_errors_t nfs3_readdirplus_callback(void *opaque,
 		if (!nfs3_FSALToFhandle(true,
 					&ep3->name_handle.post_op_fh3_u.handle,
 					obj,
-					op_ctx->export)) {
+					op_ctx->ctx_export)) {
 			tracker->error = NFS3ERR_SERVERFAULT;
 			gsh_free(ep3->name);
 			cb_parms->in_result = false;
@@ -444,7 +444,7 @@ fsal_errors_t nfs3_readdirplus_callback(void *opaque,
 		    ep3->name_handle.post_op_fh3_u.handle.data.data_len + 12;
 
 		ep3->name_attributes.attributes_follow =
-		    nfs3_FSALattr_To_Fattr(op_ctx->export,
+		    nfs3_FSALattr_To_Fattr(op_ctx->ctx_export,
 					   attr,
 					   &(ep3->name_attributes.
 					     post_op_attr_u.attributes));

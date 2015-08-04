@@ -920,8 +920,8 @@ void nfs_rpc_execute(request_data_t *reqdata)
 				rc = NFS_REQ_OK;
 				goto req_error;
 			}
-			op_ctx->export = get_gsh_export(exportid);
-			if (op_ctx->export == NULL) {
+			op_ctx->ctx_export = get_gsh_export(exportid);
+			if (op_ctx->ctx_export == NULL) {
 				LogInfoAlt(COMPONENT_DISPATCH, COMPONENT_EXPORT,
 					"NFS3 Request from client %s has invalid export %d",
 					client_ip, exportid);
@@ -931,14 +931,14 @@ void nfs_rpc_execute(request_data_t *reqdata)
 				rc = NFS_REQ_OK;
 				goto req_error;
 			}
-			op_ctx->fsal_export = op_ctx->export->fsal_export;
-			if ((op_ctx->export->export_perms.
+			op_ctx->fsal_export = op_ctx->ctx_export->fsal_export;
+			if ((op_ctx->ctx_export->export_perms.
 			     options & EXPORT_OPTION_NFSV3) == 0)
 				goto handle_err;
 			/* privileged port only makes sense for V3.
 			 * V4 can go thru firewalls and so all bets are off
 			 */
-			if ((op_ctx->export->export_perms.
+			if ((op_ctx->ctx_export->export_perms.
 			     options & EXPORT_OPTION_PRIVILEGED_PORT)
 			    && (port >= IPPORT_RESERVED)) {
 				LogInfoAlt(COMPONENT_DISPATCH, COMPONENT_EXPORT,
@@ -950,8 +950,8 @@ void nfs_rpc_execute(request_data_t *reqdata)
 
 			LogMidDebugAlt(COMPONENT_DISPATCH, COMPONENT_EXPORT,
 				    "Found export entry for path=%s as exportid=%d",
-				    op_ctx->export->fullpath,
-				    op_ctx->export->export_id);
+				    op_ctx->ctx_export->fullpath,
+				    op_ctx->ctx_export->export_id);
 #endif /* _USE_NFS3 */
 		} else {	/* NFS V4 gets its own export id from the ops
 				 * in the compound */
@@ -1010,7 +1010,7 @@ void nfs_rpc_execute(request_data_t *reqdata)
 				LogInfo(COMPONENT_DISPATCH,
 					"NLM4 Request from client %s has badly formed handle",
 					client_ip);
-				op_ctx->export = NULL;
+				op_ctx->ctx_export = NULL;
 				op_ctx->fsal_export = NULL;
 
 				/* We need to send a NLM4_STALE_FH response
@@ -1021,8 +1021,8 @@ void nfs_rpc_execute(request_data_t *reqdata)
 				 * can respond to ASYNC calls.
 				 */
 			} else {
-				op_ctx->export = get_gsh_export(exportid);
-				if (op_ctx->export == NULL) {
+				op_ctx->ctx_export = get_gsh_export(exportid);
+				if (op_ctx->ctx_export == NULL) {
 					LogInfoAlt(COMPONENT_DISPATCH,
 						   COMPONENT_EXPORT,
 						   "NLM4 Request from client %s has invalid export %d",
@@ -1039,18 +1039,18 @@ void nfs_rpc_execute(request_data_t *reqdata)
 					 */
 					op_ctx->fsal_export = NULL;
 				} else {
-					if ((op_ctx->export->export_perms
+					if ((op_ctx->ctx_export->export_perms
 					     .options & EXPORT_OPTION_NFSV3)
 					    == 0)
 						goto handle_err;
 					op_ctx->fsal_export =
-					    op_ctx->export->fsal_export;
+					    op_ctx->ctx_export->fsal_export;
 
 					LogMidDebugAlt(COMPONENT_DISPATCH,
 						COMPONENT_EXPORT,
 						"Found export entry for dirname=%s as exportid=%d",
-						op_ctx->export->fullpath,
-						op_ctx->export->export_id);
+						op_ctx->ctx_export->fullpath,
+						op_ctx->ctx_export->export_id);
 				}
 			}
 		}
@@ -1061,7 +1061,7 @@ void nfs_rpc_execute(request_data_t *reqdata)
 	}
 
 	/* Only do access check if we have an export. */
-	if (op_ctx->export != NULL) {
+	if (op_ctx->ctx_export != NULL) {
 		xprt_type_t xprt_type = svc_get_xprt_type(xprt);
 
 		LogMidDebugAlt(COMPONENT_DISPATCH, COMPONENT_EXPORT,
@@ -1074,8 +1074,8 @@ void nfs_rpc_execute(request_data_t *reqdata)
 			LogInfoAlt(COMPONENT_DISPATCH, COMPONENT_EXPORT,
 				"Client %s is not allowed to access Export_Id %d %s, vers=%d, proc=%d",
 				client_ip,
-				op_ctx->export->export_id,
-				op_ctx->export->fullpath,
+				op_ctx->ctx_export->export_id,
+				op_ctx->ctx_export->fullpath,
 				(int)reqdata->r_u.req.svc.rq_vers,
 				(int)reqdata->r_u.req.svc.rq_proc);
 
@@ -1096,8 +1096,8 @@ void nfs_rpc_execute(request_data_t *reqdata)
 			LogInfoAlt(COMPONENT_DISPATCH, COMPONENT_EXPORT,
 				"%s Version %d not allowed on Export_Id %d %s for client %s",
 				progname, reqdata->r_u.req.svc.rq_vers,
-				op_ctx->export->export_id,
-				op_ctx->export->fullpath,
+				op_ctx->ctx_export->export_id,
+				op_ctx->ctx_export->fullpath,
 				client_ip);
 
 			auth_rc = AUTH_FAILED;
@@ -1113,8 +1113,8 @@ void nfs_rpc_execute(request_data_t *reqdata)
 				"%s Version %d over %s not allowed on Export_Id %d %s for client %s",
 				progname, reqdata->r_u.req.svc.rq_vers,
 				xprt_type_to_str(xprt_type),
-				op_ctx->export->export_id,
-				op_ctx->export->fullpath,
+				op_ctx->ctx_export->export_id,
+				op_ctx->ctx_export->fullpath,
 				client_ip);
 
 			auth_rc = AUTH_FAILED;
@@ -1127,8 +1127,8 @@ void nfs_rpc_execute(request_data_t *reqdata)
 			LogInfoAlt(COMPONENT_DISPATCH, COMPONENT_EXPORT,
 				"%s Version %d auth not allowed on Export_Id %d %s for client %s",
 				progname, reqdata->r_u.req.svc.rq_vers,
-				op_ctx->export->export_id,
-				op_ctx->export->fullpath,
+				op_ctx->ctx_export->export_id,
+				op_ctx->ctx_export->fullpath,
 				client_ip);
 
 			auth_rc = AUTH_TOOWEAK;
@@ -1143,8 +1143,8 @@ void nfs_rpc_execute(request_data_t *reqdata)
 		 && (port >= IPPORT_RESERVED)) {
 			LogInfoAlt(COMPONENT_DISPATCH, COMPONENT_EXPORT,
 				"Non-reserved Port %d is not allowed on Export_Id %d %s for client %s",
-				port, op_ctx->export->export_id,
-				op_ctx->export->fullpath,
+				port, op_ctx->ctx_export->export_id,
+				op_ctx->ctx_export->fullpath,
 				client_ip);
 
 			auth_rc = AUTH_TOOWEAK;
@@ -1156,7 +1156,7 @@ void nfs_rpc_execute(request_data_t *reqdata)
 	 * It is now time for checking if export list allows the machine
 	 * to perform the request
 	 */
-	if (op_ctx->export != NULL
+	if (op_ctx->ctx_export != NULL
 	    && (reqdesc->dispatch_behaviour & MAKES_IO)
 	    && !(export_perms.options & EXPORT_OPTION_RW_ACCESS)) {
 		/* Request of type MDONLY_RO were rejected at the
@@ -1189,7 +1189,7 @@ void nfs_rpc_execute(request_data_t *reqdata)
 				 "Dropping IO request on an MD Only export");
 			rc = NFS_REQ_DROP;
 		}
-	} else if (op_ctx->export != NULL
+	} else if (op_ctx->ctx_export != NULL
 		   && (reqdesc->dispatch_behaviour & MAKES_WRITE)
 		   && (export_perms.options
 		       & (EXPORT_OPTION_WRITE_ACCESS
@@ -1218,14 +1218,14 @@ void nfs_rpc_execute(request_data_t *reqdata)
 				 "Dropping request on a Read Only export");
 			rc = NFS_REQ_DROP;
 		}
-	} else if (op_ctx->export != NULL
+	} else if (op_ctx->ctx_export != NULL
 		   && (export_perms.options
 		       & (EXPORT_OPTION_READ_ACCESS
 			 | EXPORT_OPTION_MD_READ_ACCESS)) == 0) {
 		LogInfoAlt(COMPONENT_DISPATCH, COMPONENT_EXPORT,
 			"Client %s is not allowed to access Export_Id %d %s, vers=%d, proc=%d",
-			client_ip, op_ctx->export->export_id,
-			op_ctx->export->fullpath,
+			client_ip, op_ctx->ctx_export->export_id,
+			op_ctx->ctx_export->fullpath,
 			(int)reqdata->r_u.req.svc.rq_vers,
 			(int)reqdata->r_u.req.svc.rq_proc);
 		auth_rc = AUTH_TOOWEAK;
@@ -1251,7 +1251,7 @@ void nfs_rpc_execute(request_data_t *reqdata)
 		}
 
 		/* processing
-		 * At this point, op_ctx->export has one of the following
+		 * At this point, op_ctx->ctx_export has one of the following
 		 * conditions:
 		 * non-NULL - valid handle for NFS v3 or NLM functions
 		 *            that take handles
@@ -1279,8 +1279,8 @@ void nfs_rpc_execute(request_data_t *reqdata)
 #ifdef USE_LTTNG
 		tracepoint(nfs_rpc, op_start, reqdata,
 			   reqdesc->funcname,
-			   (op_ctx->export != NULL
-			    ? op_ctx->export->export_id : -1));
+			   (op_ctx->ctx_export != NULL
+			    ? op_ctx->ctx_export->export_id : -1));
 #endif
 
 #if defined(HAVE_BLKIN)
@@ -1435,8 +1435,8 @@ void nfs_rpc_execute(request_data_t *reqdata)
 	SetClientIP(NULL);
 	if (op_ctx->client != NULL)
 		put_gsh_client(op_ctx->client);
-	if (op_ctx->export != NULL)
-		put_gsh_export(op_ctx->export);
+	if (op_ctx->ctx_export != NULL)
+		put_gsh_export(op_ctx->ctx_export);
 	op_ctx = NULL;
 
 #ifdef USE_LTTNG

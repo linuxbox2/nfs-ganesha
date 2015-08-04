@@ -264,7 +264,7 @@ int nfs4_op_listxattr(struct nfs_argop4 *op, compound_data_t *data,
 	memset(la_cookieverf, 0, NFS4_VERIFIER_SIZE);
 
 	if ((la_cookie == 0) &&
-	    (op_ctx->export->options & EXPORT_OPTION_USE_COOKIE_VERIFIER)) {
+	    (op_ctx->ctx_export->options & EXPORT_OPTION_USE_COOKIE_VERIFIER)) {
 		if (memcmp(la_cookieverf, arg_LISTXATTR4->la_cookieverf,
 			   NFS4_VERIFIER_SIZE) != 0) {
 			res_LISTXATTR4->status = NFS4ERR_BAD_COOKIE;

@@ -51,7 +51,7 @@
 
 static inline bool trust_negative_cache(mdcache_entry_t *parent)
 {
-	return ((op_ctx->export->options &
+	return ((op_ctx->ctx_export->options &
 		 EXPORT_OPTION_TRUST_READIR_NEGATIVE_CACHE) != 0) &&
 		(parent->icreate_refcnt == 0) &&
 	       ((parent->mde_flags & MDCACHE_DIR_POPULATED) != 0);
@@ -479,7 +479,7 @@ mdcache_new_entry(struct mdcache_fsal_export *export,
 	/* nentry not reachable yet; no need to lock */
 	if (nentry->obj_handle.attrs->expire_time_attr == 0) {
 		nentry->obj_handle.attrs->expire_time_attr =
-			op_ctx->export->expire_time_attr;
+			op_ctx->ctx_export->expire_time_attr;
 	}
 	mdc_fixup_md(nentry);
 
@@ -835,8 +835,8 @@ fsal_status_t mdc_lookup_uncached(mdcache_entry_t *mdc_parent,
 		}
 		LogFullDebug(COMPONENT_CACHE_INODE,
 			     "FSAL %d %s returned %s",
-			     (int) op_ctx->export->export_id,
-			     op_ctx->export->fullpath,
+			     (int) op_ctx->ctx_export->export_id,
+			     op_ctx->ctx_export->fullpath,
 			     fsal_err_txt(status));
 		*new_entry = NULL;
 		return status;
