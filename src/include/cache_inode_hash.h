@@ -239,7 +239,7 @@ cih_hash_key(cache_inode_key_t *key,
 
 	/* hash it */
 	key->hk =
-	    CityHash64WithSeed(fh_desc->addr, fh_desc->len, 557);
+		CityHash64WithSeed((char*)fh_desc->addr, fh_desc->len, 557);
 
 	return true;
 }
