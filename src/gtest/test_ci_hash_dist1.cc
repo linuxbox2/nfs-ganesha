@@ -56,22 +56,30 @@ namespace {
   char* lpath = nullptr;
   int dlevel = -1;
   uint16_t export_id = 77;
+  cache_inode_fsal_data_t fsdata;
 
   uint32_t n_objects = 250*1000;
+
+  bool create_objects = false;
+  bool delete_test_root = false;
 
   struct req_op_context req_ctx;
   struct user_cred user_credentials;
 
   struct gsh_export* a_export = nullptr;
+
+  const char* root_entry_name = "ci_hash_dist1";
   cache_entry_t* root_entry = nullptr;
   cache_entry_t* test_root = nullptr;
 
   struct TFile {
     std::string leaf_name;
-    cache_entry_t* entry;
+    cache_entry_t* entry[3];
 
-  TFile(std::string n) : leaf_name(std::move(n)), entry(nullptr)
-      {}
+  TFile(std::string n) : leaf_name(std::move(n))
+      {
+	memset(entry, 0, 3*sizeof(cache_entry_t*));
+      }
   };
 
   std::vector<TFile> test_objs;
@@ -105,6 +113,9 @@ TEST(CI_HASH_DIST1, INIT)
   ASSERT_EQ(status, CACHE_INODE_SUCCESS);
   ASSERT_NE(root_entry, nullptr);
 
+  /* callers of cache_inode_get need fsdata */
+  fsdata.cifd_export = a_export->fsal_export;
+
   /* Ganesha call paths need real or forged context info */
   memset(&user_credentials, 0, sizeof(struct user_cred));
   memset(&req_ctx, 0, sizeof(struct req_op_context));
@@ -121,55 +132,131 @@ TEST(CI_HASH_DIST1, CREATE_ROOT)
 {
   cache_inode_status_t status;
 
+  // use the existing paths if the root exists
+  status = cache_inode_lookup(root_entry, root_entry_name, &test_root);
+  if (status == CACHE_INODE_SUCCESS) {
+    cout << "Reusing existing test root (" << root_entry_name << ")"  << endl;
+    ASSERT_NE(test_root, nullptr);
+    return;
+  }
+
+  cout << "Creating new test root (" << root_entry_name << ")"  << endl;
+  create_objects = true;
+
   // create root directory for test
-  status = cache_inode_create(root_entry, "ci_hash_dist1",
+  status = cache_inode_create(root_entry, root_entry_name,
 			      DIRECTORY, 777, NULL /* create arg */,
 			      &test_root);
   ASSERT_EQ(status, CACHE_INODE_SUCCESS);
   ASSERT_NE(test_root, nullptr);
 }
 
-TEST(CI_HASH_DIST1, CREATEF1)
+TEST(CI_HASH_DIST1, LOOKUP_OR_CREATEF1)
 {
   cache_inode_status_t status;
-  test_objs.reserve(n_objects);
-  for (int ix = 0; ix < n_objects; ++ix) {
-    string n{"f" + std::to_string(ix)};
-    test_objs.emplace_back(TFile(n));
-    TFile& o = test_objs[ix];
-    status = cache_inode_create(test_root, o.leaf_name.c_str(),
-				REGULAR_FILE, 644, NULL /* create arg */,
-				&o.entry);
-    ASSERT_EQ(status, CACHE_INODE_SUCCESS);
-    ASSERT_NE(o.entry, nullptr);
+
+  if(create_objects) {
+    // create them
+    test_objs.reserve(n_objects);
+    for (int ix = 0; ix < n_objects; ++ix) {
+      string n{"f" + std::to_string(ix)};
+      test_objs.emplace_back(TFile(n));
+      TFile& o = test_objs[ix];
+      status = cache_inode_create(test_root, o.leaf_name.c_str(),
+				  REGULAR_FILE, 644, NULL /* create arg */,
+				  &o.entry[0]);
+      ASSERT_EQ(status, CACHE_INODE_SUCCESS);
+      ASSERT_NE(o.entry[0], nullptr);
+    }
+  } else {
+    // lookup instead
+    test_objs.reserve(n_objects);
+    for (int ix = 0; ix < n_objects; ++ix) {
+      string n{"f" + std::to_string(ix)};
+      test_objs.emplace_back(TFile(n));
+      TFile& o = test_objs[ix];
+      status = cache_inode_lookup(test_root, o.leaf_name.c_str(), &o.entry[0]);
+      ASSERT_EQ(status, CACHE_INODE_SUCCESS);
+      ASSERT_NE(o.entry[0], nullptr);
+    }
   }
 }
 
-TEST(CI_HASH_DIST, WAIT1)
+TEST(CI_HASH_DIST1, WAIT1)
 {
   cout << "Thread in WAIT1" << endl;
   std::this_thread::sleep_for(5s);
 }
 
-/* XXX cache_inode_get stress and bench */
+TEST(CI_HASH_DIST1, EX_REF1)
+{
+  cache_inode_status_t status;
+  for (int ix = 0; ix < n_objects; ++ix) {
+    TFile& o = test_objs[ix];
+    ASSERT_NE(o.entry[0], nullptr);
+    status = cache_inode_lru_ref(o.entry[0], LRU_FLAG_NONE);
+    ASSERT_EQ(status, CACHE_INODE_SUCCESS);
+  }
+}
+
+TEST(CI_HASH_DIST1, EX_UNREF1)
+{
+  for (int ix = 0; ix < n_objects; ++ix) {
+    TFile& o = test_objs[ix];
+    cache_inode_lru_unref(o.entry[0], LRU_FLAG_NONE);
+  }
+}
+
+TEST(CI_HASH_DIST1, GET_IE_INITIAL_REF1)
+{
+  cache_inode_status_t status;
+  for (int ix = 0; ix < n_objects; ++ix) {
+    TFile& o = test_objs[ix];
+    /* shallow copy entry's est. key */
+    fsdata.fh_desc = o.entry[0]->fh_hk.key.kv;
+    status = cache_inode_get(&fsdata, &o.entry[1]);
+    ASSERT_EQ(status, CACHE_INODE_SUCCESS);
+    /* we could test entry[0] and entry[1] for eq, if no eviction */
+    ASSERT_NE(o.entry[1], nullptr);
+  }
+}
+
+TEST(CI_HASH_DIST1, INITAL_UNREF1)
+{
+  for (int ix = 0; ix < n_objects; ++ix) {
+    TFile& o = test_objs[ix];
+    cache_inode_lru_unref(o.entry[1], LRU_FLAG_NONE);
+  }
+}
+
 /* XXX check dist */
 
 TEST(CI_HASH_DIST1, REMOVE1)
 {
   cache_inode_status_t status;
+
+  /* preserve test root? */
+  if (! delete_test_root)
+    return;
+
   for (int ix = 0; ix < n_objects; ++ix) {
     TFile& o = test_objs[ix];
     status = cache_inode_remove(test_root, o.leaf_name.c_str());
     ASSERT_EQ(status, CACHE_INODE_SUCCESS);
     /* put last ref */
-    cache_inode_put(o.entry); /* XXX no status */
+    cache_inode_put(o.entry[0]); /* XXX no status */
   }
 }
 
 TEST(CI_HASH_DIST1, REMOVE_ROOT)
 {
   cache_inode_status_t status;
-  status = cache_inode_remove(root_entry, "ci_hash_dist1");
+
+  /* preserve test root? */
+  if (! delete_test_root)
+    return;
+
+  status = cache_inode_remove(root_entry, root_entry_name);
   ASSERT_EQ(status, CACHE_INODE_SUCCESS);
   /* put last ref */
   cache_inode_put(test_root); /* XXX no status */
@@ -198,6 +285,8 @@ int main(int argc, char *argv[])
       ("nobjects", po::value<uint32_t>(),
 	"count of file objects to create (single dir, default 250K)")
 
+      ("delete", "delete objects at end of test")
+
       ("debug", po::value<string>(),
 	"ganesha debug level")
       ;
@@ -223,11 +312,18 @@ int main(int argc, char *argv[])
     if (vm_iter != vm.end()) {
       n_objects = vm_iter->second.as<uint32_t>();
     }
+    vm_iter = vm.find("delete");
+    if (vm_iter != vm.end()) {
+      delete_test_root = true;
+    }
     vm_iter = vm.find("debug");
     if (vm_iter != vm.end()) {
       dlevel = ReturnLevelAscii(
 	(char*) vm_iter->second.as<std::string>().c_str());
     }
+
+    cout << "Starting " << argv[0]
+	 << " with " << n_objects << " objects" << endl;
 
     ::testing::InitGoogleTest(&argc, argv);
 
