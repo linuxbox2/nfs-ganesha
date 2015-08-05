@@ -40,6 +40,7 @@ extern "C" {
 #include "export_mgr.h"
 #include "cache_inode.h"
 #include "cache_inode_lru.h"
+#include "cache_inode_hash.h"
 #include "nfs_exports.h"
 #include "fsal.h"
 }
@@ -229,7 +230,34 @@ TEST(CI_HASH_DIST1, INITAL_UNREF1)
   }
 }
 
-/* XXX check dist */
+TEST(CI_HASH_DIST1, CI_DIST)
+{
+  cih_partition_t *cp;
+  int n_part = cih_fhcache.npart;
+  cout << "The cache_inode lookup table has " << n_part
+       << " partitions" << endl;
+  for (int ix = 0; ix < n_part; ++ix) {
+    cp = &cih_fhcache.partition[ix];
+    cout << "\tcih_fhcache partition " << ix << " has "
+	 << cp->t.size << " entries (est)" << endl; 
+  }
+}
+
+TEST(CI_HASH_DIST1, LRU_DIST1)
+{
+  struct lru_lane_stats lane_st;
+  cout << "The cache inode LRU system has " << LRU_N_Q_LANES
+       << " lanes" << endl;
+  for (int ix = 0; ix < LRU_N_Q_LANES; ++ix) {
+    diag_lru_lane_stats(ix, &lane_st);
+    cout << "\tLane " << ix << " unstable counts"
+	 << " L1 " << lane_st.n_l1
+	 << " L2 " << lane_st.n_l2
+	 << " PINNED " << lane_st.n_pinned
+	 << " CLEANUP " << lane_st.n_cleanup
+	 << endl;
+  }
+}
 
 TEST(CI_HASH_DIST1, REMOVE1)
 {

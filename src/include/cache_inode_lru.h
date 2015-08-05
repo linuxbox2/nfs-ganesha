@@ -143,7 +143,6 @@ extern size_t open_fd_count;
 cache_inode_status_t cache_inode_lru_get(struct cache_entry_t **entry);
 cache_inode_status_t cache_inode_lru_ref(cache_entry_t *entry, uint32_t flags);
 
-/* XXX */
 void cache_inode_lru_kill(cache_entry_t *entry);
 void cache_inode_lru_cleanup_push(cache_entry_t *entry);
 void cache_inode_lru_cleanup_try_push(cache_entry_t *entry);
@@ -156,6 +155,23 @@ void cache_inode_unpinnable(cache_entry_t *entry);
 void cache_inode_dec_pin_ref(cache_entry_t *entry, bool closefile);
 bool cache_inode_is_pinned(cache_entry_t *entry);
 void cache_inode_lru_kill_for_shutdown(cache_entry_t *entry);
+
+/**
+ *
+ * @brief Unstable transfer loading of one one LRU lane
+ *
+ * @param[in]  lane_ix Offset of lane from 0 to LRU_N_Q_LANES
+ * @param[out] lane_st Lane entry counters
+ */
+
+/* for unit tests */
+struct lru_lane_stats {
+	int n_l1;
+	int n_l2;
+	int n_pinned;
+	int n_cleanup;
+};
+void diag_lru_lane_stats(const int lane_ix, struct lru_lane_stats *lane_st);
 
 /**
  *

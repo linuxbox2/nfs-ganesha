@@ -1554,4 +1554,23 @@ lru_wake_thread(void)
 	fridgethr_wake(lru_fridge);
 }
 
+/**
+ *
+ * @brief Unstable transfer loading of one one LRU lane
+ *
+ * @param[in]  lane_ix Offset of lane from 0 to LRU_N_Q_LANES
+ * @param[out] lane_st Lane entry counters
+ */
+
+void diag_lru_lane_stats(const int lane, struct lru_lane_stats *lane_st)
+{
+	assert(lane < LRU_N_Q_LANES);
+	struct lru_q_lane *qlane = &LRU[lane];
+	lane_st->n_l1 = qlane->L1.size;
+	lane_st->n_l2 = qlane->L2.size;
+	lane_st->n_pinned = qlane->pinned.size;
+	lane_st->n_cleanup = qlane->cleanup.size;
+}
+
+
 /** @} */
