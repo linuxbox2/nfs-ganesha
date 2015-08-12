@@ -18,6 +18,25 @@ target_link_libraries(test_example
 set_target_properties(test_example PROPERTIES COMPILE_FLAGS
   "${UNITTEST_CXX_FLAGS}")
 
+# mpmc queue
+set(call_mpmc_queue_SRCS
+  call_mpmc_queue.c
+)
+add_library(call_mpmc_queue STATIC ${call_mpmc_queue_SRCS})
+set(test_mpmc_queue_SRCS
+  test_mpmc_queue.cc
+)
+add_executable(test_mpmc_queue EXCLUDE_FROM_ALL
+  ${test_mpmc_queue_SRCS})
+target_link_libraries(test_mpmc_queue
+  ${CMAKE_THREAD_LIBS_INIT}
+  ${UNITTEST_LIBS}
+  pthread
+  call_mpmc_queue
+  )
+set_target_properties(test_mpmc_queue PROPERTIES COMPILE_FLAGS
+  "${UNITTEST_CXX_FLAGS}")
+
 # Test using ganesha internals
 set(test_ci_hash_dist1_SRCS
   test_ci_hash_dist1.cc
@@ -43,3 +62,5 @@ target_link_libraries(test_ci_hash_dist1
   )
 set_target_properties(test_ci_hash_dist1 PROPERTIES COMPILE_FLAGS
   "${UNITTEST_CXX_FLAGS}")
+
+

@@ -56,6 +56,7 @@
 #include "nfs_dupreq.h"
 #include "nfs_file_handle.h"
 #include "fridgethr.h"
+#include "mpmc-bounded-queue.h"
 
 /**
  * TI-RPC event channels.  Each channel is a thread servicing an event
