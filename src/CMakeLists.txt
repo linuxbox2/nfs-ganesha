@@ -132,6 +132,9 @@ set(CPACK_COMPONENT_DAEMON_DISPLAY_NAME "NFS-Ganesha daemon")
 include(${CMAKE_SOURCE_DIR}/cmake/cpack_config.cmake)
 include(CPack)
 
+# C11
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11")
+
 if (FREEBSD)
 #default gcc doesn't like using -Wuninitialized without -O on FreeBSD
     set(PLATFORM "FREEBSD")
