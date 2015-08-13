@@ -55,7 +55,7 @@ struct req_q_pair {
 	GSH_CACHE_PAD(2);
 };
 
-#define N_REQ_QUEUES 16 /* power of 2 would be better */
+#define N_REQ_QUEUES 256 /* power of 2 would be better */
 
 extern const char *req_q_s[N_REQ_QUEUES];	/* for debug prints */
 
