@@ -91,7 +91,7 @@ namespace {
   {
     size_t count = COUNT;
     while (count > 0) {
-      Object* obj = &(ovec[count]);
+      Object* obj = &(ovec[count-1]);
 #if 0
       std::cout << "nq: " << obj << " " << obj->ix << std::endl;
 #endif

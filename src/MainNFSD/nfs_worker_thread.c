@@ -1562,8 +1562,6 @@ int worker_init(void)
 	frp.flavor = fridgethr_flavor_looper;
 	frp.thread_initialize = worker_thread_initializer;
 	frp.thread_finalize = worker_thread_finalizer;
-	frp.wake_threads = nfs_rpc_queue_awaken;
-	frp.wake_threads_arg = &nfs_req_st;
 
 	rc = fridgethr_init(&worker_fridge, "Wrk", &frp);
 	if (rc != 0) {
