@@ -1244,7 +1244,7 @@ void nfs_rpc_enqueue_req(request_data_t *reqdata)
 			/* delay for small ms */
 			struct timespec ts;
 			ts.tv_sec = 0;
-			ts.tv_nsec = 20 * 1000000;
+			ts.tv_nsec = 10 * 1000000;
 			nanosleep(&ts, NULL);	
 		}
 	}
@@ -1321,7 +1321,7 @@ request_data_t *nfs_rpc_dequeue_req(nfs_worker_data_t *worker)
 		/* delay for small ms */
 		struct timespec ts;
 		ts.tv_sec = 0;
-		ts.tv_nsec = 20 * 1000000;
+		ts.tv_nsec = 10 * 1000000;
 		nanosleep(&ts, NULL);
 
 		/* done? */
