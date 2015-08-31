@@ -38,6 +38,8 @@
 #include "fsal_types.h"
 #include "fsal_api.h"
 #include "fsal_convert.h"
+#include <rados/librgw.h>
+#include <rados/rgw_file.h>
 
 
 /**
@@ -47,6 +49,7 @@
 struct rgw_fsal_module {
 	struct fsal_module fsal;
 	fsal_staticfsinfo_t fs_info;
+	librgw_t rgw;
 };
 extern struct rgw_fsal_module RGWFSM;
 
@@ -77,7 +80,7 @@ struct rgw_handle {
 	const struct fsal_up_vector *up_ops;	/*< Upcall operations */
 	struct rgw_export *export;	/*< The first export this handle
 					 *< belongs to */
-	uint64_t nfs_handle;
+	struct rgw_file_handle rgw_fh;
 };
 
 #ifndef RGW_INTERNAL_C
@@ -102,8 +105,10 @@ static inline fsal_staticfsinfo_t *rgw_staticinfo(struct fsal_module *hdl)
 }
 
 /* Prototypes */
-int construct_handle(const struct stat *st, uint64_t nfs_handle,
-		     struct rgw_export *export, struct rgw_handle **obj);
+int construct_handle(struct rgw_export *export,
+		     const struct rgw_file_handle *rgw_file_handle,
+		     struct stat *st,
+		     struct rgw_handle **obj);
 void deconstruct_handle(struct rgw_handle *obj);
 
 fsal_status_t rgw2fsal_error(const int errorcode);

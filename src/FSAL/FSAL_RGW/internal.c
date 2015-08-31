@@ -253,17 +253,22 @@ void rgw2fsal_attributes(const struct stat *buffstat,
  *
  * This function constructs a new RGW FSAL object handle and attaches
  * it to the export.  After this call the attributes have been filled
- * in and the handdle is up-to-date and usable.
+ * in and the handle is up-to-date and usable.
  *
- * @param[in]  st     Stat data for the file
  * @param[in]  export Export on which the object lives
+ * @param[in]  rgw_fh Concise representation of the object name,
+ *                    in RGW notation
+ * @param[inout] st   Object attributes
  * @param[out] obj    Object created
  *
  * @return 0 on success, negative error codes on failure.
  */
 
-int construct_handle(const struct stat *st, uint64_t nfs_handle,
-		     struct rgw_export *export, struct rgw_handle **obj)
+int construct_handle(struct rgw_export *export,
+		     const struct rgw_file_handle *rgw_fh,
+		     struct stat *st,
+		     struct rgw_handle **obj)
+
 {
 	/* Poitner to the handle under construction */
 	struct rgw_handle *constructing = NULL;
@@ -273,7 +278,7 @@ int construct_handle(const struct stat *st, uint64_t nfs_handle,
 	if (constructing == NULL)
 		return -ENOMEM;
 
-	constructing->nfs_handle = nfs_handle;
+	constructing->rgw_fh = *rgw_fh;
 	constructing->up_ops = export->export.up_ops;
 
 	rgw2fsal_attributes(st, &constructing->handle.attributes);

@@ -16,7 +16,8 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301 USA
  *
  * -------------
  */
@@ -115,7 +116,7 @@ static fsal_status_t init_config(struct fsal_module *module_in,
 /**
  * @brief Create a new export under this FSAL
  *
- * This function creates a new export object for the Ceph FSAL.
+ * This function creates a new export object for the RGW FSAL.
  *
  * @todo ACE: We do not handle re-exports of the same cluster in a
  * sane way.  Currently we create multiple handles and cache objects
@@ -140,8 +141,8 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 {
 	/* The status code to return */
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
-	/* A fake argument list for Ceph */
-	const char *argv[] = { "FSAL_CEPH", op_ctx->export->fullpath };
+	/* A fake argument list for RGW */
+	const char *argv[] = { "FSAL_RGW", op_ctx->export->fullpath };
 	/* The internal export object */
 	struct rgw_export *export = gsh_calloc(1, sizeof(struct rgw_export));
 	/* The 'private' root handle */
@@ -150,7 +151,7 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 	struct stat st;
 	/* Return code */
 	int rc;
-	/* Return code from Ceph calls */
+	/* Return code from RGW calls */
 	int rgw_status;
 	/* True if we have called fsal_export_init */
 	bool initialized = false;
@@ -180,7 +181,7 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 	if (rgw_status != 0) {
 		status.major = ERR_FSAL_SERVERFAULT;
 		LogCrit(COMPONENT_FSAL,
-			"Unable to read Ceph configuration for %s.",
+			"Unable to read RGW configuration for %s.",
 			op_ctx->export->fullpath);
 		goto error;
 	}
@@ -189,17 +190,18 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 	if (rgw_status != 0) {
 		status.major = ERR_FSAL_SERVERFAULT;
 		LogCrit(COMPONENT_FSAL,
-			"Unable to parse Ceph configuration for %s.",
+			"Unable to parse RGW configuration for %s.",
 			op_ctx->export->fullpath);
 		goto error;
 	}
 
+	struct rgw_file_handle rgw_fh; /* XXX construct handle suspicious*/
 	rgw_status = rgw_mount(export->rgw_user_id, export->rgw_access_key_id,
-			       export->rgw_secret_access_key, &i);
+			       export->rgw_secret_access_key, &rgw_fh);
 	if (rgw_status != 0) {
 		status.major = ERR_FSAL_SERVERFAULT;
 		LogCrit(COMPONENT_FSAL,
-			"Unable to mount Ceph cluster for %s.",
+			"Unable to mount RGW cluster for %s.",
 			op_ctx->export->fullpath);
 		goto error;
 	}
@@ -218,7 +220,8 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 		 "RGW module export %s.",
 		 op_ctx->export->fullpath);
 
-	rc = construct_handle(&st, i, export, &handle);
+	/* XXX suspicious */
+	rc = construct_handle(export, &rgw_fh, &st, &handle);
 	if (rc < 0) {
 		status = rgw2fsal_error(rc);
 		goto error;
@@ -243,27 +246,34 @@ static fsal_status_t create_export(struct fsal_module *module_in,
  * @brief Initialize and register the FSAL
  *
  * This function initializes the FSAL module handle, being called
- * before any configuration or even mounting of a Ceph cluster.  It
+ * before any configuration or even mounting of a RGW cluster.  It
  * exists solely to produce a properly constructed FSAL module
  * handle.
  */
 
 MODULE_INIT void init(void)
 {
+	int ret;
 	struct fsal_module *myself = &RGWFSM.fsal;
 
 	LogDebug(COMPONENT_FSAL,
-		 "Ceph module registering.");
+		 "RGW module registering.");
 
 	/* register_fsal seems to expect zeroed memory. */
 	memset(myself, 0, sizeof(*myself));
 
+	ret = librgw_create(&RGWFSM.rgw, NULL /* id */);
+	if (ret != 0) {
+		LogCrit(COMPONENT_FSAL,
+			"RGW module: librgw init failed (%d)", ret);
+	}
+
 	if (register_fsal(myself, module_name, FSAL_MAJOR_VERSION,
-			  FSAL_MINOR_VERSION, FSAL_ID_CEPH) != 0) {
+			  FSAL_MINOR_VERSION, FSAL_ID_RGW) != 0) {
 		/* The register_fsal function prints its own log
 		   message if it fails */
 		LogCrit(COMPONENT_FSAL,
-			"Ceph module failed to register.");
+			"RGW module failed to register.");
 	}
 
 	/* Set up module operations */
@@ -274,20 +284,31 @@ MODULE_INIT void init(void)
 /**
  * @brief Release FSAL resources
  *
- * This function unregisters the FSAL and frees its module handle.
- * The Ceph FSAL has no other resources to release on the per-FSAL
- * level.
+ * This function unregisters the FSAL and frees its module handle.  The
+ * FSAL also has an open instance of the rgw library, so we also need to
+ * release that.
  */
 
 MODULE_FINI void finish(void)
 {
+	int ret;
+
 	LogDebug(COMPONENT_FSAL,
 		 "RGW module finishing.");
 
-	if (unregister_fsal(&RGWFSM.fsal) != 0) {
+	ret = unregister_fsal(&RGWFSM.fsal);
+	if (ret != 0) {
 		LogCrit(COMPONENT_FSAL,
-			"Unable to unload RGW FSAL.  Dying with extreme "
-			"prejudice.");
-		abort();
+			"RGW: unregister_fsal failed (%d)", ret);
 	}
+
+	/* stop request processing */
+	ret = librgw_stop(RGWFSM.rgw);
+	if (ret != 0) {
+		LogCrit(COMPONENT_FSAL,
+			"librgw_stop failed (%d), ret");
+	}
+
+	/* release the library */
+	librgw_shutdown(RGWFSM.rgw);
 }

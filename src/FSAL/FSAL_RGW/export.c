@@ -29,7 +29,6 @@
 #include <limits.h>
 #include <stdint.h>
 #include <sys/statvfs.h>
-#include <rados/rgw_file.h>
 #include "abstract_mem.h"
 #include "fsal.h"
 #include "fsal_types.h"
@@ -62,8 +61,9 @@ static void release(struct fsal_export *export_pub)
 	fsal_detach_export(export->export.fsal, &export->export.exports);
 	free_export_ops(&export->export);
 
-	rgw_shutdown(export->cmount);
-	export->cmount = NULL;
+	/* XXX we might need/want an rgw_unmount here, but presently,
+	 * it wouldn't do anything */
+
 	gsh_free(export);
 	export = NULL;
 }
@@ -72,10 +72,7 @@ static void release(struct fsal_export *export_pub)
  * @brief Return a handle corresponding to a path
  *
  * This function looks up the given path and supplies an FSAL object
- * handle.  Because the root path specified for the export is a Ceph
- * style root as supplied to mount -t ceph of ceph-fuse (of the form
- * host:/path), we check to see if the path begins with / and, if not,
- * skip until we find one.
+ * handle.
  *
  * @param[in]  export_pub The export in which to look up the file
  * @param[in]  path       The path to look up
@@ -99,37 +96,16 @@ static fsal_status_t lookup_path(struct fsal_export *export_pub,
 	struct stat st;
 	/* Return code from Ceph */
 	int rc;
-	/* Find the actual path in the supplied path */
-	const char *realpath;
-	uint64_t i;
-
-	if (*path != '/') {
-		realpath = strchr(path, ':');
-		if (realpath == NULL) {
-			status.major = ERR_FSAL_INVAL;
-			return status;
-		}
-		if (*(++realpath) != '/') {
-			status.major = ERR_FSAL_INVAL;
-			return status;
-		}
-	} else {
-		realpath = path;
-	}
+	/* temp filehandle */
+	struct rgw_file_handle rgw_fh;
 
 	*pub_handle = NULL;
 
-	if (strcmp(realpath, "/") == 0) {
-		assert(export->root);
-		*pub_handle = &export->root->handle;
-		return status;
-	}
-
-	rc = rgw_lookup(export->cmount, realpath, &i, &st);
+	rc = rgw_lookup(&export->root->rgw_fh, path, &rgw_fh);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
-	rc = construct_handle(&st, i, export, &handle);
+	rc = construct_handle(export, &rgw_fh, &st, &handle);
 	if (rc < 0) {
 		return rgw2fsal_error(rc);
 	}
