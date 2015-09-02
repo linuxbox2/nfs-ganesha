@@ -66,7 +66,7 @@ extern struct rgw_fsal_module RGWFSM;
 struct rgw_export {
 	struct fsal_export export;	/*< The public export object */
 	struct rgw_handle *root;	/*< The root handle */
-	char rgw_name[NAME_MAX + 1]
+	char rgw_name[NAME_MAX + 1];
 	char rgw_user_id[MAXUIDLEN + 1];
 	char rgw_access_key_id[MAXKEYLEN + 1];
 	char rgw_secret_access_key[MAXSECRETLEN + 1];
