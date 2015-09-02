@@ -133,7 +133,7 @@ static fsal_status_t extract_handle(struct fsal_export *exp_hdl,
 	case FSAL_DIGEST_NFSV3:
 	case FSAL_DIGEST_NFSV4:
 		/* wire handles */
-		fh_desc->len = sizeof(vinodeno_t);
+		fh_desc->len = sizeof(struct rgw_file_handle);
 		break;
 	default:
 		return fsalstat(ERR_FSAL_SERVERFAULT, 0);
@@ -170,26 +170,32 @@ static fsal_status_t create_handle(struct fsal_export *export_pub,
 	struct stat st;
 	/* Handle to be created */
 	struct rgw_handle *handle = NULL;
-	uint64_t nfs_handle = *(uint64_t *)(desc->addr);
-
+	struct rgw_file_handle rgw_fh =
+		*(struct rgw_file_handle *)(desc->addr);
 
 	*pub_handle = NULL;
 
-	if (desc->len != sizeof(vinodeno_t)) {
+	if (desc->len != sizeof(struct rgw_file_handle)) {
 		status.major = ERR_FSAL_INVAL;
 		return status;
 	}
 
-	rc = rgw_check_handle(export, desc, &nfs_handle);
+	/* XXXX all this can (apparently) do is check for the
+	 * bit pattern in the handle map;  since the handles are
+	 * volatile and re-used, the client MUST be treating
+	 * the handle as volatile */
+	rc = rgw_check_handle(&rgw_fh);
 	if (!rc) {
 		return rgw2fsal_error(-ESTALE);
 	}
 
-	rc = rgw_getattr(export, nfs_handle, &st);
+	/* apparently this could be efficient, since rgw apparently
+	 * caches metadata */
+	rc = rgw_getattr(export->root, &rgw_fh, &st);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
-	rc = construct_handle(&st, nfs_handle, export, &handle);
+	rc = construct_handle(export, &rgw_fh, &st, &handle);
 	if (rc < 0) {
 		return rgw2fsal_error(rc);
 	}
