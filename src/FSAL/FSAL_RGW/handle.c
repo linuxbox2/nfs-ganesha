@@ -117,23 +117,23 @@ static fsal_status_t lookup(struct fsal_obj_handle *dir_pub,
  */
 
 static fsal_status_t fsal_readdir(struct fsal_obj_handle *dir_pub,
-				  fsal_cookie_t *whence, void *dir_state,
+				  fsal_cookie_t *whence, void *cb_arg,
 				  fsal_readdir_cb cb, bool *eof)
 {
 	/* Generic status return */
 	int rc = 0;
+#if 0
 	/* The private 'full' export */
 	struct rgw_export *export =
 	    container_of(op_ctx->fsal_export, struct rgw_export, export);
+#endif
 	/* The private 'full' directory handle */
 	struct rgw_handle *dir = container_of(dir_pub, struct rgw_handle,
 					      handle);
-	/* The director descriptor */
-	struct rgw_dir_result *dir_desc = NULL;
 	/* Return status */
 	fsal_status_t fsal_status = { ERR_FSAL_NO_ERROR, 0 };
 
-	rc = rgw_readdir(export->cmount, dir, &dir_desc);
+	rc = rgw_readdir(&dir->rgw_fh, (uint64_t*) whence, cb, cb_arg, eof);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
@@ -165,8 +165,8 @@ static fsal_status_t fsal_create(struct fsal_obj_handle *dir_pub,
 	/* The private 'full' directory handle */
 	struct rgw_handle *dir = container_of(dir_pub, struct rgw_handle,
 					      handle);
-	/* Newly opened file descriptor */
-	uint64_t i;
+	/* New file handle */
+	struct rgw_file_handle rgw_fh;
 	/* Status after create */
 	struct stat st;
 	mode_t unix_mode;
@@ -175,18 +175,19 @@ static fsal_status_t fsal_create(struct fsal_obj_handle *dir_pub,
 
 	unix_mode = fsal2unix_mode(attrib->mode)
 	    & ~op_ctx->fsal_export->exp_ops.fs_umask(op_ctx->fsal_export);
-	rc = rgw_create(export->cmount, dir, name, unix_mode, &st,
-			&i);
+
+	rc = rgw_create(&dir->rgw_fh, name, unix_mode, &st,
+			&rgw_fh);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
-	rc = construct_handle(&st, i, export, &obj);
+	rc = construct_handle(export, &rgw_fh, &st, &obj);
 	if (rc < 0) {
 		return rgw2fsal_error(rc);
 	}
 
 	*obj_pub = &obj->handle;
-	*attrib = obj->handle.attributes;
+	rgw2fsal_attributes(&st, attrib);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
