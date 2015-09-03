@@ -81,11 +81,13 @@ static fsal_status_t lookup(struct fsal_obj_handle *dir_pub,
 	struct rgw_handle *dir = container_of(dir_pub, struct rgw_handle,
 					      handle);
 	struct rgw_handle *obj = NULL;
-	uint64_t i;
+
+	/* rgw file handle */
+	struct rgw_file_handle rgw_fh;
 
 	/* XXX presently, we can only fake attrs--maybe rgw_lookup should
 	 * take struct stat pointer OUT as libcephfs' does */
-	rc = rgw_lookup(dir, path, &rgw_fh);
+	rc = rgw_lookup(&dir->rgw_fh, path, &rgw_fh);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
@@ -103,9 +105,7 @@ static fsal_status_t lookup(struct fsal_obj_handle *dir_pub,
  * @brief Read a directory
  *
  * This function reads the contents of a directory (excluding . and
- * .., which is ironic since the Ceph readdir call synthesizes them
- * out of nothing) and passes dirent information to the supplied
- * callback.
+ * ..) and passes dirent information to the supplied callback.
  *
  * @param[in]  dir_pub     The directory to read
  * @param[in]  whence      The cookie indicating resumption, NULL to start
