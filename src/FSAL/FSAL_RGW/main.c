@@ -134,6 +134,26 @@ static fsal_status_t init_config(struct fsal_module *module_in,
  * @return FSAL status.
  */
 
+static struct config_item export_params[] = {
+	CONF_ITEM_NOOP("name"),
+	CONF_ITEM_STR("rgw_user_id", 0, MAXUIDLEN, NULL,
+		      rgw_export, rgw_user_id),
+	CONF_ITEM_STR("rgw_access_key_id", 0, MAXKEYLEN, NULL,
+		      rgw_export, rgw_access_key_id),
+	CONF_ITEM_STR("rgw_secret_access_key", 0, MAXSECRETLEN, NULL,
+		      rgw_export, rgw_secret_access_key),
+	CONFIG_EOL
+};
+
+static struct config_block export_param_block = {
+	.dbus_interface_name = "org.ganesha.nfsd.config.fsal.rgw-export%d",
+	.blk_desc.name = "FSAL",
+	.blk_desc.type = CONFIG_BLOCK,
+	.blk_desc.u.blk.init = noop_conf_init,
+	.blk_desc.u.blk.params = export_params,
+	.blk_desc.u.blk.commit = noop_conf_commit
+};
+
 static fsal_status_t create_export(struct fsal_module *module_in,
 				   void *parse_node,
 				   struct config_error_type *err_type,
@@ -143,6 +163,9 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
 	/* A fake argument list for RGW */
 	const char *argv[] = { "FSAL_RGW", op_ctx->export->fullpath };
+	/* FSAL handle */
+	struct rgw_fsal_module *myself =
+	    container_of(module_in, struct rgw_fsal_module, fsal);
 	/* The internal export object */
 	struct rgw_export *export = gsh_calloc(1, sizeof(struct rgw_export));
 	/* The 'private' root handle */
@@ -155,7 +178,6 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 	int rgw_status;
 	/* True if we have called fsal_export_init */
 	bool initialized = false;
-	uint64_t i;
 
 	if (export == NULL) {
 		status.major = ERR_FSAL_NOMEM;
@@ -163,6 +185,17 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 			"Unable to allocate export object for %s.",
 			op_ctx->export->fullpath);
 		goto error;
+	}
+
+	/* get params for this export, if any */
+	if (parse_node) {
+		rc = load_config_from_node(parse_node,
+					   &export_param_block,
+					   myself,
+					   true,
+					   err_type);
+		if (rc != 0)
+			return fsalstat(ERR_FSAL_INVAL, 0);
 	}
 
 	if (fsal_export_init(&export->export) != 0) {
@@ -177,20 +210,20 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 
 	initialized = true;
 
-	rgw_status = rgw_conf_read_file(export, NULL);
+	rgw_status = rados_conf_read_file(export, NULL);
 	if (rgw_status != 0) {
 		status.major = ERR_FSAL_SERVERFAULT;
 		LogCrit(COMPONENT_FSAL,
-			"Unable to read RGW configuration for %s.",
+			"RGW: Unable to read Ceph configuration for %s.",
 			op_ctx->export->fullpath);
 		goto error;
 	}
 
-	rgw_status = rgw_conf_parse_argv(export, 2, argv);
+	rgw_status = rados_conf_parse_argv(export, 2, argv);
 	if (rgw_status != 0) {
 		status.major = ERR_FSAL_SERVERFAULT;
 		LogCrit(COMPONENT_FSAL,
-			"Unable to parse RGW configuration for %s.",
+			"RGW: Unable to parse RGW configuration for %s.",
 			op_ctx->export->fullpath);
 		goto error;
 	}
@@ -306,7 +339,7 @@ MODULE_FINI void finish(void)
 	ret = librgw_stop(RGWFSM.rgw);
 	if (ret != 0) {
 		LogCrit(COMPONENT_FSAL,
-			"librgw_stop failed (%d), ret");
+			"librgw_stop failed (%d)", ret);
 	}
 
 	/* release the library */

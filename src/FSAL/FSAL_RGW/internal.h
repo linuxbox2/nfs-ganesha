@@ -28,8 +28,8 @@
  * variables, and constants for the RGW FSAL.
  */
 
-#ifndef FSAL_RGW_INTERNAL_INTERNAL__
-#define FSAL_RGW_INTERNAL_INTERNAL__
+#ifndef FSAL_RGW_INTERNAL_INTERNAL
+#define FSAL_RGW_INTERNAL_INTERNAL
 
 #include <stdbool.h>
 #include <uuid/uuid.h>
@@ -39,8 +39,10 @@
 #include "fsal_types.h"
 #include "fsal_api.h"
 #include "fsal_convert.h"
+
 #include <rados/librgw.h>
 #include <rados/rgw_file.h>
+#include <rados/librados.h> /* XXX conf ops */
 
 
 /**
@@ -119,4 +121,4 @@ void rgw2fsal_attributes(const struct stat *buffstat,
 void export_ops_init(struct export_ops *ops);
 void handle_ops_init(struct fsal_obj_ops *ops);
 
-#endif				/* !FSAL_RGW_INTERNAL_INTERNAL__ */
+#endif				/* !FSAL_RGW_INTERNAL_INTERNAL */

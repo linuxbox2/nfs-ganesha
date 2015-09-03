@@ -191,7 +191,7 @@ static fsal_status_t create_handle(struct fsal_export *export_pub,
 
 	/* apparently this could be efficient, since rgw apparently
 	 * caches metadata */
-	rc = rgw_getattr(export->root, &rgw_fh, &st);
+	rc = rgw_getattr(&rgw_fh, &st);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
@@ -223,13 +223,13 @@ static fsal_status_t get_fs_dynamic_info(struct fsal_export *export_pub,
 	/* Full 'private' export */
 	struct rgw_export *export =
 	    container_of(export_pub, struct rgw_export, export);
-	/* Return value from Ceph calls */
+
 	int rc = 0;
+
 	/* Filesystem stat */
-	struct statvfs vfs_st;
+	struct rgw_statvfs vfs_st;
 
-//	rc = rgw_ll_statfs(export->cmount, export->root->i, &vfs_st);
-
+	rc = rgw_statfs(&export->root->rgw_fh, &vfs_st);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
@@ -470,14 +470,3 @@ void export_ops_init(struct export_ops *ops)
 	ops->fs_umask = fs_umask;
 	ops->fs_xattr_access_rights = fs_xattr_access_rights;
 }
-
-static struct config_item export_params[] = {
-	CONF_ITEM_NOOP("name"),
-	CONF_ITEM_STRING("rgw_user_id", 0, MAXUIDLEN, NULL,
-		       rgw_fsal_export, rgw_export_uid),
-	CONF_ITEM_STRING("rgw_access_key_id", 0, MAXKEYLEN, NULL,
-		       rgw_fsal_export, rgw_access_key_id),
-	CONF_ITEM_STRING("rgw_secret_access_key", 0, MAXSECRETLEN, NULL,
-		       rgw_fsal_export, rgw_secret_access_key),
-	CONFIG_EOL
-};
