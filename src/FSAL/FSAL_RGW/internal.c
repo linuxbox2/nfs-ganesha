@@ -38,6 +38,10 @@
 #define RGW_INTERNAL_C
 #include "internal.h"
 
+
+struct rgw_fsal_module RGWFSM;
+
+
 /**
  * The attributes tis FSAL can interpret or supply.
  */
