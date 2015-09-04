@@ -136,11 +136,11 @@ static fsal_status_t init_config(struct fsal_module *module_in,
 
 static struct config_item export_params[] = {
 	CONF_ITEM_NOOP("name"),
-	CONF_ITEM_STR("rgw_user_id", 0, MAXUIDLEN, NULL,
+	CONF_ITEM_STR("user_id", 0, MAXUIDLEN, NULL,
 		      rgw_export, rgw_user_id),
-	CONF_ITEM_STR("rgw_access_key_id", 0, MAXKEYLEN, NULL,
+	CONF_ITEM_STR("access_key_id", 0, MAXKEYLEN, NULL,
 		      rgw_export, rgw_access_key_id),
-	CONF_ITEM_STR("rgw_secret_access_key", 0, MAXSECRETLEN, NULL,
+	CONF_ITEM_STR("secret_access_key", 0, MAXSECRETLEN, NULL,
 		      rgw_export, rgw_secret_access_key),
 	CONFIG_EOL
 };
