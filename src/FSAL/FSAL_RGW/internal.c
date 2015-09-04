@@ -279,12 +279,13 @@ int construct_handle(struct rgw_export *export,
 		return -ENOMEM;
 
 	constructing->rgw_fh = *rgw_fh;
-	constructing->up_ops = export->export.up_ops;
+	constructing->up_ops = export->export.up_ops; /* XXXX going away */
+	constructing->handle.attrs = &constructing->attributes;
 
-	rgw2fsal_attributes(st, &constructing->handle.attributes);
+	rgw2fsal_attributes(st, &constructing->attributes);
 
 	fsal_obj_handle_init(&constructing->handle, &export->export,
-			     constructing->handle.attributes.type);
+			     constructing->attributes.type);
 
 	constructing->export = export;
 
@@ -301,6 +302,7 @@ int construct_handle(struct rgw_export *export,
 
 void deconstruct_handle(struct rgw_handle *obj)
 {
-	fsal_obj_handle_uninit(&obj->handle);
+	/* XXX release RGW ref */
+	fsal_obj_handle_fini(&obj->handle);
 	gsh_free(obj);
 }

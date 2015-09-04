@@ -272,7 +272,7 @@ static fsal_status_t getattrs(struct fsal_obj_handle *handle_pub)
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
-	rgw2fsal_attributes(&st, handle_pub->attrs);
+	rgw2fsal_attributes(&st, &handle->attributes);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }

@@ -80,11 +80,13 @@ struct rgw_export {
 
 struct rgw_handle {
 	struct fsal_obj_handle handle;	/*< The public handle */
-	fsal_openflags_t openflags;
+	struct rgw_file_handle rgw_fh;  /*< RGW-internal file handle */
+	struct attrlist attributes;
+	/* XXXX remove ptr to up-ops--we can always follow export! */
 	const struct fsal_up_vector *up_ops;	/*< Upcall operations */
 	struct rgw_export *export;	/*< The first export this handle
 					 *< belongs to */
-	struct rgw_file_handle rgw_fh;
+	fsal_openflags_t openflags;
 };
 
 #ifndef RGW_INTERNAL_C
