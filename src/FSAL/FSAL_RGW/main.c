@@ -208,9 +208,10 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 
 	initialized = true;
 
-	struct rgw_file_handle rgw_fh; /* XXX construct handle suspicious*/
-	rgw_status = rgw_mount(export->rgw_user_id, export->rgw_access_key_id,
-			       export->rgw_secret_access_key, &rgw_fh);
+	rgw_status = rgw_mount(export->rgw_user_id,
+			       export->rgw_access_key_id,
+			       export->rgw_secret_access_key,
+			       &export->rgw_fs);
 	if (rgw_status != 0) {
 		status.major = ERR_FSAL_SERVERFAULT;
 		LogCrit(COMPONENT_FSAL,
@@ -233,8 +234,7 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 		 "RGW module export %s.",
 		 op_ctx->export->fullpath);
 
-	/* XXX suspicious */
-	rc = construct_handle(export, &rgw_fh, &st, &handle);
+	rc = construct_handle(export, &export->rgw_fs->root_fh, &st, &handle);
 	if (rc < 0) {
 		status = rgw2fsal_error(rc);
 		goto error;

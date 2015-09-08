@@ -101,7 +101,7 @@ static fsal_status_t lookup_path(struct fsal_export *export_pub,
 
 	*pub_handle = NULL;
 
-	rc = rgw_lookup(&export->root->rgw_fh, path, &rgw_fh);
+	rc = rgw_lookup(export->rgw_fs, &export->root->rgw_fh, path, &rgw_fh);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
@@ -191,7 +191,7 @@ static fsal_status_t create_handle(struct fsal_export *export_pub,
 
 	/* apparently this could be efficient, since rgw apparently
 	 * caches metadata */
-	rc = rgw_getattr(&rgw_fh, &st);
+	rc = rgw_getattr(export->rgw_fs, &rgw_fh, &st);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
@@ -229,7 +229,7 @@ static fsal_status_t get_fs_dynamic_info(struct fsal_export *export_pub,
 	/* Filesystem stat */
 	struct rgw_statvfs vfs_st;
 
-	rc = rgw_statfs(&export->root->rgw_fh, &vfs_st);
+	rc = rgw_statfs(export->rgw_fs, &export->root->rgw_fh, &vfs_st);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
