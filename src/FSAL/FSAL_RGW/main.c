@@ -161,8 +161,6 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 {
 	/* The status code to return */
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
-	/* A fake argument list for RGW */
-	const char *argv[] = { "FSAL_RGW", op_ctx->export->fullpath };
 	/* FSAL handle */
 	struct rgw_fsal_module *myself =
 	    container_of(module_in, struct rgw_fsal_module, fsal);
@@ -209,24 +207,6 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 	export->export.up_ops = up_ops;
 
 	initialized = true;
-
-	rgw_status = rados_conf_read_file(export, NULL);
-	if (rgw_status != 0) {
-		status.major = ERR_FSAL_SERVERFAULT;
-		LogCrit(COMPONENT_FSAL,
-			"RGW: Unable to read Ceph configuration for %s.",
-			op_ctx->export->fullpath);
-		goto error;
-	}
-
-	rgw_status = rados_conf_parse_argv(export, 2, argv);
-	if (rgw_status != 0) {
-		status.major = ERR_FSAL_SERVERFAULT;
-		LogCrit(COMPONENT_FSAL,
-			"RGW: Unable to parse RGW configuration for %s.",
-			op_ctx->export->fullpath);
-		goto error;
-	}
 
 	struct rgw_file_handle rgw_fh; /* XXX construct handle suspicious*/
 	rgw_status = rgw_mount(export->rgw_user_id, export->rgw_access_key_id,
@@ -295,7 +275,7 @@ MODULE_INIT void init(void)
 	/* register_fsal seems to expect zeroed memory. */
 	memset(myself, 0, sizeof(*myself));
 
-	ret = librgw_create(&RGWFSM.rgw, NULL /* id */);
+	ret = librgw_create(&RGWFSM.rgw, NULL /* id */, 0, NULL);
 	if (ret != 0) {
 		LogCrit(COMPONENT_FSAL,
 			"RGW module: librgw init failed (%d)", ret);

@@ -42,7 +42,6 @@
 
 #include <rados/librgw.h>
 #include <rados/rgw_file.h>
-#include <rados/librados.h> /* XXX conf ops */
 
 
 /**
