@@ -163,7 +163,8 @@ static inline fsal_status_t ceph2fsal_error(const int ceph_errorcode)
 }
 void ceph2fsal_attributes(const struct stat *buffstat,
 			  struct attrlist *fsalattr);
-
+int cephfsal_fs_invalidate(struct ceph_mount_info *cmount, vinodeno_t ino,
+			void *arg);
 void export_ops_init(struct export_ops *ops);
 void handle_ops_init(struct fsal_obj_ops *ops);
 #ifdef CEPH_PNFS

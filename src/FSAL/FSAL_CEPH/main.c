@@ -234,6 +234,14 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 		goto error;
 	}
 
+	if (ceph_register_invalidate(export->cmount, cephfsal_fs_invalidate,
+					export) != 0) {
+		LogCrit(COMPONENT_FSAL,
+			"Unable to register invalidates for %s.",
+			op_ctx->export->fullpath);
+		goto error;
+	}
+
 	export->export.fsal = module_in;
 
 	LogDebug(COMPONENT_FSAL,
