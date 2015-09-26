@@ -8,6 +8,7 @@ SET(fsalceph_LIB_SRCS
    handle.c
    mds.c
    ds.c
+   up.c
    internal.c
    internal.h
 )
