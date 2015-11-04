@@ -55,8 +55,9 @@ static void release(struct fsal_export *export_pub)
 	struct rgw_export *export =
 	    container_of(export_pub, struct rgw_export, export);
 
-	deconstruct_handle(export->root);
-	export->root = 0;
+	int rc = rgw_umount(export->rgw_fs);
+	assert(rc == 0);
+	export->rgw_fs = NULL;
 
 	fsal_detach_export(export->export.fsal, &export->export.exports);
 	free_export_ops(&export->export);
@@ -97,15 +98,16 @@ static fsal_status_t lookup_path(struct fsal_export *export_pub,
 	/* Return code from Ceph */
 	int rc;
 	/* temp filehandle */
-	struct rgw_file_handle rgw_fh;
+	struct rgw_file_handle *rgw_fh;
 
 	*pub_handle = NULL;
 
-	rc = rgw_lookup(export->rgw_fs, &export->root->rgw_fh, path, &rgw_fh);
+	rc = rgw_lookup(export->rgw_fs, export->rgw_fs->root_fh, path,
+			&rgw_fh, 0 /* flags */);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
-	rc = construct_handle(export, &rgw_fh, &st, &handle);
+	rc = construct_handle(export, rgw_fh, &st, &handle);
 	if (rc < 0) {
 		return rgw2fsal_error(rc);
 	}
@@ -170,32 +172,32 @@ static fsal_status_t create_handle(struct fsal_export *export_pub,
 	struct stat st;
 	/* Handle to be created */
 	struct rgw_handle *handle = NULL;
-	struct rgw_file_handle rgw_fh =
-		*(struct rgw_file_handle *)(desc->addr);
+	/* RGW fh hash key */
+	struct rgw_fh_hk fh_hk;
+	/* RGW file handle instance */
+	struct rgw_file_handle *rgw_fh;
 
 	*pub_handle = NULL;
 
-	if (desc->len != sizeof(struct rgw_file_handle)) {
+	if (desc->len != sizeof(struct rgw_fh_hk)) {
 		status.major = ERR_FSAL_INVAL;
 		return status;
 	}
 
-	/* XXXX all this can (apparently) do is check for the
-	 * bit pattern in the handle map;  since the handles are
-	 * volatile and re-used, the client MUST be treating
-	 * the handle as volatile */
-	rc = rgw_check_handle(&rgw_fh);
+	memcpy((char*) &fh_hk, desc->addr, desc->len);
+
+	rc = rgw_lookup_handle(export->rgw_fs, &fh_hk, &rgw_fh, 0 /* flags */);
 	if (!rc) {
 		return rgw2fsal_error(-ESTALE);
 	}
 
 	/* apparently this could be efficient, since rgw apparently
 	 * caches metadata */
-	rc = rgw_getattr(export->rgw_fs, &rgw_fh, &st);
+	rc = rgw_getattr(export->rgw_fs, rgw_fh, &st);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
-	rc = construct_handle(export, &rgw_fh, &st, &handle);
+	rc = construct_handle(export, rgw_fh, &st, &handle);
 	if (rc < 0) {
 		return rgw2fsal_error(rc);
 	}
@@ -229,10 +231,11 @@ static fsal_status_t get_fs_dynamic_info(struct fsal_export *export_pub,
 	/* Filesystem stat */
 	struct rgw_statvfs vfs_st;
 
-	rc = rgw_statfs(export->rgw_fs, &export->root->rgw_fh, &vfs_st);
+	rc = rgw_statfs(export->rgw_fs, export->rgw_fs->root_fh, &vfs_st);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
+	/* TODO: implement in rgw_file */
 	memset(info, 0, sizeof(fsal_dynamicfsinfo_t));
 	info->total_bytes = vfs_st.f_frsize * vfs_st.f_blocks;
 	info->free_bytes = vfs_st.f_frsize * vfs_st.f_bfree;

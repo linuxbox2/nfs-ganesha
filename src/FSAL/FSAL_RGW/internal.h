@@ -40,8 +40,8 @@
 #include "fsal_api.h"
 #include "fsal_convert.h"
 
-#include <rados/librgw.h>
-#include <rados/rgw_file.h>
+#include <include/rados/librgw.h>
+#include <include/rados/rgw_file.h>
 
 
 /**
@@ -67,7 +67,6 @@ extern struct rgw_fsal_module RGWFSM;
 struct rgw_export {
 	struct fsal_export export;	/*< The public export object */
 	struct rgw_fs *rgw_fs;		/*< "Opaque" fs handle */
-	struct rgw_handle *root;	/*< The root handle */
 	char rgw_name[NAME_MAX + 1];
 	char rgw_user_id[MAXUIDLEN + 1];
 	char rgw_access_key_id[MAXKEYLEN + 1];
@@ -80,7 +79,7 @@ struct rgw_export {
 
 struct rgw_handle {
 	struct fsal_obj_handle handle;	/*< The public handle */
-	struct rgw_file_handle rgw_fh;  /*< RGW-internal file handle */
+	struct rgw_file_handle *rgw_fh;  /*< RGW-internal file handle */
 	struct attrlist attributes;
 	/* XXXX remove ptr to up-ops--we can always follow export! */
 	const struct fsal_up_vector *up_ops;	/*< Upcall operations */

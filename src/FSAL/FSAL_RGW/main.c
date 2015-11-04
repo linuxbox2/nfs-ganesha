@@ -208,10 +208,11 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 
 	initialized = true;
 
-	rgw_status = rgw_mount(export->rgw_user_id,
-			       export->rgw_access_key_id,
-			       export->rgw_secret_access_key,
-			       &export->rgw_fs);
+	rgw_status = rgw_mount(RGWFSM.rgw,
+			export->rgw_user_id,
+			export->rgw_access_key_id,
+			export->rgw_secret_access_key,
+			&export->rgw_fs);
 	if (rgw_status != 0) {
 		status.major = ERR_FSAL_SERVERFAULT;
 		LogCrit(COMPONENT_FSAL,
@@ -234,13 +235,12 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 		 "RGW module export %s.",
 		 op_ctx->export->fullpath);
 
-	rc = construct_handle(export, &export->rgw_fs->root_fh, &st, &handle);
+	rc = construct_handle(export, export->rgw_fs->root_fh, &st, &handle);
 	if (rc < 0) {
 		status = rgw2fsal_error(rc);
 		goto error;
 	}
 
-	export->root = handle;
 	op_ctx->fsal_export = &export->export;
 	return status;
 
@@ -275,7 +275,9 @@ MODULE_INIT void init(void)
 	/* register_fsal seems to expect zeroed memory. */
 	memset(myself, 0, sizeof(*myself));
 
-	ret = librgw_create(&RGWFSM.rgw, NULL /* id */, 0, NULL);
+	/* XXX can suggest debug levels, path to ceph.conf, etc,
+	 * see FSAL_CEPH */
+	ret = librgw_create(&RGWFSM.rgw, 0 /* argc */, NULL /* argv */);
 	if (ret != 0) {
 		LogCrit(COMPONENT_FSAL,
 			"RGW module: librgw init failed (%d)", ret);
