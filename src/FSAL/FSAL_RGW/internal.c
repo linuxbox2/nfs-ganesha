@@ -269,7 +269,7 @@ void rgw2fsal_attributes(const struct stat *buffstat,
  */
 
 int construct_handle(struct rgw_export *export,
-		     const struct rgw_file_handle *rgw_fh,
+		     struct rgw_file_handle *rgw_fh,
 		     struct stat *st,
 		     struct rgw_handle **obj)
 
@@ -282,7 +282,7 @@ int construct_handle(struct rgw_export *export,
 	if (constructing == NULL)
 		return -ENOMEM;
 
-	constructing->rgw_fh = *rgw_fh;
+	constructing->rgw_fh = rgw_fh;
 	constructing->up_ops = export->export.up_ops; /* XXXX going away */
 	constructing->handle.attrs = &constructing->attributes;
 
@@ -296,17 +296,4 @@ int construct_handle(struct rgw_export *export,
 	*obj = constructing;
 
 	return 0;
-}
-
-/**
- * @brief Release all resrouces for a handle
- *
- * @param[in] obj Handle to release
- */
-
-void deconstruct_handle(struct rgw_handle *obj)
-{
-	/* XXX release RGW ref */
-	fsal_obj_handle_fini(&obj->handle);
-	gsh_free(obj);
 }

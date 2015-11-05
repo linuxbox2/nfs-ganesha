@@ -111,10 +111,9 @@ static inline fsal_staticfsinfo_t *rgw_staticinfo(struct fsal_module *hdl)
 
 /* Prototypes */
 int construct_handle(struct rgw_export *export,
-		     const struct rgw_file_handle *rgw_file_handle,
+		     struct rgw_file_handle *rgw_file_handle,
 		     struct stat *st,
 		     struct rgw_handle **obj);
-void deconstruct_handle(struct rgw_handle *obj);
 
 fsal_status_t rgw2fsal_error(const int errorcode);
 void rgw2fsal_attributes(const struct stat *buffstat,
