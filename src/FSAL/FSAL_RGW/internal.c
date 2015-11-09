@@ -290,7 +290,7 @@ int construct_handle(struct rgw_export *export,
 
 	fsal_obj_handle_init(&constructing->handle, &export->export,
 			     constructing->attributes.type);
-
+	handle_ops_init(&constructing->handle.obj_ops);
 	constructing->export = export;
 
 	*obj = constructing;
