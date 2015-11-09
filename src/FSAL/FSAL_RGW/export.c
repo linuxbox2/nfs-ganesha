@@ -102,10 +102,21 @@ static fsal_status_t lookup_path(struct fsal_export *export_pub,
 
 	*pub_handle = NULL;
 
+	/* XXX in FSAL_CEPH, the equivalent code here looks for path == "/"
+	 * and returns the root handle with no extra ref.  That seems
+	 * suspicious, so let RGW figure it out (hopefully, that does not
+	 * leak refs)
+	 */
 	rc = rgw_lookup(export->rgw_fs, export->rgw_fs->root_fh, path,
 			&rgw_fh, 0 /* flags */);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
+
+	/* get Unix attrs */
+	rc = rgw_getattr(export->rgw_fs, rgw_fh, &st);
+	if (rc < 0) {
+		return rgw2fsal_error(rc);
+	}
 
 	rc = construct_handle(export, rgw_fh, &st, &handle);
 	if (rc < 0) {
