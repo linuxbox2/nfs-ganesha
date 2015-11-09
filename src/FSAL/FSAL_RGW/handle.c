@@ -733,8 +733,8 @@ static void handle_to_key(struct fsal_obj_handle *handle_pub,
 	struct rgw_handle *handle = container_of(handle_pub, struct rgw_handle,
 						 handle);
 
-	fh_desc->addr = &handle->rgw_fh;
-	fh_desc->len = sizeof(handle->rgw_fh);
+	fh_desc->addr = &(handle->rgw_fh->fh_hk);
+	fh_desc->len = sizeof(struct rgw_fh_hk);
 }
 
 /**
