@@ -165,9 +165,6 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 {
 	/* The status code to return */
 	fsal_status_t status = { ERR_FSAL_NO_ERROR, 0 };
-	/* FSAL handle */
-	struct rgw_fsal_module *myself =
-	    container_of(module_in, struct rgw_fsal_module, fsal);
 	/* The internal export object */
 	struct rgw_export *export;
 	/* The 'private' root handle */
@@ -216,17 +213,6 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 		goto error;
 	}
 
-	/* get params for this export, if any */
-	if (parse_node) {
-		rc = load_config_from_node(parse_node,
-					   &export_param_block,
-					   myself,
-					   true,
-					   err_type);
-		if (rc != 0)
-			return fsalstat(ERR_FSAL_INVAL, 0);
-	}
-
 	if (fsal_export_init(&export->export) != 0) {
 		status.major = ERR_FSAL_NOMEM;
 		LogCrit(COMPONENT_FSAL,
@@ -236,6 +222,19 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 	}
 	export_ops_init(&export->export.exp_ops);
 	export->export.up_ops = up_ops;
+
+	/* get params for this export, if any */
+	if (parse_node) {
+		rc = load_config_from_node(parse_node,
+					   &export_param_block,
+					   export,
+					   true,
+					   err_type);
+		if (rc != 0) {
+			gsh_free(export);
+			return fsalstat(ERR_FSAL_INVAL, 0);
+		}
+	}
 
 	initialized = true;
 
