@@ -317,13 +317,6 @@ MODULE_FINI void finish(void)
 			"RGW: unregister_fsal failed (%d)", ret);
 	}
 
-	/* stop request processing */
-	ret = librgw_stop(RGWFSM.rgw);
-	if (ret != 0) {
-		LogCrit(COMPONENT_FSAL,
-			"librgw_stop failed (%d)", ret);
-	}
-
 	/* release the library */
 	librgw_shutdown(RGWFSM.rgw);
 }
