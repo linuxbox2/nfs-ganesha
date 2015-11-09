@@ -202,8 +202,6 @@ static fsal_status_t create_handle(struct fsal_export *export_pub,
 		return rgw2fsal_error(-ESTALE);
 	}
 
-	/* apparently this could be efficient, since rgw apparently
-	 * caches metadata */
 	rc = rgw_getattr(export->rgw_fs, rgw_fh, &st);
 	if (rc < 0)
 		return rgw2fsal_error(rc);

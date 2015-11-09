@@ -95,7 +95,11 @@ static fsal_status_t lookup(struct fsal_obj_handle *dir_pub,
 	/* XXX presently, we can only fake attrs--maybe rgw_lookup should
 	 * take struct stat pointer OUT as libcephfs' does */
 	rc = rgw_lookup(export->rgw_fs, dir->rgw_fh, path, &rgw_fh,
-			0 /* flags */);
+			RGW_LOOKUP_FLAG_NONE);
+	if (rc < 0)
+		return rgw2fsal_error(rc);
+
+	rc = rgw_getattr(export->rgw_fs, rgw_fh, &st);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 

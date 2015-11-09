@@ -265,6 +265,10 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 		 "RGW module export %s.",
 		 op_ctx->export->fullpath);
 
+	rc = rgw_getattr(export->rgw_fs, export->rgw_fs->root_fh, &st);
+	if (rc < 0)
+		return rgw2fsal_error(rc);
+
 	rc = construct_handle(export, export->rgw_fs->root_fh, &st, &handle);
 	if (rc < 0) {
 		status = rgw2fsal_error(rc);
