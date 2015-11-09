@@ -86,6 +86,8 @@ struct config_block rgw_block = {
 	.blk_desc.u.blk.commit = noop_conf_commit
 };
 
+static pthread_mutex_t init_mtx = PTHREAD_MUTEX_INITIALIZER;
+
 /* Module methods
  */
 
@@ -167,7 +169,7 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 	struct rgw_fsal_module *myself =
 	    container_of(module_in, struct rgw_fsal_module, fsal);
 	/* The internal export object */
-	struct rgw_export *export = gsh_calloc(1, sizeof(struct rgw_export));
+	struct rgw_export *export;
 	/* The 'private' root handle */
 	struct rgw_handle *handle = NULL;
 	/* Stat for root */
@@ -179,6 +181,33 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 	/* True if we have called fsal_export_init */
 	bool initialized = false;
 
+	/* once */
+	if (! RGWFSM.rgw) {
+		PTHREAD_MUTEX_lock(&init_mtx);
+		if (! RGWFSM.rgw) {
+			int argc = 1;
+			char *argv[2] = { "nfs-ganesha", NULL };
+			char *conf_path = NULL;
+
+			if (RGWFSM.conf_path) {
+				int clen = strlen(RGWFSM.conf_path) + 4;
+				conf_path = (char*) gsh_malloc(clen);
+				sprintf(conf_path, "-c %s", RGWFSM.conf_path);
+				argc = 2;
+				argv[1] = conf_path;
+			}
+
+			rc = librgw_create(&RGWFSM.rgw, argc, argv);
+			if (rc != 0) {
+				LogCrit(COMPONENT_FSAL,
+					"RGW module: librgw init failed (%d)",
+					rc);
+			}
+		}
+		PTHREAD_MUTEX_unlock(&init_mtx);
+	}
+
+	export = gsh_calloc(1, sizeof(struct rgw_export));
 	if (export == NULL) {
 		status.major = ERR_FSAL_NOMEM;
 		LogCrit(COMPONENT_FSAL,
@@ -268,7 +297,6 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 
 MODULE_INIT void init(void)
 {
-	int ret;
 	struct fsal_module *myself = &RGWFSM.fsal;
 
 	LogDebug(COMPONENT_FSAL,
@@ -276,24 +304,6 @@ MODULE_INIT void init(void)
 
 	/* register_fsal seems to expect zeroed memory. */
 	memset(myself, 0, sizeof(*myself));
-
-	int argc = 1;
-	char *argv[2] = { "nfs-ganesha", NULL };
-	char *conf_path = NULL;
-
-	if (RGWFSM.conf_path) {
-		int clen = strlen(RGWFSM.conf_path) + 4;
-		conf_path = (char*) gsh_malloc(clen);
-		sprintf(conf_path, "-c %s", RGWFSM.conf_path);
-		argc = 2;
-		argv[1] = conf_path;
-	}
-
-	ret = librgw_create(&RGWFSM.rgw, argc, argv);
-	if (ret != 0) {
-		LogCrit(COMPONENT_FSAL,
-			"RGW module: librgw init failed (%d)", ret);
-	}
 
 	if (register_fsal(myself, module_name, FSAL_MAJOR_VERSION,
 			  FSAL_MINOR_VERSION, FSAL_ID_RGW) != 0) {
@@ -330,5 +340,7 @@ MODULE_FINI void finish(void)
 	}
 
 	/* release the library */
-	librgw_shutdown(RGWFSM.rgw);
+	if (RGWFSM.rgw) {
+		librgw_shutdown(RGWFSM.rgw);
+	}
 }
