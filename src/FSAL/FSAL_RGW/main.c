@@ -68,6 +68,8 @@ static struct fsal_staticfsinfo_t default_rgw_info = {
 };
 
 static struct config_item rgw_items[] = {
+	CONF_ITEM_PATH("ceph_conf", 1, MAXPATHLEN, NULL,
+		rgw_fsal_module, conf_path),
 	CONF_ITEM_MODE("umask", 0,
 			rgw_fsal_module, fs_info.umask),
 	CONF_ITEM_MODE("xattr_access_rights", 0,
@@ -275,9 +277,19 @@ MODULE_INIT void init(void)
 	/* register_fsal seems to expect zeroed memory. */
 	memset(myself, 0, sizeof(*myself));
 
-	/* XXX can suggest debug levels, path to ceph.conf, etc,
-	 * see FSAL_CEPH */
-	ret = librgw_create(&RGWFSM.rgw, 0 /* argc */, NULL /* argv */);
+	int argc = 1;
+	char *argv[2] = { "nfs-ganesha", NULL };
+	char *conf_path = NULL;
+
+	if (RGWFSM.conf_path) {
+		int clen = strlen(RGWFSM.conf_path) + 4;
+		conf_path = (char*) gsh_malloc(clen);
+		sprintf(conf_path, "-c %s", RGWFSM.conf_path);
+		argc = 2;
+		argv[1] = conf_path;
+	}
+
+	ret = librgw_create(&RGWFSM.rgw, argc, argv);
 	if (ret != 0) {
 		LogCrit(COMPONENT_FSAL,
 			"RGW module: librgw init failed (%d)", ret);
