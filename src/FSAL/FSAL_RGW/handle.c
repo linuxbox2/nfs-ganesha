@@ -702,15 +702,15 @@ static fsal_status_t handle_digest(const struct fsal_obj_handle *handle_pub,
 		/* Digested Handles */
 	case FSAL_DIGEST_NFSV3:
 	case FSAL_DIGEST_NFSV4:
-		if (fh_desc->len < sizeof(handle->rgw_fh)) {
+		if (fh_desc->len < sizeof(struct rgw_fh_hk)) {
 			LogMajor(COMPONENT_FSAL,
 				 "RGW digest_handle: space too small for handle.  Need %zu, have %zu",
 				 sizeof(handle->rgw_fh), fh_desc->len);
 			return fsalstat(ERR_FSAL_TOOSMALL, 0);
 		} else {
-			memcpy(fh_desc->addr, &handle->rgw_fh,
-			       sizeof(handle->rgw_fh));
-			fh_desc->len = sizeof(handle->rgw_fh);
+			memcpy(fh_desc->addr, &(handle->rgw_fh->fh_hk),
+				sizeof(struct rgw_fh_hk));
+			fh_desc->len = sizeof(struct rgw_fh_hk);
 		}
 		break;
 

@@ -146,7 +146,7 @@ static fsal_status_t extract_handle(struct fsal_export *exp_hdl,
 	case FSAL_DIGEST_NFSV3:
 	case FSAL_DIGEST_NFSV4:
 		/* wire handles */
-		fh_desc->len = sizeof(struct rgw_file_handle);
+		fh_desc->len = sizeof(struct rgw_fh_hk);
 		break;
 	default:
 		return fsalstat(ERR_FSAL_SERVERFAULT, 0);
