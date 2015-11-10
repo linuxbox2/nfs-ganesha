@@ -198,9 +198,8 @@ static fsal_status_t create_handle(struct fsal_export *export_pub,
 	memcpy((char*) &fh_hk, desc->addr, desc->len);
 
 	rc = rgw_lookup_handle(export->rgw_fs, &fh_hk, &rgw_fh, 0 /* flags */);
-	if (!rc) {
+	if (rc < 0)
 		return rgw2fsal_error(-ESTALE);
-	}
 
 	rc = rgw_getattr(export->rgw_fs, rgw_fh, &st);
 	if (rc < 0)
