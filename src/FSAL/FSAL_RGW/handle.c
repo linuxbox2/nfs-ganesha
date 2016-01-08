@@ -145,7 +145,7 @@ static fsal_status_t fsal_readdir(struct fsal_obj_handle *dir_pub,
 
 	uint64_t r_whence = (whence) ? *whence : 0;
 	rc = rgw_readdir(export->rgw_fs, dir->rgw_fh, &r_whence, cb,
-			 cb_arg, eof);
+			cb_arg, eof, RGW_READDIR_FLAG_NONE);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
