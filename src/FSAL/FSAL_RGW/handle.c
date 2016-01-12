@@ -99,7 +99,7 @@ static fsal_status_t lookup(struct fsal_obj_handle *dir_pub,
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
-	rc = rgw_getattr(export->rgw_fs, rgw_fh, &st);
+	rc = rgw_getattr(export->rgw_fs, rgw_fh, &st, RGW_GETATTR_FLAG_NONE);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
@@ -189,7 +189,7 @@ static fsal_status_t fsal_create(struct fsal_obj_handle *dir_pub,
 	    & ~op_ctx->fsal_export->exp_ops.fs_umask(op_ctx->fsal_export);
 
 	rc = rgw_create(export->rgw_fs, dir->rgw_fh, name, unix_mode, &st,
-			&rgw_fh);
+			&rgw_fh, RGW_CREATE_FLAG_NONE);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
@@ -241,7 +241,7 @@ static fsal_status_t fsal_mkdir(struct fsal_obj_handle *dir_pub,
 		& ~op_ctx->fsal_export->exp_ops.fs_umask(op_ctx->fsal_export);
 
 	rc = rgw_mkdir(export->rgw_fs, dir->rgw_fh, name, unix_mode, &st,
-		       &rgw_fh);
+		&rgw_fh, RGW_MKDIR_FLAG_NONE);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
@@ -279,7 +279,8 @@ static fsal_status_t getattrs(struct fsal_obj_handle *handle_pub)
 	/* Stat buffer */
 	struct stat st;
 
-	rc = rgw_getattr(export->rgw_fs, handle->rgw_fh, &st);
+	rc = rgw_getattr(export->rgw_fs, handle->rgw_fh, &st,
+			RGW_GETATTR_FLAG_NONE);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
@@ -328,7 +329,7 @@ static fsal_status_t setattrs(struct fsal_obj_handle *handle_pub,
 
 	if (FSAL_TEST_MASK(attrs->mask, ATTR_SIZE)) {
 		rc = rgw_truncate(export->rgw_fs, handle->rgw_fh,
-				  attrs->filesize);
+				attrs->filesize, RGW_TRUNCATE_FLAG_NONE);
 		if (rc < 0)
 			return rgw2fsal_error(rc);
 	}
@@ -382,7 +383,8 @@ static fsal_status_t setattrs(struct fsal_obj_handle *handle_pub,
 		st.st_ctim = attrs->ctime;
 	}
 
-	rc = rgw_setattr(export->rgw_fs, handle->rgw_fh, &st, mask);
+	rc = rgw_setattr(export->rgw_fs, handle->rgw_fh, &st, mask,
+		RGW_SETATTR_FLAG_NONE);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
@@ -423,7 +425,7 @@ static fsal_status_t fsal_rename(struct fsal_obj_handle *obj_hdl,
 
 	/* XXX */
 	rc = rgw_rename(export->rgw_fs, olddir->rgw_fh, old_name,
-			newdir->rgw_fh, new_name);
+			newdir->rgw_fh, new_name, RGW_RENAME_FLAG_NONE);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
@@ -455,7 +457,8 @@ static fsal_status_t fsal_unlink(struct fsal_obj_handle *dir_pub,
 	struct rgw_handle *dir = container_of(dir_pub, struct rgw_handle,
 					      handle);
 
-	rc = rgw_unlink(export->rgw_fs, dir->rgw_fh, name);
+	rc = rgw_unlink(export->rgw_fs, dir->rgw_fh, name,
+			RGW_UNLINK_FLAG_NONE);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
@@ -562,7 +565,8 @@ static fsal_status_t fsal_read(struct fsal_obj_handle *handle_pub,
 	struct rgw_handle *handle = container_of(handle_pub, struct rgw_handle,
 						 handle);
 	int rc = rgw_read(export->rgw_fs, handle->rgw_fh, offset,
-			buffer_size, read_amount, buffer);
+			buffer_size, read_amount, buffer,
+			RGW_READ_FLAG_NONE);
 
 	if (rc < 0)
 		return rgw2fsal_error(rc);
@@ -602,7 +606,8 @@ static fsal_status_t fsal_write(struct fsal_obj_handle *handle_pub,
 	struct rgw_handle *handle = container_of(handle_pub, struct rgw_handle,
 						 handle);
 	int rc = rgw_write(export->rgw_fs, handle->rgw_fh, offset,
-			buffer_size, write_amount, buffer);
+			buffer_size, write_amount, buffer,
+			RGW_WRITE_FLAG_NONE);
 
 	if (rc < 0)
 		return rgw2fsal_error(rc);
@@ -639,7 +644,8 @@ static fsal_status_t commit(struct fsal_obj_handle *handle_pub,
 	struct rgw_handle *handle = container_of(handle_pub, struct rgw_handle,
 						 handle);
 
-	rc = rgw_fsync(export->rgw_fs, handle->rgw_fh);
+	rc = rgw_fsync(export->rgw_fs, handle->rgw_fh,
+		RGW_FSYNC_FLAG_NONE);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
