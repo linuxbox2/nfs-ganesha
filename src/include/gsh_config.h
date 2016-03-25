@@ -390,6 +390,12 @@ typedef struct nfs_core_param {
  */
 #define DELEG_RECALL_RETRY_DELAY_DEFAULT 1
 
+enum nfs4_idmap_style {
+	NFS4_IDMAP_STYLE_IDMAPPER = 0,
+	NFS4_IDMAP_STYLE_GETPWNAM,
+	NFS4_IDMAP_STYLE_NUMERIC,
+};
+
 typedef struct nfs_version4_parameter {
 	/** Whether to disable the NFSv4 grace period.  Defaults to
 	    false and settable with Graceless. */
@@ -412,6 +418,7 @@ typedef struct nfs_version4_parameter {
 	    compiled in and true if it isn't.  Settable with
 	    UseGetpwnam. */
 	bool use_getpwnam;
+	enum nfs4_idmap_style idmap_style;
 	/** Whether to allow bare numeric IDs in NFSv4 owner and
 	    group identifiers.  Defaults to true and is settable with
 	    Allow_Numeric_Owners. */
