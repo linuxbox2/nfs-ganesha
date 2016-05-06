@@ -279,9 +279,9 @@ __thread char *clientip = NULL;
 		if (component_log_level[COMPONENT_LOG] == \
 		    NIV_FULL_DEBUG) \
 			DisplayLogComponentLevel(COMPONENT_LOG, \
-						 (char *) __FILE__, \
+						 __FILE__, \
 						 __LINE__, \
-						 (char *) __func__, \
+						 __func__, \
 						 NIV_NULL, \
 						 "LOG: " format, \
 						 ## args); \
@@ -1321,7 +1321,7 @@ static int display_log_header(struct display_buffer *dsp_log)
 }
 
 static int display_log_component(struct display_buffer *dsp_log,
-				 log_components_t component, char *file,
+				 log_components_t component, const char *file,
 				 int line, const char *function, int level)
 {
 	int b_left = display_start(dsp_log);
@@ -1378,9 +1378,10 @@ static int display_log_component(struct display_buffer *dsp_log,
 	return b_left;
 }
 
-void display_log_component_level(log_components_t component, char *file,
-				 int line, char *function, log_levels_t level,
-				 char *format, va_list arguments)
+void display_log_component_level(log_components_t component, const char *file,
+				int line, const char *function,
+				log_levels_t level, const char *format,
+				va_list arguments)
 {
 	char *compstr;
 	char *message;
@@ -1594,9 +1595,9 @@ struct log_component_info LogComponents[COMPONENT_COUNT] = {
 		.comp_str = "NFS_MSK",}
 };
 
-void DisplayLogComponentLevel(log_components_t component, char *file, int line,
-			      char *function, log_levels_t level, char *format,
-			      ...)
+void DisplayLogComponentLevel(log_components_t component, const char *file,
+			int line, const char *function, log_levels_t level,
+			const char *format, ...)
 {
 	va_list arguments;
 
@@ -1609,7 +1610,7 @@ void DisplayLogComponentLevel(log_components_t component, char *file, int line,
 }
 
 void LogMallocFailure(const char *file, int line, const char *function,
-		      char *allocator)
+		      const char *allocator)
 {
 	DisplayLogComponentLevel(COMPONENT_MEM_ALLOC, (char *) file, line,
 				 (char *)function, NIV_NULL,
