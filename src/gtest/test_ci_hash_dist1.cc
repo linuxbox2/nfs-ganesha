@@ -38,8 +38,8 @@ extern "C" {
 /* Ganesha headers */
 #include "nfs_lib.h"
 #include "export_mgr.h"
-#include "cache_inode.h"
 #include "nfs_exports.h"
+#include "sal_data.h"
 #include "fsal.h"
 }
 
@@ -54,10 +54,11 @@ namespace {
 
   struct req_op_context req_ctx;
   struct user_cred user_credentials;
+  struct attrlist object_attributes;
 
   struct gsh_export* a_export = nullptr;
-  cache_entry_t* root_entry = nullptr;
-  cache_entry_t* test_root = nullptr;
+  struct fsal_obj_handle *root_entry = nullptr;
+  struct fsal_obj_handle *test_root = nullptr;
 
 #if 0
   std::uniform_int_distribution<uint8_t> uint_dist;
@@ -79,7 +80,7 @@ namespace {
 
 TEST(CI_HASH_DIST1, INIT)
 {
-  cache_inode_status_t status;
+  fsal_status_t status;
 
   a_export = get_gsh_export(export_id);
   ASSERT_NE(a_export, nullptr);
@@ -90,6 +91,7 @@ TEST(CI_HASH_DIST1, INIT)
   /* Ganesha call paths need real or forged context info */
   memset(&user_credentials, 0, sizeof(struct user_cred));
   memset(&req_ctx, 0, sizeof(struct req_op_context));
+  memset(&object_attributes, 0, sizeof(object_attributes));
 
   req_ctx.ctx_export = a_export;
   req_ctx.fsal_export = a_export->fsal_export;
@@ -101,12 +103,16 @@ TEST(CI_HASH_DIST1, INIT)
 
 TEST(CI_HASH_DIST1, CREATE_ROOT)
 {
-  cache_inode_status_t status;
+  fsal_status_t status;
 
   // create root directory for test
-  status = cache_inode_create(root_entry, "ci_hash_dist1",
-			      DIRECTORY, 777, NULL /* create arg */,
-			      &test_root);
+  FSAL_SET_MASK(object_attributes.mask, ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
+  object_attributes.mode = 777; /* XXX */
+  object_attributes.owner = 667;
+  object_attributes.group = 766;
+
+  status = root_entry->obj_ops.mkdir(root_entry, "ci_hash_dist1",
+				    &object_attributes, &test_root);
   ASSERT_NE(test_root, nullptr);
 }
 
