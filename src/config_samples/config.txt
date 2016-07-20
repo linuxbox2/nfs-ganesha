@@ -526,7 +526,13 @@ LUSTRE {}
 RGW {}
 -------
 
-	Ceph_Conf(path, default "")
+	ceph_conf(path, default "")
+
+	name(string, default "")
+
+	cluster(string, default "")
+
+	init_args(string, default "")
 
 VFS {}
 ------
