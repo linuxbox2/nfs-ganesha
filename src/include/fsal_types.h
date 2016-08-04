@@ -628,6 +628,7 @@ typedef enum enum_fsal_fsinfo_options {
 	fso_reopen_method,
 	fso_grace_method,
 	fso_link_supports_permission_checks,
+	fso_renames_invalidate_handles,
 } fsal_fsinfo_options_t;
 
 /* The largest maxread and maxwrite value */
@@ -678,6 +679,7 @@ typedef struct fsal_staticfsinfo_t {
 	bool fsal_trace;	/*< fsal trace supports */
 	bool fsal_grace;	/*< fsal will handle grace */
 	bool link_supports_permission_checks;
+	bool renames_invalidate_handles; /*< Renames invalidate file handles */
 } fsal_staticfsinfo_t;
 
 /**

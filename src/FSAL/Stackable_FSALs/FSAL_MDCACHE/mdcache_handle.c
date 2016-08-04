@@ -723,6 +723,7 @@ static fsal_status_t mdcache_rename(struct fsal_obj_handle *obj_hdl,
 	mdcache_entry_t *mdc_obj =
 		container_of(obj_hdl, mdcache_entry_t, obj_handle);
 	mdcache_entry_t *mdc_lookup_dst = NULL;
+	bool renames_invalidate_handles;
 	fsal_status_t status;
 
 	status = mdc_try_get_cached(mdc_newdir, new_name, &mdc_lookup_dst);
@@ -768,11 +769,15 @@ static fsal_status_t mdcache_rename(struct fsal_obj_handle *obj_hdl,
 		mdc_unreachable(mdc_lookup_dst);
 	}
 
+	renames_invalidate_handles =
+		op_ctx->fsal_export->exp_ops.fs_supports(
+			op_ctx->fsal_export, fso_renames_invalidate_handles);
+
 	if (mdc_olddir == mdc_newdir) {
-		/* if the rename operation is made within the same dir, then we
-		 * use an optimization: mdcache_rename_dirent is used
-		 * instead of adding/removing dirent. This limits the use of
-		 * resource in this case */
+		/* for most FSALs, if the rename operation is made within the
+		 * same dir, then we use an optimization: mdcache_rename_dirent
+		 * is used instead of adding/removing dirent. This limits the
+		 * use of resources in this case */
 
 		LogDebug(COMPONENT_CACHE_INODE,
 			 "Rename (%p,%s)->(%p,%s) : source and target directory  the same",
@@ -819,6 +824,10 @@ static fsal_status_t mdcache_rename(struct fsal_obj_handle *obj_hdl,
 			mdcache_dirent_invalidate_all(mdc_olddir);
 		}
 	}
+
+	/* medieval invalidation called for */
+	if (renames_invalidate_handles)
+		mdcache_kill_entry(mdc_newdir);
 
 	/* unlock entries */
 	mdcache_src_dest_unlock(mdc_olddir, mdc_newdir);
