@@ -41,16 +41,16 @@
  *
  * This function looks up an object by name in a directory.
  *
- * @param[in] obj_pub The object to release
+ * @param[in] obj_hdl The object to release
  *
  * @return FSAL status codes.
  */
 
-static void release(struct fsal_obj_handle *obj_pub)
+static void release(struct fsal_obj_handle *obj_hdl)
 {
 	/* The private 'full' handle */
 	struct rgw_handle *obj =
-		container_of(obj_pub, struct rgw_handle, handle);
+		container_of(obj_hdl, struct rgw_handle, handle);
 	struct rgw_export *export = obj->export;
 
 	if (obj->rgw_fh != export->rgw_fs->root_fh) {
@@ -69,16 +69,16 @@ static void release(struct fsal_obj_handle *obj_pub)
  *
  * This function looks up an object by name in a directory.
  *
- * @param[in]     dir_pub    The directory in which to look up the object.
+ * @param[in]     dir_hdl    The directory in which to look up the object.
  * @param[in]     path       The name to look up.
- * @param[in,out] obj_pub    The looked up object.
+ * @param[in,out] obj_hdl    The looked up object.
  * @param[in,out] attrs_out  Optional attributes for newly created object
  *
  * @return FSAL status codes.
  */
-static fsal_status_t lookup(struct fsal_obj_handle *dir_pub,
-			    const char *path, struct fsal_obj_handle **obj_pub,
-			    struct attrlist *attrs_out)
+static fsal_status_t lookup(struct fsal_obj_handle *dir_hdl,
+			const char *path, struct fsal_obj_handle **obj_hdl,
+			struct attrlist *attrs_out)
 {
 	/* Generic status return */
 	int rc = 0;
@@ -86,9 +86,9 @@ static fsal_status_t lookup(struct fsal_obj_handle *dir_pub,
 	struct stat st;
 	/* The private 'full' export */
 	struct rgw_export *export =
-	    container_of(op_ctx->fsal_export, struct rgw_export, export);
-	struct rgw_handle *dir = container_of(dir_pub, struct rgw_handle,
-					      handle);
+		container_of(op_ctx->fsal_export, struct rgw_export, export);
+	struct rgw_handle *dir = container_of(dir_hdl, struct rgw_handle,
+					handle);
 	struct rgw_handle *obj = NULL;
 
 	/* rgw file handle */
@@ -110,7 +110,7 @@ static fsal_status_t lookup(struct fsal_obj_handle *dir_pub,
 		return rgw2fsal_error(rc);
 	}
 
-	*obj_pub = &obj->handle;
+	*obj_hdl = &obj->handle;
 
 	if (attrs_out != NULL) {
 		posix2fsal_attributes(&st, attrs_out);
@@ -126,7 +126,7 @@ static fsal_status_t lookup(struct fsal_obj_handle *dir_pub,
 struct rgw_cb_arg {
 	fsal_readdir_cb cb;
 	void *fsal_arg;
-	struct fsal_obj_handle *dir_pub;
+	struct fsal_obj_handle *dir_hdl;
 	attrmask_t attrmask;
 };
 
@@ -140,7 +140,7 @@ static bool rgw_cb(const char *name, void *arg, uint64_t offset)
 
 	fsal_prepare_attrs(&attrs, rgw_cb_arg->attrmask);
 
-	status = lookup(rgw_cb_arg->dir_pub, name, &obj, &attrs);
+	status = lookup(rgw_cb_arg->dir_hdl, name, &obj, &attrs);
 	if (FSAL_IS_ERROR(status))
 		return false;
 
@@ -159,7 +159,7 @@ static bool rgw_cb(const char *name, void *arg, uint64_t offset)
  * out of nothing) and passes dirent information to the supplied
  * callback.
  *
- * @param[in]  dir_pub     The directory to read
+ * @param[in]  dir_hdl     The directory to read
  * @param[in]  whence      The cookie indicating resumption, NULL to start
  * @param[in]  dir_state   Opaque, passed to cb
  * @param[in]  cb          Callback that receives directory entries
@@ -168,7 +168,7 @@ static bool rgw_cb(const char *name, void *arg, uint64_t offset)
  * @return FSAL status.
  */
 
-static fsal_status_t rgw_fsal_readdir(struct fsal_obj_handle *dir_pub,
+static fsal_status_t rgw_fsal_readdir(struct fsal_obj_handle *dir_hdl,
 				  fsal_cookie_t *whence, void *cb_arg,
 				  fsal_readdir_cb cb, attrmask_t attrmask,
 				  bool *eof)
@@ -177,11 +177,11 @@ static fsal_status_t rgw_fsal_readdir(struct fsal_obj_handle *dir_pub,
 	int rc = 0;
 	/* The private 'full' export */
 	struct rgw_export *export =
-	    container_of(op_ctx->fsal_export, struct rgw_export, export);
+		container_of(op_ctx->fsal_export, struct rgw_export, export);
 	/* The private 'full' directory handle */
-	struct rgw_handle *dir = container_of(dir_pub, struct rgw_handle,
-					      handle);
-	struct rgw_cb_arg rgw_cb_arg = {cb, cb_arg, dir_pub, attrmask};
+	struct rgw_handle *dir = container_of(dir_hdl, struct rgw_handle,
+					handle);
+	struct rgw_cb_arg rgw_cb_arg = {cb, cb_arg, dir_hdl, attrmask};
 	/* Return status */
 	fsal_status_t fsal_status = {ERR_FSAL_NO_ERROR, 0};
 
@@ -199,20 +199,20 @@ static fsal_status_t rgw_fsal_readdir(struct fsal_obj_handle *dir_pub,
  *
  * This function creates an empty, regular file.
  *
- * @param[in]     dir_pub    Directory in which to create the file
+ * @param[in]     dir_hdl    Directory in which to create the file
  * @param[in]     name       Name of file to create
  * @param[in]     attrs_in   Attributes of newly created file
- * @param[in,out] obj_pub    Handle for newly created file
+ * @param[in,out] obj_hdl    Handle for newly created file
  * @param[in,out] attrs_out  Optional attributes for newly created object
  *
  * @return FSAL status.
  */
 
-static fsal_status_t rgw_fsal_create(struct fsal_obj_handle *dir_pub,
-				      const char *name,
-				      struct attrlist *attrs_in,
-				      struct fsal_obj_handle **obj_pub,
-				      struct attrlist *attrs_out)
+static fsal_status_t rgw_fsal_create(struct fsal_obj_handle *dir_hdl,
+				const char *name,
+				struct attrlist *attrs_in,
+				struct fsal_obj_handle **obj_hdl,
+				struct attrlist *attrs_out)
 {
 	/* Generic status return */
 	int rc = 0;
@@ -220,7 +220,7 @@ static fsal_status_t rgw_fsal_create(struct fsal_obj_handle *dir_pub,
 	struct rgw_export *export =
 	    container_of(op_ctx->fsal_export, struct rgw_export, export);
 	/* The private 'full' directory handle */
-	struct rgw_handle *dir = container_of(dir_pub, struct rgw_handle,
+	struct rgw_handle *dir = container_of(dir_hdl, struct rgw_handle,
 					      handle);
 	/* New file handle */
 	struct rgw_file_handle *rgw_fh;
@@ -249,7 +249,7 @@ static fsal_status_t rgw_fsal_create(struct fsal_obj_handle *dir_pub,
 		return rgw2fsal_error(rc);
 	}
 
-	*obj_pub = &obj->handle;
+	*obj_hdl = &obj->handle;
 
 	if (attrs_out != NULL) {
 		posix2fsal_attributes(&st, attrs_out);
@@ -267,18 +267,18 @@ static fsal_status_t rgw_fsal_create(struct fsal_obj_handle *dir_pub,
  *
  * This funcion creates a new directory.
  *
- * @param[in]     dir_pub    The parent in which to create
+ * @param[in]     dir_hdl    The parent in which to create
  * @param[in]     name       Name of the directory to create
  * @param[in]     attrs_in   Attributes of the newly created directory
- * @param[in,out] obj_pub    Handle of the newly created directory
+ * @param[in,out] obj_hdl    Handle of the newly created directory
  * @param[in,out] attrs_out  Optional attributes for newly created object
  *
  * @return FSAL status.
  */
 
-static fsal_status_t rgw_fsal_mkdir(struct fsal_obj_handle *dir_pub,
+static fsal_status_t rgw_fsal_mkdir(struct fsal_obj_handle *dir_hdl,
 				const char *name, struct attrlist *attrs_in,
-				struct fsal_obj_handle **obj_pub,
+				struct fsal_obj_handle **obj_hdl,
 				struct attrlist *attrs_out)
 {
 	/* Generic status return */
@@ -287,7 +287,7 @@ static fsal_status_t rgw_fsal_mkdir(struct fsal_obj_handle *dir_pub,
 	struct rgw_export *export =
 	    container_of(op_ctx->fsal_export, struct rgw_export, export);
 	/* The private 'full' directory handle */
-	struct rgw_handle *dir = container_of(dir_pub, struct rgw_handle,
+	struct rgw_handle *dir = container_of(dir_hdl, struct rgw_handle,
 					      handle);
 	/* New file handle */
 	struct rgw_file_handle *rgw_fh;
@@ -316,7 +316,7 @@ static fsal_status_t rgw_fsal_mkdir(struct fsal_obj_handle *dir_pub,
 		return rgw2fsal_error(rc);
 	}
 
-	*obj_pub = &obj->handle;
+	*obj_hdl = &obj->handle;
 
 	if (attrs_out != NULL) {
 		posix2fsal_attributes(&st, attrs_out);
@@ -335,21 +335,21 @@ static fsal_status_t rgw_fsal_mkdir(struct fsal_obj_handle *dir_pub,
  * This function freshens and returns the attributes of the given
  * file.
  *
- * @param[in]  handle_pub Object to interrogate
+ * @param[in]  obj_hdl Object to interrogate
  *
  * @return FSAL status.
  */
-static fsal_status_t getattrs(struct fsal_obj_handle *handle_pub,
-			      struct attrlist *attrs)
+static fsal_status_t getattrs(struct fsal_obj_handle *obj_hdl,
+			struct attrlist *attrs)
 {
 	/* Generic status return */
 	int rc = 0;
 	/* The private 'full' export */
 	struct rgw_export *export =
-	    container_of(op_ctx->fsal_export, struct rgw_export, export);
+		container_of(op_ctx->fsal_export, struct rgw_export, export);
 	/* The private 'full' directory handle */
-	struct rgw_handle *handle = container_of(handle_pub, struct rgw_handle,
-						 handle);
+	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
+						handle);
 	/* Stat buffer */
 	struct stat st;
 
@@ -377,23 +377,23 @@ static fsal_status_t getattrs(struct fsal_obj_handle *handle_pub,
  *
  * This function sets attributes on a file.
  *
- * @param[in] handle_pub File to modify.
+ * @param[in] obj_hdl File to modify.
  * @param[in] attrs      Attributes to set.
  *
  * @return FSAL status.
  */
 
-static fsal_status_t setattrs(struct fsal_obj_handle *handle_pub,
-			      struct attrlist *attrs)
+static fsal_status_t setattrs(struct fsal_obj_handle *obj_hdl,
+			struct attrlist *attrs)
 {
 	/* Generic status return */
 	int rc = 0;
 	/* The private 'full' export */
 	struct rgw_export *export =
-	    container_of(op_ctx->fsal_export, struct rgw_export, export);
+		container_of(op_ctx->fsal_export, struct rgw_export, export);
 	/* The private 'full' directory handle */
-	struct rgw_handle *handle = container_of(handle_pub, struct rgw_handle,
-						 handle);
+	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
+						handle);
 	/* Stat buffer */
 	struct stat st;
 	/* Mask of attributes to set */
@@ -480,33 +480,32 @@ static fsal_status_t setattrs(struct fsal_obj_handle *handle_pub,
  * This function renames a file, possibly moving it into another
  * directory.  We assume most checks are done by the caller.
  *
- * @param[in] olddir_pub Source directory
+ * @param[in] olddir_hdl Source directory
  * @param[in] old_name   Original name
- * @param[in] newdir_pub Destination directory
+ * @param[in] newdir_hdl Destination directory
  * @param[in] new_name   New name
  *
  * @return FSAL status.
  */
 
 static fsal_status_t rgw_fsal_rename(struct fsal_obj_handle *obj_hdl,
-				 struct fsal_obj_handle *olddir_pub,
-				 const char *old_name,
-				 struct fsal_obj_handle *newdir_pub,
-				 const char *new_name)
+				struct fsal_obj_handle *olddir_hdl,
+				const char *old_name,
+				struct fsal_obj_handle *newdir_hdl,
+				const char *new_name)
 {
 	/* Generic status return */
 	int rc = 0;
 	/* The private 'full' export */
 	struct rgw_export *export =
-	    container_of(op_ctx->fsal_export, struct rgw_export, export);
+		container_of(op_ctx->fsal_export, struct rgw_export, export);
 	/* The private 'full' object handle */
-	struct rgw_handle *olddir = container_of(olddir_pub, struct rgw_handle,
-						 handle);
+	struct rgw_handle *olddir = container_of(olddir_hdl, struct rgw_handle,
+						handle);
 	/* The private 'full' destination directory handle */
-	struct rgw_handle *newdir = container_of(newdir_pub, struct rgw_handle,
-						 handle);
+	struct rgw_handle *newdir = container_of(newdir_hdl, struct rgw_handle,
+						handle);
 
-	/* XXX */
 	rc = rgw_rename(export->rgw_fs, olddir->rgw_fh, old_name,
 			newdir->rgw_fh, new_name, RGW_RENAME_FLAG_NONE);
 	if (rc < 0)
@@ -522,24 +521,24 @@ static fsal_status_t rgw_fsal_rename(struct fsal_obj_handle *obj_hdl,
  * deletes the associated file.  Directories must be empty to be
  * removed.
  *
- * @param[in] dir_pub Parent directory
+ * @param[in] dir_hdl Parent directory
  * @param[in] name    Name to remove
  *
  * @return FSAL status.
  */
 
-static fsal_status_t rgw_fsal_unlink(struct fsal_obj_handle *dir_pub,
-				     struct fsal_obj_handle *obj_pub,
-				 const char *name)
+static fsal_status_t rgw_fsal_unlink(struct fsal_obj_handle *dir_hdl,
+				struct fsal_obj_handle *obj_hdl,
+				const char *name)
 {
 	/* Generic status return */
 	int rc = 0;
 	/* The private 'full' export */
 	struct rgw_export *export =
-	    container_of(op_ctx->fsal_export, struct rgw_export, export);
+		container_of(op_ctx->fsal_export, struct rgw_export, export);
 	/* The private 'full' object handle */
-	struct rgw_handle *dir = container_of(dir_pub, struct rgw_handle,
-					      handle);
+	struct rgw_handle *dir = container_of(dir_hdl, struct rgw_handle,
+					handle);
 
 	rc = rgw_unlink(export->rgw_fs, dir->rgw_fh, name,
 			RGW_UNLINK_FLAG_NONE);
@@ -556,13 +555,13 @@ static fsal_status_t rgw_fsal_unlink(struct fsal_obj_handle *dir_pub,
  * taken, because we assume we are protected by the Cache inode
  * content lock.
  *
- * @param[in] handle_pub File to open
+ * @param[in] obj_hdl File to open
  * @param[in] openflags  Mode to open in
  *
  * @return FSAL status.
  */
 
-static fsal_status_t rgw_fsal_open(struct fsal_obj_handle *handle_pub,
+static fsal_status_t rgw_fsal_open(struct fsal_obj_handle *obj_hdl,
 			       fsal_openflags_t openflags)
 {
 	/* Generic status return */
@@ -571,7 +570,7 @@ static fsal_status_t rgw_fsal_open(struct fsal_obj_handle *handle_pub,
 	struct rgw_export *export =
 		container_of(op_ctx->fsal_export, struct rgw_export, export);
 	/* The private 'full' object handle */
-	struct rgw_handle *handle = container_of(handle_pub, struct rgw_handle,
+	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
 						 handle);
 	/* Posix open flags */
 	int posix_flags = 0;
@@ -605,15 +604,15 @@ static fsal_status_t rgw_fsal_open(struct fsal_obj_handle *handle_pub,
  * This function returns the open status (the open mode last used to
  * open the file, in our case) for a given file.
  *
- * @param[in] handle_pub File to interrogate.
+ * @param[in] obj_hdl File to interrogate.
  *
  * @return Open mode.
  */
 
-static fsal_openflags_t status(struct fsal_obj_handle *handle_pub)
+static fsal_openflags_t status(struct fsal_obj_handle *obj_hdl)
 {
 	/* The private 'full' object handle */
-	struct rgw_handle *handle = container_of(handle_pub, struct rgw_handle,
+	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
 						 handle);
 
 	return handle->openflags;
@@ -627,7 +626,7 @@ static fsal_openflags_t status(struct fsal_obj_handle *handle_pub)
  * We take no lock, since we assume we are protected by the
  * Cache inode content lock.
  *
- * @param[in]  handle_pub  File to read
+ * @param[in]  obj_hdl  File to read
  * @param[in]  offset      Point at which to begin read
  * @param[in]  buffer_size Maximum number of bytes to read
  * @param[out] buffer      Buffer to store data read
@@ -637,7 +636,7 @@ static fsal_openflags_t status(struct fsal_obj_handle *handle_pub)
  * @return FSAL status.
  */
 
-static fsal_status_t rgw_fsal_read(struct fsal_obj_handle *handle_pub,
+static fsal_status_t rgw_fsal_read(struct fsal_obj_handle *obj_hdl,
 			       uint64_t offset, size_t buffer_size,
 			       void *buffer, size_t *read_amount,
 			       bool *end_of_file)
@@ -646,7 +645,7 @@ static fsal_status_t rgw_fsal_read(struct fsal_obj_handle *handle_pub,
 	struct rgw_export *export =
 	    container_of(op_ctx->fsal_export, struct rgw_export, export);
 	/* The private 'full' object handle */
-	struct rgw_handle *handle = container_of(handle_pub, struct rgw_handle,
+	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
 						 handle);
 	int rc = rgw_read(export->rgw_fs, handle->rgw_fh, offset,
 			buffer_size, read_amount, buffer,
@@ -668,7 +667,7 @@ static fsal_status_t rgw_fsal_read(struct fsal_obj_handle *handle_pub,
  * We take no lock, since we assume we are protected by the Cache
  * inode content lock.
  *
- * @param[in]  handle_pub   File to write
+ * @param[in]  obj_hdl   File to write
  * @param[in]  offset       Position at which to write
  * @param[in]  buffer_size  Number of bytes to write
  * @param[in]  buffer       Data to write
@@ -677,7 +676,7 @@ static fsal_status_t rgw_fsal_read(struct fsal_obj_handle *handle_pub,
  * @return FSAL status.
  */
 
-static fsal_status_t rgw_fsal_write(struct fsal_obj_handle *handle_pub,
+static fsal_status_t rgw_fsal_write(struct fsal_obj_handle *obj_hdl,
 				uint64_t offset, size_t buffer_size,
 				void *buffer, size_t *write_amount,
 				bool *fsal_stable)
@@ -686,7 +685,7 @@ static fsal_status_t rgw_fsal_write(struct fsal_obj_handle *handle_pub,
 	struct rgw_export *export =
 	    container_of(op_ctx->fsal_export, struct rgw_export, export);
 	/* The private 'full' object handle */
-	struct rgw_handle *handle = container_of(handle_pub, struct rgw_handle,
+	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
 						 handle);
 	int rc = rgw_write(export->rgw_fs, handle->rgw_fh, offset,
 			buffer_size, write_amount, buffer,
@@ -707,14 +706,14 @@ static fsal_status_t rgw_fsal_write(struct fsal_obj_handle *handle_pub,
  * commits data from the entire file, rather than within the given
  * range.
  *
- * @param[in] handle_pub File to commit
+ * @param[in] obj_hdl File to commit
  * @param[in] offset     Start of range to commit
  * @param[in] len        Size of range to commit
  *
  * @return FSAL status.
  */
 
-static fsal_status_t commit(struct fsal_obj_handle *handle_pub,
+static fsal_status_t commit(struct fsal_obj_handle *obj_hdl,
 			    off_t offset,
 			    size_t len)
 {
@@ -724,7 +723,7 @@ static fsal_status_t commit(struct fsal_obj_handle *handle_pub,
 	struct rgw_export *export =
 	    container_of(op_ctx->fsal_export, struct rgw_export, export);
 	/* The private 'full' object handle */
-	struct rgw_handle *handle = container_of(handle_pub, struct rgw_handle,
+	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
 						 handle);
 
 	rc = rgw_fsync(export->rgw_fs, handle->rgw_fh, RGW_FSYNC_FLAG_NONE);
@@ -740,12 +739,12 @@ static fsal_status_t commit(struct fsal_obj_handle *handle_pub,
  * This function closes a file, freeing resources used for read/write
  * access and releasing capabilities.
  *
- * @param[in] handle_pub File to close
+ * @param[in] obj_hdl File to close
  *
  * @return FSAL status.
  */
 
-static fsal_status_t rgw_fsal_close(struct fsal_obj_handle *handle_pub)
+static fsal_status_t rgw_fsal_close(struct fsal_obj_handle *obj_hdl)
 {
 	/* Generic status return */
 	int rc = 0;
@@ -753,7 +752,7 @@ static fsal_status_t rgw_fsal_close(struct fsal_obj_handle *handle_pub)
 	struct rgw_export *export =
 	    container_of(op_ctx->fsal_export, struct rgw_export, export);
 	/* The private 'full' object handle */
-	struct rgw_handle *handle = container_of(handle_pub, struct rgw_handle,
+	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
 						 handle);
 
 	rc = rgw_close(export->rgw_fs, handle->rgw_fh, RGW_CLOSE_FLAG_NONE);
@@ -771,7 +770,7 @@ static fsal_status_t rgw_fsal_close(struct fsal_obj_handle *handle_pub)
  * This function writes a 'wire' handle to be sent to clients and
  * received from the.
  *
- * @param[in]     handle_pub  Handle to digest
+ * @param[in]     obj_hdl  Handle to digest
  * @param[in]     output_type Type of digest requested
  * @param[in,out] fh_desc     Location/size of buffer for
  *                            digest/Length modified to digest length
@@ -779,13 +778,13 @@ static fsal_status_t rgw_fsal_close(struct fsal_obj_handle *handle_pub)
  * @return FSAL status.
  */
 
-static fsal_status_t handle_digest(const struct fsal_obj_handle *handle_pub,
+static fsal_status_t handle_digest(const struct fsal_obj_handle *obj_hdl,
 				   uint32_t output_type,
 				   struct gsh_buffdesc *fh_desc)
 {
 	/* The private 'full' object handle */
 	const struct rgw_handle *handle =
-	    container_of(handle_pub, const struct rgw_handle, handle);
+	    container_of(obj_hdl, const struct rgw_handle, handle);
 
 	switch (output_type) {
 		/* Digested Handles */
@@ -815,16 +814,16 @@ static fsal_status_t handle_digest(const struct fsal_obj_handle *handle_pub,
  *
  * This function locates a unique hash key for a given file.
  *
- * @param[in]  handle_pub The file whose key is to be found
+ * @param[in]  obj_hdl The file whose key is to be found
  * @param[out] fh_desc    Address and length of key
  */
 
-static void handle_to_key(struct fsal_obj_handle *handle_pub,
+static void handle_to_key(struct fsal_obj_handle *obj_hdl,
 			  struct gsh_buffdesc *fh_desc)
 {
 	/* The private 'full' object handle */
-	struct rgw_handle *handle = container_of(handle_pub, struct rgw_handle,
-						 handle);
+	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
+						handle);
 
 	fh_desc->addr = &(handle->rgw_fh->fh_hk);
 	fh_desc->len = sizeof(struct rgw_fh_hk);
