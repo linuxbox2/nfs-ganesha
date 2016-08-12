@@ -734,6 +734,28 @@ static fsal_status_t commit(struct fsal_obj_handle *obj_hdl,
 }
 
 /**
+ * @brief Allocate a state_t structure
+ *
+ * Note that this is not expected to fail since memory allocation is
+ * expected to abort on failure.
+ *
+ * @param[in] exp_hdl               Export state_t will be associated with
+ * @param[in] state_type            Type of state to allocate
+ * @param[in] related_state         Related state if appropriate
+ *
+ * @returns a state structure.
+ */
+
+struct state_t *alloc_state(struct fsal_export *exp_hdl,
+			enum state_type state_type,
+			struct state_t *related_state)
+{
+	return init_state(gsh_calloc(1, sizeof(struct rgw_open_state)),
+			exp_hdl, state_type, related_state);
+}
+
+
+/**
  * @brief Close a file
  *
  * This function closes a file, freeing resources used for read/write

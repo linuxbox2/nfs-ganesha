@@ -39,6 +39,7 @@
 #include "fsal_types.h"
 #include "fsal_api.h"
 #include "fsal_convert.h"
+#include "sal_data.h"
 
 #include <include/rados/librgw.h>
 #include <include/rados/rgw_file.h>
@@ -92,6 +93,14 @@ struct rgw_handle {
 };
 
 /**
+ * RGW "file descriptor"
+ */
+struct rgw_open_state {
+	struct state_t gsh_open;
+	uint32_t flags;
+};
+
+/**
  * The attributes this FSAL can interpret or supply.
  */
 #define rgw_supported_attributes (\
@@ -132,5 +141,7 @@ int construct_handle(struct rgw_export *export,
 fsal_status_t rgw2fsal_error(const int errorcode);
 void export_ops_init(struct export_ops *ops);
 void handle_ops_init(struct fsal_obj_ops *ops);
-
+struct state_t *alloc_state(struct fsal_export *exp_hdl,
+			enum state_type state_type,
+			struct state_t *related_state);
 #endif				/* !FSAL_RGW_INTERNAL_INTERNAL */
