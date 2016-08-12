@@ -89,6 +89,7 @@ struct rgw_handle {
 	const struct fsal_up_vector *up_ops;	/*< Upcall operations */
 	struct rgw_export *export;	/*< The first export this handle
 					 *< belongs to */
+	struct fsal_share share;
 	fsal_openflags_t openflags;
 };
 

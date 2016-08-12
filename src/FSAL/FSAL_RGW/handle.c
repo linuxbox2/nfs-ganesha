@@ -240,7 +240,7 @@ static fsal_status_t rgw_fsal_create(struct fsal_obj_handle *dir_hdl,
 		RGW_SETATTR_UID | RGW_SETATTR_GID | RGW_SETATTR_MODE;
 
 	rc = rgw_create(export->rgw_fs, dir->rgw_fh, name, &st, create_mask,
-			&rgw_fh, RGW_CREATE_FLAG_NONE);
+			&rgw_fh, 0 /* posix flags */, RGW_CREATE_FLAG_NONE);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
@@ -588,7 +588,8 @@ static fsal_status_t rgw_fsal_open(struct fsal_obj_handle *obj_hdl,
 	if (handle->openflags != FSAL_O_CLOSED)
 		return fsalstat(ERR_FSAL_SERVERFAULT, 0);
 
-	rc = rgw_open(export->rgw_fs, handle->rgw_fh, posix_flags);
+	rc = rgw_open(export->rgw_fs, handle->rgw_fh, posix_flags,
+		RGW_OPEN_FLAG_NONE);
 	if (rc < 0) {
 		return rgw2fsal_error(rc);
 	}
@@ -596,6 +597,433 @@ static fsal_status_t rgw_fsal_open(struct fsal_obj_handle *obj_hdl,
 	handle->openflags = openflags;
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
+}
+
+
+/**
+ * @brief Open a file descriptor for read or write and possibly create
+ *
+ * This function opens a file for read or write, possibly creating it.
+ * If the caller is passing a state, it must hold the state_lock
+ * exclusive.
+ *
+ * state can be NULL which indicates a stateless open (such as via the
+ * NFS v3 CREATE operation), in which case the FSAL must assure protection
+ * of any resources. If the file is being created, such protection is
+ * simple since no one else will have access to the object yet, however,
+ * in the case of an exclusive create, the common resources may still need
+ * protection.
+ *
+ * If Name is NULL, obj_hdl is the file itself, otherwise obj_hdl is the
+ * parent directory.
+ *
+ * On an exclusive create, the upper layer may know the object handle
+ * already, so it MAY call with name == NULL. In this case, the caller
+ * expects just to check the verifier.
+ *
+ * On a call with an existing object handle for an UNCHECKED create,
+ * we can set the size to 0.
+ *
+ * If attributes are not set on create, the FSAL will set some minimal
+ * attributes (for example, mode might be set to 0600).
+ *
+ * If an open by name succeeds and did not result in Ganesha creating a file,
+ * the caller will need to do a subsequent permission check to confirm the
+ * open. This is because the permission attributes were not available
+ * beforehand.
+ *
+ * @param[in] obj_hdl               File to open or parent directory
+ * @param[in,out] state             state_t to use for this operation
+ * @param[in] openflags             Mode for open
+ * @param[in] createmode            Mode for create
+ * @param[in] name                  Name for file if being created or opened
+ * @param[in] attrib_set            Attributes to set on created file
+ * @param[in] verifier              Verifier to use for exclusive create
+ * @param[in,out] new_obj           Newly created object
+ * @param[in,out] caller_perm_check The caller must do a permission check
+ *
+ * @return FSAL status.
+ */
+
+fsal_status_t rgw_fsal_open2(struct fsal_obj_handle *obj_hdl,
+			struct state_t *state,
+			fsal_openflags_t openflags,
+			enum fsal_create_mode createmode,
+			const char *name,
+			struct attrlist *attrib_set,
+			fsal_verifier_t verifier,
+			struct fsal_obj_handle **new_obj,
+			struct attrlist *attrs_out,
+			bool *caller_perm_check)
+{
+	int posix_flags = 0;
+	int rc = 0;
+	mode_t unix_mode;
+	fsal_status_t status = {0, 0};
+	struct stat st;
+	bool truncated;
+	bool setattrs = attrib_set != NULL;
+	bool created = false;
+	struct attrlist verifier_attr;
+	struct rgw_open_state *open_state = NULL;
+	struct rgw_file_handle *rgw_fh;
+	struct rgw_handle *obj;
+
+	struct rgw_export *export =
+		container_of(op_ctx->fsal_export, struct rgw_export, export);
+
+	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
+						handle);
+	if (state) {
+		open_state = (struct rgw_open_state *) state;
+		LogFullDebug(COMPONENT_FSAL,
+			"%s called w/open_state %p", __func__, open_state);
+	}
+
+	if (setattrs)
+		LogAttrlist(COMPONENT_FSAL, NIV_FULL_DEBUG,
+			    "attrs ", attrib_set, false);
+
+	fsal2posix_openflags(openflags, &posix_flags);
+
+	truncated = (posix_flags & O_TRUNC) != 0;
+
+	/* Now fixup attrs for verifier if exclusive create */
+	if (createmode >= FSAL_EXCLUSIVE) {
+		if (!setattrs) {
+			/* We need to use verifier_attr */
+			attrib_set = &verifier_attr;
+			memset(&verifier_attr, 0, sizeof(verifier_attr));
+		}
+
+		set_common_verifier(attrib_set, verifier);
+	}
+
+	if (!name) {
+		/* This is an open by handle */
+		if (state) {
+			/* Prepare to take the share reservation, but only if we
+			 * are called with a valid state (if state is NULL the
+			 * caller is a stateless create such as NFS v3 CREATE).
+			 */
+
+			/* This can block over an I/O operation. */
+			PTHREAD_RWLOCK_wrlock(&obj_hdl->lock);
+
+			/* Check share reservation conflicts. */
+			status = check_share_conflict(&handle->share,
+						      openflags, false);
+
+			if (FSAL_IS_ERROR(status)) {
+				PTHREAD_RWLOCK_unlock(&obj_hdl->lock);
+				return status;
+			}
+
+			/* Take the share reservation now by updating the
+			 * counters.
+			 */
+			update_share_counters(&handle->share, FSAL_O_CLOSED,
+					      openflags);
+
+			PTHREAD_RWLOCK_unlock(&obj_hdl->lock);
+		} else {
+			/* RGW doesn't have a file descriptor/open abstraction,
+			 * and actually forbids concurrent opens;  This is
+			 * where more advanced FSALs would fall back to using
+			 * a "global" fd--what we always use;  We still need
+			 * to take the lock expected by ULP
+			 */
+#if 0
+			my_fd = &hdl->fd;
+#endif
+			PTHREAD_RWLOCK_wrlock(&obj_hdl->lock);
+		}
+
+		rc = rgw_open(export->rgw_fs, handle->rgw_fh, posix_flags,
+			(!state) ? RGW_OPEN_FLAG_V3 : RGW_OPEN_FLAG_NONE);
+		if (rc < 0) {
+			if (!state) {
+				/* Release the lock taken above, and return
+				 * since there is nothing to undo.
+				 */
+				PTHREAD_RWLOCK_unlock(&obj_hdl->lock);
+				return rgw2fsal_error(rc);
+			} else {
+				/* Error - need to release the share */
+				goto undo_share;
+			}
+		}
+
+		if (createmode >= FSAL_EXCLUSIVE || truncated) {
+			/* refresh attributes */
+			rc = rgw_getattr(export->rgw_fs, rgw_fh, &st,
+					RGW_GETATTR_FLAG_NONE);
+			if (rc < 0) {
+				status = rgw2fsal_error(rc);
+			} else {
+				LogFullDebug(COMPONENT_FSAL,
+					"New size = %"PRIx64, st.st_size);
+				/* Now check verifier for exclusive, but not for
+				 * FSAL_EXCLUSIVE_9P.
+				 */
+				if (createmode >= FSAL_EXCLUSIVE &&
+					createmode != FSAL_EXCLUSIVE_9P &&
+					!obj_hdl->obj_ops.check_verifier(
+						obj_hdl, verifier)) {
+					/* Verifier didn't match */
+					status =
+						fsalstat(posix2fsal_error(
+							EEXIST),
+							EEXIST);
+				}
+			}
+		}
+
+		if (!state) {
+			/* If no state, release the lock taken above and return
+			 * status.
+			 */
+			PTHREAD_RWLOCK_unlock(&obj_hdl->lock);
+			return status;
+		}
+
+		if (!FSAL_IS_ERROR(status)) {
+			/* Return success. */
+			return status;
+		}
+
+		/* close on error */
+		(void) rgw_close(export->rgw_fs, handle->rgw_fh,
+				RGW_CLOSE_FLAG_NONE);
+
+ undo_share:
+
+		/* Can only get here with state not NULL and an error */
+
+		/* On error we need to release our share reservation
+		 * and undo the update of the share counters.
+		 * This can block over an I/O operation.
+		 */
+		PTHREAD_RWLOCK_wrlock(&obj_hdl->lock);
+
+		update_share_counters(&handle->share, openflags, FSAL_O_CLOSED);
+
+		PTHREAD_RWLOCK_unlock(&obj_hdl->lock);
+
+		return status;
+	} /* !name */
+
+	/* In this path where we are opening by name, we can't check share
+	 * reservation yet since we don't have an object_handle yet. If we
+	 * indeed create the object handle (there is no race with another
+	 * open by name), then there CAN NOT be a share conflict, otherwise
+	 * the share conflict will be resolved when the object handles are
+	 * merged.
+	 */
+
+	if (createmode == FSAL_NO_CREATE) {
+		/* Non creation case, librgw doesn't have open by name so we
+		 * have to do a lookup and then handle as an open by handle.
+		 */
+		struct fsal_obj_handle *temp = NULL;
+
+		/* We don't have open by name... */
+		status = obj_hdl->obj_ops.lookup(obj_hdl, name, &temp, NULL);
+
+		if (FSAL_IS_ERROR(status)) {
+			LogFullDebug(COMPONENT_FSAL,
+				     "lookup returned %s",
+				     fsal_err_txt(status));
+			return status;
+		}
+
+		/* Now call ourselves without name and attributes to open. */
+		status = obj_hdl->obj_ops.open2(temp, state, openflags,
+						FSAL_NO_CREATE, NULL, NULL,
+						verifier, new_obj,
+						attrs_out,
+						caller_perm_check);
+
+		if (FSAL_IS_ERROR(status)) {
+			/* Release the object we found by lookup. */
+			temp->obj_ops.release(temp);
+			LogFullDebug(COMPONENT_FSAL,
+				     "open returned %s",
+				     fsal_err_txt(status));
+		} else {
+			/* No permission check was actually done... */
+			*caller_perm_check = true;
+		}
+
+		return status;
+	}
+
+	/* Now add in O_CREAT and O_EXCL.
+	 * Even with FSAL_UNGUARDED we try exclusive create first so
+	 * we can safely set attributes.
+	 */
+	if (createmode != FSAL_NO_CREATE) {
+		posix_flags |= O_CREAT;
+
+		if (createmode >= FSAL_GUARDED || setattrs)
+			posix_flags |= O_EXCL;
+	}
+
+	if (setattrs && FSAL_TEST_MASK(attrib_set->mask, ATTR_MODE)) {
+		unix_mode = fsal2unix_mode(attrib_set->mode) &
+		    ~op_ctx->fsal_export->exp_ops.fs_umask(op_ctx->fsal_export);
+		/* Don't set the mode if we later set the attributes */
+		FSAL_UNSET_MASK(attrib_set->mask, ATTR_MODE);
+	} else {
+		/* Default to mode 0600 */
+		unix_mode = 0600;
+	}
+
+	memset(&st, 0, sizeof(struct stat)); /* XXX needed? */
+
+	st.st_uid = op_ctx->creds->caller_uid;
+	st.st_gid = op_ctx->creds->caller_gid;
+	st.st_mode = unix_mode;
+
+	uint32_t create_mask =
+		RGW_SETATTR_UID | RGW_SETATTR_GID | RGW_SETATTR_MODE;
+
+	rc = rgw_create(export->rgw_fs, handle->rgw_fh, name, &st, create_mask,
+			&rgw_fh, posix_flags, RGW_CREATE_FLAG_NONE);
+	if (rc < 0) {
+		LogFullDebug(COMPONENT_FSAL,
+			     "Create %s failed with %s",
+			     name, strerror(-rc));
+	}
+
+	/* XXX won't get here, but maybe someday */
+	if (rc == -EEXIST && createmode == FSAL_UNCHECKED) {
+		/* We tried to create O_EXCL to set attributes and failed.
+		 * Remove O_EXCL and retry, also remember not to set attributes.
+		 * We still try O_CREAT again just in case file disappears out
+		 * from under us.
+		 */
+		posix_flags &= ~O_EXCL;
+		rc = rgw_create(export->rgw_fs, handle->rgw_fh, name, &st,
+				create_mask, &rgw_fh, posix_flags,
+				RGW_CREATE_FLAG_NONE);
+
+		if (rc < 0) {
+			LogFullDebug(COMPONENT_FSAL,
+				     "Non-exclusive Create %s failed with %s",
+				     name, strerror(-rc));
+		}
+	}
+
+	if (rc < 0) {
+		return rgw2fsal_error(rc);
+	}
+
+	/* Remember if we were responsible for creating the file.
+	 * Note that in an UNCHECKED retry we MIGHT have re-created the
+	 * file and won't remember that. Oh well, so in that rare case we
+	 * leak a partially created file if we have a subsequent error in here.
+	 * Since we were able to do the permission check even if we were not
+	 * creating the file, let the caller know the permission check has
+	 * already been done. Note it IS possible in the case of a race between
+	 * an UNCHECKED open and an external unlink, we did create the file.
+	 */
+	created = (posix_flags & O_EXCL) != 0;
+	*caller_perm_check = false;
+
+	construct_handle(export, rgw_fh, &st, &obj);
+
+	/* here FSAL_CEPH operates on its (for RGW non-existent) global
+	 * fd */
+#if 0
+	/* If we didn't have a state above, use the global fd. At this point,
+	 * since we just created the global fd, no one else can have a
+	 * reference to it, and thus we can mamnipulate unlocked which is
+	 * handy since we can then call setattr2 which WILL take the lock
+	 * without a double locking deadlock.
+	 */
+	if (my_fd == NULL)
+		my_fd = &hdl->fd;
+
+	my_fd->fd = fd;
+#endif
+	handle->openflags = openflags;
+
+	*new_obj = &obj->handle;
+
+	if (created && setattrs && attrib_set->mask != 0) {
+		/* Set attributes using our newly opened file descriptor as the
+		 * share_fd if there are any left to set (mode and truncate
+		 * have already been handled).
+		 *
+		 * Note that we only set the attributes if we were responsible
+		 * for creating the file.
+		 */
+		status = (*new_obj)->obj_ops.setattr2(*new_obj,
+						      false,
+						      state,
+						      attrib_set);
+
+		if (FSAL_IS_ERROR(status)) {
+			/* Release the handle we just allocated. */
+			(*new_obj)->obj_ops.release(*new_obj);
+			*new_obj = NULL;
+			goto fileerr;
+		}
+
+		if (attrs_out != NULL) {
+			status = (*new_obj)->obj_ops.getattrs(*new_obj,
+							      attrs_out);
+			if (FSAL_IS_ERROR(status) &&
+			    (attrs_out->mask & ATTR_RDATTR_ERR) == 0) {
+				/* Get attributes failed and caller expected
+				 * to get the attributes. Otherwise continue
+				 * with attrs_out indicating ATTR_RDATTR_ERR.
+				 */
+				goto fileerr;
+			}
+		}
+	} else if (attrs_out != NULL) {
+		/* Since we haven't set any attributes other than what was set
+		 * on create (if we even created), just use the stat results
+		 * we used to create the fsal_obj_handle.
+		 */
+		posix2fsal_attributes(&st, attrs_out);
+
+		/* Make sure ATTR_RDATTR_ERR is cleared on success. */
+		attrs_out->mask &= ~ATTR_RDATTR_ERR;
+	}
+
+	if (state != NULL) {
+		/* Prepare to take the share reservation, but only if we are
+		 * called with a valid state (if state is NULL the caller is
+		 * a stateless create such as NFS v3 CREATE).
+		 */
+
+		/* This can block over an I/O operation. */
+		PTHREAD_RWLOCK_wrlock(&(*new_obj)->lock);
+
+		/* Take the share reservation now by updating the counters. */
+		update_share_counters(&handle->share, FSAL_O_CLOSED, openflags);
+
+		PTHREAD_RWLOCK_unlock(&(*new_obj)->lock);
+	}
+
+	return fsalstat(ERR_FSAL_NO_ERROR, 0);
+
+ fileerr:
+
+	/* Close the file we just opened. */
+	(void) rgw_close(export->rgw_fs, handle->rgw_fh,
+			RGW_CLOSE_FLAG_NONE);
+
+	if (created) {
+		/* Remove the file we just created */
+		(void) rgw_unlink(export->rgw_fs, handle->rgw_fh, name,
+				RGW_UNLINK_FLAG_NONE);
+	}
+
+	return status;
 }
 
 /**
@@ -879,4 +1307,12 @@ void handle_ops_init(struct fsal_obj_ops *ops)
 	ops->close = rgw_fsal_close;
 	ops->handle_digest = handle_digest;
 	ops->handle_to_key = handle_to_key;
+	ops->open2 = rgw_fsal_open2;
+	ops->status2 = rgw_fsal_status2;
+	ops->reopen2 = rgw_fsal_reopen2;
+	ops->read2 = rgw_fsal_read2;
+	ops->write2 = rgw_fsal_write2;
+	ops->commit2 = rgw_fsal_commit2;
+	ops->setattr2 = rgw_fsal_setattr2;
+	ops->close2 = rgw_fsal_close2;
 }
