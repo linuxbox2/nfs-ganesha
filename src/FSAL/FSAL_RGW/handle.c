@@ -741,6 +741,7 @@ fsal_status_t rgw_fsal_open2(struct fsal_obj_handle *obj_hdl,
 
 		rc = rgw_open(export->rgw_fs, handle->rgw_fh, posix_flags,
 			(!state) ? RGW_OPEN_FLAG_V3 : RGW_OPEN_FLAG_NONE);
+
 		if (rc < 0) {
 			if (!state) {
 				/* Release the lock taken above, and return
@@ -1027,23 +1028,119 @@ fsal_status_t rgw_fsal_open2(struct fsal_obj_handle *obj_hdl,
 }
 
 /**
- * @brief Return the open status of a file
+ * @brief Return open status of a state.
  *
- * This function returns the open status (the open mode last used to
- * open the file, in our case) for a given file.
+ * This function returns open flags representing the current open
+ * status for a state. The state_lock must be held.
  *
- * @param[in] obj_hdl File to interrogate.
+ * @param[in] obj_hdl     File on which to operate
+ * @param[in] state       File state to interrogate
  *
- * @return Open mode.
+ * @retval Flags representing current open status
  */
 
-static fsal_openflags_t status(struct fsal_obj_handle *obj_hdl)
+fsal_openflags_t rgw_fsal_status2(struct fsal_obj_handle *obj_hdl,
+				struct state_t *state)
 {
-	/* The private 'full' object handle */
 	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
-						 handle);
+						handle);
+
+	/* normal FSALs recover open state in "state" */
 
 	return handle->openflags;
+}
+
+/**
+ * @brief Re-open a file that may be already opened
+ *
+ * This function supports changing the access mode of a share reservation and
+ * thus should only be called with a share state. The state_lock must be held.
+ *
+ * This MAY be used to open a file the first time if there is no need for
+ * open by name or create semantics. One example would be 9P lopen.
+ *
+ * @param[in] obj_hdl     File on which to operate
+ * @param[in] state       state_t to use for this operation
+ * @param[in] openflags   Mode for re-open
+ *
+ * @return FSAL status.
+ */
+
+fsal_status_t rgw_fsal_reopen2(struct fsal_obj_handle *obj_hdl,
+			struct state_t *state,
+			fsal_openflags_t openflags)
+{
+	fsal_status_t status = {0, 0};
+	int posix_flags = 0;
+	fsal_openflags_t old_openflags;
+	struct rgw_open_state *open_state = NULL;
+
+	struct rgw_export *export =
+		container_of(op_ctx->fsal_export, struct rgw_export, export);
+
+	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
+						handle);
+
+	/* RGW fsal does not permit concurrent opens, so openflags
+	 * are recovered from handle */
+
+	if (state) {
+		/* a conceptual open state exists */
+		open_state = (struct rgw_open_state *) state;
+		LogFullDebug(COMPONENT_FSAL,
+			"%s called w/open_state %p", __func__, open_state);
+	}
+
+	fsal2posix_openflags(openflags, &posix_flags);
+
+	/* This can block over an I/O operation. */
+	PTHREAD_RWLOCK_wrlock(&obj_hdl->lock);
+
+	old_openflags = handle->openflags;
+
+	/* We can conflict with old share, so go ahead and check now. */
+	status = check_share_conflict(&handle->share, openflags, false);
+
+	if (FSAL_IS_ERROR(status)) {
+		PTHREAD_RWLOCK_unlock(&obj_hdl->lock);
+
+		return status;
+	}
+
+	/* Set up the new share so we can drop the lock and not have a
+	 * conflicting share be asserted, updating the share counters.
+	 */
+	update_share_counters(&handle->share, old_openflags, openflags);
+
+	PTHREAD_RWLOCK_unlock(&obj_hdl->lock);
+
+	/* perform a provider open iff not already open */
+	if (! (fsal_is_open(obj_hdl))) {
+
+		/* XXX also, how do we know the ULP tracks opens?
+		 * 9P does, V3 does not */
+		
+		int rc = rgw_open(export->rgw_fs, handle->rgw_fh,
+				posix_flags,
+				(!state) ? RGW_OPEN_FLAG_V3 :
+				RGW_OPEN_FLAG_NONE);
+
+		if (rc < 0) {
+			/* We had a failure on open - we need to revert the
+			 * share. This can block over an I/O operation.
+			 */
+			PTHREAD_RWLOCK_wrlock(&obj_hdl->lock);
+
+			update_share_counters(&handle->share, openflags,
+					old_openflags);
+
+			PTHREAD_RWLOCK_unlock(&obj_hdl->lock);
+		}
+
+		status = rgw2fsal_error(rc);
+	}
+
+	return status;
 }
 
 /**
@@ -1299,8 +1396,8 @@ void handle_ops_init(struct fsal_obj_ops *ops)
 	ops->setattrs = setattrs;
 	ops->rename = rgw_fsal_rename;
 	ops->unlink = rgw_fsal_unlink;
-	ops->open = rgw_fsal_open;
-	ops->status = status;
+	/* ops->open = rgw_fsal_open; XXXX */
+	/* ops->status = status; XXXX */
 	ops->read = rgw_fsal_read;
 	ops->write = rgw_fsal_write;
 	ops->commit = commit;
