@@ -372,6 +372,7 @@ static fsal_status_t getattrs(struct fsal_obj_handle *obj_hdl,
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
+#if 0
 /**
  * @brief Set attributes on a file
  *
@@ -472,6 +473,179 @@ static fsal_status_t setattrs(struct fsal_obj_handle *obj_hdl,
 		return rgw2fsal_error(rc);
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
+}
+#endif
+
+/**
+ * @brief Set attributes on an object
+ *
+ * This function sets attributes on an object.  Which attributes are
+ * set is determined by attrib_set->mask. The FSAL must manage bypass
+ * or not of share reservations, and a state may be passed.
+ *
+ * @param[in] obj_hdl    File on which to operate
+ * @param[in] state      state_t to use for this operation
+ * @param[in] attrib_set Attributes to set
+ *
+ * @return FSAL status.
+ */
+fsal_status_t rgw_fsal_setattr2(struct fsal_obj_handle *obj_hdl,
+				bool bypass,
+				struct state_t *state,
+				struct attrlist *attrib_set)
+{
+
+	fsal_status_t status = {0, 0};
+	int rc = 0;
+	bool has_lock = false;
+	bool need_fsync = false;
+	bool closefd = false;
+	struct stat st;
+	/* Mask of attributes to set */
+	uint32_t mask = 0;
+
+	struct rgw_export *export =
+		container_of(op_ctx->fsal_export, struct rgw_export, export);
+
+	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
+						handle);
+	
+	if (attrib_set->mask & ~rgw_settable_attributes) {
+		LogDebug(COMPONENT_FSAL,
+			"bad mask %"PRIx64" not settable %"PRIx64,
+			attrib_set->mask,
+			attrib_set->mask & ~rgw_settable_attributes);
+		return fsalstat(ERR_FSAL_INVAL, 0);
+	}
+
+	LogAttrlist(COMPONENT_FSAL, NIV_FULL_DEBUG,
+		    "attrs ", attrib_set, false);
+
+	/* apply umask, if mode attribute is to be changed */
+	if (FSAL_TEST_MASK(attrib_set->mask, ATTR_MODE))
+		attrib_set->mode &=
+			~op_ctx->fsal_export->exp_ops.fs_umask(
+				op_ctx->fsal_export);
+
+	/* Test if size is being set, make sure file is regular and if so,
+	 * require a read/write file descriptor.
+	 */
+	if (FSAL_TEST_MASK(attrib_set->mask, ATTR_SIZE)) {
+		if (obj_hdl->type != REGULAR_FILE) {
+			LogFullDebug(COMPONENT_FSAL,
+				"Setting size on non-regular file");
+			return fsalstat(ERR_FSAL_INVAL, EINVAL);
+		}
+
+		/* We don't actually need an open fd, we are just doing the
+		 * share reservation checking, thus the NULL parameters.
+		 */
+		status = fsal_find_fd(NULL, obj_hdl, NULL, &handle->share,
+				bypass, state, FSAL_O_RDWR, NULL, NULL,
+				&has_lock, &need_fsync, &closefd, false);
+
+		if (FSAL_IS_ERROR(status)) {
+			LogFullDebug(COMPONENT_FSAL,
+				"fsal_find_fd status=%s",
+				fsal_err_txt(status));
+			goto out;
+		}
+	}
+
+	memset(&st, 0, sizeof(struct stat));
+
+	if (FSAL_TEST_MASK(attrib_set->mask, ATTR_SIZE)) {
+		rc = rgw_truncate(export->rgw_fs, handle->rgw_fh,
+				attrib_set->filesize, RGW_TRUNCATE_FLAG_NONE);
+
+		if (rc < 0) {
+			status = rgw2fsal_error(rc);
+			LogDebug(COMPONENT_FSAL,
+				"truncate returned %s (%d)",
+				strerror(-rc), -rc);
+			goto out;
+		}
+	}
+
+	if (FSAL_TEST_MASK(attrib_set->mask, ATTR_MODE)) {
+		mask |= RGW_SETATTR_MODE;
+		st.st_mode = fsal2unix_mode(attrib_set->mode);
+	}
+
+	if (FSAL_TEST_MASK(attrib_set->mask, ATTR_OWNER)) {
+		mask |= RGW_SETATTR_UID;
+		st.st_uid = attrib_set->owner;
+	}
+
+	if (FSAL_TEST_MASK(attrib_set->mask, ATTR_GROUP)) {
+		mask |= RGW_SETATTR_UID;
+		st.st_gid = attrib_set->group;
+	}
+
+	if (FSAL_TEST_MASK(attrib_set->mask, ATTR_ATIME)) {
+		mask |= RGW_SETATTR_ATIME;
+		st.st_atim = attrib_set->atime;
+	}
+
+	if (FSAL_TEST_MASK(attrib_set->mask, ATTR_ATIME_SERVER)) {
+		mask |= RGW_SETATTR_ATIME;
+		struct timespec timestamp;
+
+		rc = clock_gettime(CLOCK_REALTIME, &timestamp);
+		if (rc != 0) {
+			LogDebug(COMPONENT_FSAL,
+				"clock_gettime returned %s (%d)",
+				strerror(-rc), -rc);
+			status = rgw2fsal_error(rc);
+			goto out;
+		}
+		st.st_atim = timestamp;
+	}
+
+	if (FSAL_TEST_MASK(attrib_set->mask, ATTR_MTIME)) {
+		mask |= RGW_SETATTR_MTIME;
+		st.st_mtim = attrib_set->mtime;
+	}
+	if (FSAL_TEST_MASK(attrib_set->mask, ATTR_MTIME_SERVER)) {
+		mask |= RGW_SETATTR_MTIME;
+		struct timespec timestamp;
+
+		rc = clock_gettime(CLOCK_REALTIME, &timestamp);
+		if (rc != 0) {
+			LogDebug(COMPONENT_FSAL,
+				 "clock_gettime returned %s (%d)",
+				 strerror(-rc), -rc);
+			status = rgw2fsal_error(rc);
+			goto out;
+		}
+		st.st_mtim = timestamp;
+	}
+
+	if (FSAL_TEST_MASK(attrib_set->mask, ATTR_CTIME)) {
+		mask |= RGW_SETATTR_CTIME;
+		st.st_ctim = attrib_set->ctime;
+	}
+
+	rc = rgw_setattr(export->rgw_fs, handle->rgw_fh, &st, mask,
+			RGW_SETATTR_FLAG_NONE);
+
+	if (rc < 0) {
+		LogDebug(COMPONENT_FSAL,
+			 "setattr returned %s (%d)",
+			 strerror(-rc), -rc);
+		
+		status = rgw2fsal_error(rc);
+	} else {
+		/* Success */
+		status = fsalstat(ERR_FSAL_NO_ERROR, 0);
+	}
+
+ out:
+
+	if (has_lock)
+		PTHREAD_RWLOCK_unlock(&obj_hdl->lock);
+
+	return status;
 }
 
 /**
@@ -1549,7 +1723,7 @@ void handle_ops_init(struct fsal_obj_ops *ops)
 	ops->mkdir = rgw_fsal_mkdir;
 	ops->readdir = rgw_fsal_readdir;
 	ops->getattrs = getattrs;
-	ops->setattrs = setattrs;
+	/* ops->setattrs = setattrs; XXXX */
 	ops->rename = rgw_fsal_rename;
 	ops->unlink = rgw_fsal_unlink;
 	/* ops->open = rgw_fsal_open; XXXX */
