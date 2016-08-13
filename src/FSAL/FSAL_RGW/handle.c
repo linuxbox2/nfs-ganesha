@@ -548,6 +548,7 @@ static fsal_status_t rgw_fsal_unlink(struct fsal_obj_handle *dir_hdl,
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
+#if 0
 /**
  * @brief Open a file for read or write
  *
@@ -598,7 +599,7 @@ static fsal_status_t rgw_fsal_open(struct fsal_obj_handle *obj_hdl,
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
-
+#endif
 
 /**
  * @brief Open a file descriptor for read or write and possibly create
@@ -1143,6 +1144,7 @@ fsal_status_t rgw_fsal_reopen2(struct fsal_obj_handle *obj_hdl,
 	return status;
 }
 
+#if 0
 /**
  * @brief Read data from a file
  *
@@ -1166,10 +1168,9 @@ static fsal_status_t rgw_fsal_read(struct fsal_obj_handle *obj_hdl,
 			       void *buffer, size_t *read_amount,
 			       bool *end_of_file)
 {
-	/* The private 'full' export */
 	struct rgw_export *export =
 	    container_of(op_ctx->fsal_export, struct rgw_export, export);
-	/* The private 'full' object handle */
+
 	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
 						 handle);
 	int rc = rgw_read(export->rgw_fs, handle->rgw_fh, offset,
@@ -1183,7 +1184,65 @@ static fsal_status_t rgw_fsal_read(struct fsal_obj_handle *obj_hdl,
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
+#endif
 
+/**
+ * @brief Read data from a file
+ *
+ * This function reads data from the given file. The FSAL must be able to
+ * perform the read whether a state is presented or not. This function also
+ * is expected to handle properly bypassing or not share reservations.
+ *
+ * @param[in]     obj_hdl        File on which to operate
+ * @param[in]     bypass         If state doesn't indicate a share reservation,
+ *                               bypass any deny read
+ * @param[in]     state          state_t to use for this operation
+ * @param[in]     offset         Position from which to read
+ * @param[in]     buffer_size    Amount of data to read
+ * @param[out]    buffer         Buffer to which data are to be copied
+ * @param[out]    read_amount    Amount of data read
+ * @param[out]    end_of_file    true if the end of file has been reached
+ * @param[in,out] info           more information about the data
+ *
+ * @return FSAL status.
+ */
+
+fsal_status_t rgw_fsal_read2(struct fsal_obj_handle *obj_hdl,
+			bool bypass,
+			struct state_t *state,
+			uint64_t offset,
+			size_t buffer_size,
+			void *buffer,
+			size_t *read_amount,
+			bool *end_of_file,
+			struct io_info *info)
+{
+	struct rgw_export *export =
+	    container_of(op_ctx->fsal_export, struct rgw_export, export);
+
+	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
+						 handle);
+	if (info != NULL) {
+		/* Currently we don't support READ_PLUS */
+		return fsalstat(ERR_FSAL_NOTSUPP, 0);
+	}
+
+	/* RGW does not support a file descriptor abstraction--so
+	 * reads are handle based */
+
+	int rc = rgw_read(export->rgw_fs, handle->rgw_fh, offset,
+			buffer_size, read_amount, buffer,
+			RGW_READ_FLAG_NONE);
+
+	if (rc < 0)
+		return rgw2fsal_error(rc);
+
+	*end_of_file = (read_amount == 0);
+
+	return fsalstat(ERR_FSAL_NO_ERROR, 0);
+}
+
+#if 0
 /**
  * @brief Write data to file
  *
@@ -1223,6 +1282,72 @@ static fsal_status_t rgw_fsal_write(struct fsal_obj_handle *obj_hdl,
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
+#endif
+
+/**
+ * @brief Write data to a file
+ *
+ * This function writes data to a file. The FSAL must be able to
+ * perform the write whether a state is presented or not. This function also
+ * is expected to handle properly bypassing or not share reservations. Even
+ * with bypass == true, it will enforce a mandatory (NFSv4) deny_write if
+ * an appropriate state is not passed).
+ *
+ * The FSAL is expected to enforce sync if necessary.
+ *
+ * @param[in]     obj_hdl        File on which to operate
+ * @param[in]     bypass         If state doesn't indicate a share reservation,
+ *                               bypass any non-mandatory deny write
+ * @param[in]     state          state_t to use for this operation
+ * @param[in]     offset         Position at which to write
+ * @param[in]     buffer         Data to be written
+ * @param[in,out] fsal_stable    In, if on, the fsal is requested to write data
+ *                               to stable store. Out, the fsal reports what
+ *                               it did.
+ * @param[in,out] info           more information about the data
+ *
+ * @return FSAL status.
+ */
+
+fsal_status_t rgw_fsal_write2(struct fsal_obj_handle *obj_hdl,
+			bool bypass,
+			struct state_t *state,
+			uint64_t offset,
+			size_t buffer_size,
+			void *buffer,
+			 size_t *wrote_amount,
+			bool *fsal_stable,
+			struct io_info *info)
+{
+	fsal_openflags_t openflags = FSAL_O_WRITE;
+
+	struct rgw_export *export =
+		container_of(op_ctx->fsal_export, struct rgw_export, export);
+
+	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
+						handle);
+
+	if (info != NULL) {
+		/* Currently we don't support WRITE_PLUS */
+		return fsalstat(ERR_FSAL_NOTSUPP, 0);
+	}
+
+	if (*fsal_stable)
+		openflags |= FSAL_O_SYNC;
+
+	/* XXX note no call to fsal_find_fd (or wrapper) */
+
+	int rc = rgw_write(export->rgw_fs, handle->rgw_fh, offset,
+			buffer_size, wrote_amount, buffer,
+			RGW_WRITE_FLAG_NONE);
+
+	if (rc < 0)
+		return rgw2fsal_error(rc);
+
+	*fsal_stable = false;
+
+	return fsalstat(ERR_FSAL_NO_ERROR, 0);
+}
 
 /**
  * @brief Commit written data
@@ -1242,16 +1367,47 @@ static fsal_status_t commit(struct fsal_obj_handle *obj_hdl,
 			    off_t offset,
 			    size_t len)
 {
-	/* Generic status return */
-	int rc = 0;
-	/* The private 'full' export */
 	struct rgw_export *export =
-	    container_of(op_ctx->fsal_export, struct rgw_export, export);
-	/* The private 'full' object handle */
-	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
-						 handle);
+		container_of(op_ctx->fsal_export, struct rgw_export, export);
 
-	rc = rgw_fsync(export->rgw_fs, handle->rgw_fh, RGW_FSYNC_FLAG_NONE);
+	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
+						handle);
+
+	int rc = rgw_fsync(export->rgw_fs, handle->rgw_fh, RGW_FSYNC_FLAG_NONE);
+	if (rc < 0)
+		return rgw2fsal_error(rc);
+
+	return fsalstat(ERR_FSAL_NO_ERROR, 0);
+}
+
+/**
+ * @brief Commit written data
+ *
+ * This function flushes possibly buffered data to a file. This method
+ * differs from commit due to the need to interact with share reservations
+ * and the fact that the FSAL manages the state of "file descriptors". The
+ * FSAL must be able to perform this operation without being passed a specific
+ * state.
+ *
+ * @param[in] obj_hdl          File on which to operate
+ * @param[in] state            state_t to use for this operation
+ * @param[in] offset           Start of range to commit
+ * @param[in] len              Length of range to commit
+ *
+ * @return FSAL status.
+ */
+
+fsal_status_t rgw_fsal_commit2(struct fsal_obj_handle *obj_hdl,
+			off_t offset,
+			size_t len)
+{
+	struct rgw_export *export =
+		container_of(op_ctx->fsal_export, struct rgw_export, export);
+
+	struct rgw_handle *handle = container_of(obj_hdl, struct rgw_handle,
+						handle);
+
+	int rc = rgw_fsync(export->rgw_fs, handle->rgw_fh, RGW_FSYNC_FLAG_NONE);
 	if (rc < 0)
 		return rgw2fsal_error(rc);
 
@@ -1398,9 +1554,9 @@ void handle_ops_init(struct fsal_obj_ops *ops)
 	ops->unlink = rgw_fsal_unlink;
 	/* ops->open = rgw_fsal_open; XXXX */
 	/* ops->status = status; XXXX */
-	ops->read = rgw_fsal_read;
-	ops->write = rgw_fsal_write;
-	ops->commit = commit;
+	/* ops->read = rgw_fsal_read; XXXX */
+	/* ops->write = rgw_fsal_write; XXXX */
+	/* ops->commit = commit; XXXX */
 	ops->close = rgw_fsal_close;
 	ops->handle_digest = handle_digest;
 	ops->handle_to_key = handle_to_key;
