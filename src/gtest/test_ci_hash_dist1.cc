@@ -104,6 +104,7 @@ TEST(CI_HASH_DIST1, INIT)
 TEST(CI_HASH_DIST1, CREATE_ROOT)
 {
   fsal_status_t status;
+  struct attrlist *attrs_out = nullptr;
 
   // create root directory for test
   FSAL_SET_MASK(object_attributes.mask, ATTR_MODE | ATTR_OWNER | ATTR_GROUP);
@@ -112,7 +113,8 @@ TEST(CI_HASH_DIST1, CREATE_ROOT)
   object_attributes.group = 766;
 
   status = root_entry->obj_ops.mkdir(root_entry, "ci_hash_dist1",
-				    &object_attributes, &test_root);
+				    &object_attributes, &test_root,
+				    attrs_out);
   ASSERT_NE(test_root, nullptr);
 }
 
