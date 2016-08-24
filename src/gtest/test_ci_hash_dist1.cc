@@ -38,7 +38,6 @@ extern "C" {
 /* Ganesha headers */
 #include "nfs_lib.h"
 #include "export_mgr.h"
-#include "cache_inode.h"
 #include "nfs_exports.h"
 #include "fsal.h"
 }
@@ -56,8 +55,8 @@ namespace {
   struct user_cred user_credentials;
 
   struct gsh_export* a_export = nullptr;
-  cache_entry_t* root_entry = nullptr;
-  cache_entry_t* test_root = nullptr;
+  struct fsal_obj_handle* root_entry = null_ptr;
+  struct fsal_obj_handle* test_root = nullptr;
 
 #if 0
   std::uniform_int_distribution<uint8_t> uint_dist;
@@ -101,12 +100,12 @@ TEST(CI_HASH_DIST1, INIT)
 
 TEST(CI_HASH_DIST1, CREATE_ROOT)
 {
-  cache_inode_status_t status;
+  fsal_status_t status;
 
   // create root directory for test
-  status = cache_inode_create(root_entry, "ci_hash_dist1",
-			      DIRECTORY, 777, NULL /* create arg */,
-			      &test_root);
+  status = fsal_create(root_entry, "ci_hash_dist1",
+		      DIRECTORY, 777, NULL /* create arg */,
+		      &test_root);
   ASSERT_NE(test_root, nullptr);
 }
 
