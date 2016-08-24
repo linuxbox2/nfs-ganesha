@@ -42,7 +42,6 @@
 
 #include "fsal_types.h"
 #include "fsal_pnfs.h"
-#include "sal_shared.h"
 #include "config_parsing.h"
 #include "avltree.h"
 #include "abstract_atomic.h"
@@ -54,6 +53,7 @@ struct gsh_client;
 struct gsh_export;
 struct fsal_up_vector;		/* From fsal_up.h */
 struct state_t;
+enum state_type;
 
 /**
  * @page newapi New FSAL API
