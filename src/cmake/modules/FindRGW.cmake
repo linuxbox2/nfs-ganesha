@@ -66,6 +66,16 @@ FIND_PACKAGE_HANDLE_STANDARD_ARGS(RGW
   REQUIRED_VARS RGW_INCLUDE_DIR RGW_LIBRARY_DIR)
 # VERSION FPHSA options not handled by CMake version < 2.8.2)
 #                                  VERSION_VAR)
-mark_as_advanced(RGW_INCLUDE_DIR)
-mark_as_advanced(RGW_LIBRARY_DIR)
 
+# double check that RGW version is the supported 1.1.x
+set(RGW_FILE_HEADER "${RGW_INCLUDE_DIR}/rados/rgw_file.h”)
+file(STRINGS ${RGW_FILE_HEADER} RGW_MAJOR REGEX "LIBRGW_FILE_VER_MAJOR 1")
+file(STRINGS ${RGW_FILE_HEADER} RGW_MINOR REGEX "LIBRGW_FILE_VER_MINOR 1")
+
+if (RGW_MAJOR AND RGW_MINOR)
+  mark_as_advanced(RGW_INCLUDE_DIR)
+  mark_as_advanced(RGW_LIBRARY_DIR)
+else()
+  message(STATUS "RGW found unsupported header version (require 1.1.x)")
+  unset(RGW_FOUND)
+endif()
