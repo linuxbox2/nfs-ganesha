@@ -253,6 +253,8 @@ static fsal_status_t create_export(struct fsal_module *module_in,
 				gsh_free(conf_path);
 			if (inst_name)
 				gsh_free(inst_name);
+			if (cluster)
+				gsh_free(cluster);
 		}
 		PTHREAD_MUTEX_unlock(&init_mtx);
 	}
