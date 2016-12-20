@@ -1108,7 +1108,6 @@ dupreq_status_t nfs_dupreq_finish(struct svc_req *req, nfs_res_t *res_nfs)
 	dupreq_entry_t *ov = NULL, *dv = (dupreq_entry_t *)req->rq_u1;
 	dupreq_status_t status = DUPREQ_SUCCESS;
 	struct rbtree_x_part *t;
-	struct rbtree_x_part *saved_part;
 	drc_t *drc = NULL;
 
 	/* do nothing if req is marked no-cache */
@@ -1140,9 +1139,11 @@ dupreq_status_t nfs_dupreq_finish(struct svc_req *req, nfs_res_t *res_nfs)
 	if (drc_should_retire(drc)) {
 		/* again: */
 		ov = TAILQ_FIRST(&drc->dupreq_q);
+
 		if (likely(ov)) {
 			/* finished request count against retwnd */
 			drc_dec_retwnd(drc);
+
 			/* Quick check without partition lock */
 			if (ov->refcnt > 0) {
 				/* ov still in use, apparently */
@@ -1151,7 +1152,7 @@ dupreq_status_t nfs_dupreq_finish(struct svc_req *req, nfs_res_t *res_nfs)
 
 			/* remove dict entry */
 			t = rbtx_partition_of_scalar(&drc->xt, ov->hk);
-			saved_part = t;
+			uint64_t ov_hk = ov->hk;
 
 			/* Need to acquire partition lock, but the lock
 			 * order is partition lock followed by drc lock.
@@ -1166,15 +1167,11 @@ dupreq_status_t nfs_dupreq_finish(struct svc_req *req, nfs_res_t *res_nfs)
 			 * dupreq entry from the list again.
 			 */
 			ov = TAILQ_FIRST(&drc->dupreq_q);
-			t = rbtx_partition_of_scalar(&drc->xt, ov->hk);
 
-			/* Make sure that we have the correct partition
-			 * lock for the dupreq we are going to work on.
-			 * If the saved partition is different from the
-			 * partition of the current dupreq, we need to
-			 * backout.
+			/* Make sure that we are removing the entry we
+			 * expected (imperfect, but harmless).
 			 */
-			if (t != saved_part) {
+			if (ov->hk != ov_hk) {
 				PTHREAD_MUTEX_unlock(&t->mtx);
 				goto unlock;
 			}
