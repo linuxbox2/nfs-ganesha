@@ -1297,29 +1297,43 @@ fsal_status_t fsal_rdwr(struct fsal_obj_handle *obj,
 struct fsal_populate_cb_state {
 	struct fsal_obj_handle *directory;
 	fsal_status_t *status;
-	fsal_getattr_cb_t cb;
-	void *opaque;
+	helper_readdir_cb cb;
+	fsal_cookie_t last_cookie;
 	enum cb_state cb_state;
 	unsigned int *cb_nfound;
 	attrmask_t attrmask;
+	struct fsal_readdir_cb_parms cb_parms;
 };
 
-static bool
+static enum fsal_dir_result
 populate_dirent(const char *name,
 		struct fsal_obj_handle *obj,
 		struct attrlist *attrs,
 		void *dir_state,
-		fsal_cookie_t cookie)
+		fsal_cookie_t cookie,
+		fsal_cookie_t *ret_cookie)
 {
 	struct fsal_populate_cb_state *state =
 	    (struct fsal_populate_cb_state *)dir_state;
-	struct fsal_readdir_cb_parms cb_parms = { state->opaque, name,
-		true, true };
 	fsal_status_t status = {0, 0};
-	bool retval = true;
+	enum fsal_dir_result retval;
 
-	status.major = state->cb(&cb_parms, obj, attrs, attrs->fileid,
-				 cookie, state->cb_state);
+	if (ret_cookie != NULL) {
+		/* Caller cares about cookie marks, so we will need to
+		 * indicate continue but mark this entry.
+		 */
+		retval = DIR_CONTINUE_MARK;
+	} else {
+		/* Caller doesn't care about marks, so we will just
+		 * continue.
+		 */
+		retval = DIR_CONTINUE;
+	}
+	state->cb_parms.name = name;
+
+
+	status.major = state->cb(&state->cb_parms, obj, attrs, attrs->fileid,
+				cookie, state->cb_state);
 
 	if (status.major == ERR_FSAL_CROSS_JUNCTION) {
 		struct fsal_obj_handle *junction_obj;
@@ -1353,9 +1367,9 @@ populate_dirent(const char *name,
 					 fsal_err_txt(status));
 				/* Need to signal problem to callback */
 				state->cb_state = CB_PROBLEM;
-				(void) state->cb(&cb_parms, NULL, NULL, 0,
-						 cookie, state->cb_state);
-				retval = false;
+				(void) state->cb(&state->cb_parms, NULL, NULL,
+						 0, cookie, state->cb_state);
+				retval = DIR_TERMINATE;
 				goto out;
 			}
 		} else {
@@ -1363,9 +1377,9 @@ populate_dirent(const char *name,
 				 "A junction became stale");
 			/* Need to signal problem to callback */
 			state->cb_state = CB_PROBLEM;
-			(void) state->cb(&cb_parms, NULL, NULL, 0, cookie,
-					 state->cb_state);
-			retval = false;
+			(void) state->cb(&state->cb_parms, NULL, NULL, 0,
+					 cookie, state->cb_state);
+			retval = DIR_TERMINATE;
 			goto out;
 		}
 
@@ -1383,7 +1397,7 @@ populate_dirent(const char *name,
 		if (!FSAL_IS_ERROR(status)) {
 			/* Now call the callback again with that. */
 			state->cb_state = CB_JUNCTION;
-			status.major = state->cb(&cb_parms,
+			status.major = state->cb(&state->cb_parms,
 						 junction_obj,
 						 &attrs2,
 						 junction_export
@@ -1403,14 +1417,28 @@ populate_dirent(const char *name,
 		put_gsh_export(junction_export);
 	}
 
-	if (!cb_parms.in_result) {
-		retval = false;
+	if (!state->cb_parms.in_result) {
+		retval = DIR_TERMINATE;
 		goto out;
 	}
 
 	(*state->cb_nfound)++;
 
 out:
+
+	if (retval == DIR_CONTINUE_MARK) {
+		/* Caller cares about cookies, we need to return the last cookie
+		 * and then save this cookie so we can return it next time.
+		 */
+		*ret_cookie = state->last_cookie;
+		state->last_cookie = cookie;
+	}
+
+	/* NOTE: If the caller cares about cookies, and we did not consume the
+	 *       this entry, then returning DIR_TERMINATE as already set is
+	 *       appropriate, we will have marked the previous entrie's cookie
+	 *       and DIR_TERMINATE will indicate NOT to mark this cookie.
+	 */
 
 	/* Put the ref on obj that readdir took */
 	obj->obj_ops.put_ref(obj);
@@ -1442,7 +1470,7 @@ fsal_status_t fsal_readdir(struct fsal_obj_handle *directory,
 		    unsigned int *nbfound,
 		    bool *eod_met,
 		    attrmask_t attrmask,
-		    fsal_getattr_cb_t cb,
+		    helper_readdir_cb cb,
 		    void *opaque)
 {
 	fsal_status_t fsal_status = {0, 0};
@@ -1497,7 +1525,10 @@ fsal_status_t fsal_readdir(struct fsal_obj_handle *directory,
 	state.directory = directory;
 	state.status = &cb_status;
 	state.cb = cb;
-	state.opaque = opaque;
+	state.last_cookie = 0;
+	state.cb_parms.opaque = opaque;
+	state.cb_parms.in_result = true;
+	state.cb_parms.name = NULL;
 	state.cb_state = CB_ORIGINAL;
 	state.cb_nfound = nbfound;
 	state.attrmask = attrmask;

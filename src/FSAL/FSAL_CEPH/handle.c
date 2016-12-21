@@ -167,7 +167,7 @@ static fsal_status_t ceph_fsal_readdir(struct fsal_obj_handle *dir_pub,
 		} else if (rc == 1) {
 			struct fsal_obj_handle *obj;
 			struct attrlist attrs;
-			bool cb_rc;
+			enum fsal_dir_result cb_rc;
 
 			/* skip . and .. */
 			if ((strcmp(de.d_name, ".") == 0)
@@ -183,11 +183,12 @@ static fsal_status_t ceph_fsal_readdir(struct fsal_obj_handle *dir_pub,
 				goto closedir;
 			}
 
-			cb_rc = cb(de.d_name, obj, &attrs, dir_state, de.d_off);
+			cb_rc = cb(de.d_name, &obj->handle, &attrs, dir_state,
+				de.d_off, NULL);
 
 			fsal_release_attrs(&attrs);
 
-			if (!cb_rc)
+			if (cb_rc >= DIR_TERMINATE)
 				goto closedir;
 
 		} else if (rc == 0) {
