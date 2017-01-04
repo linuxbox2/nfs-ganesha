@@ -18,6 +18,22 @@ target_link_libraries(test_example
 set_target_properties(test_example PROPERTIES COMPILE_FLAGS
   "${UNITTEST_CXX_FLAGS}")
 
+# corosync worked examples
+set(test_example_SRCS
+  coro_kv.cc
+)
+add_executable(coro_kv EXCLUDE_FROM_ALL
+  ${test_example_SRCS})
+target_link_libraries(coro_kv
+  ${CMAKE_THREAD_LIBS_INIT}
+  ${UNITTEST_LIBS}
+  cmap
+  corosync_common
+  pthread
+  )
+set_target_properties(coro_kv PROPERTIES COMPILE_FLAGS
+  "${UNITTEST_CXX_FLAGS}")
+
 # Test using ganesha internals
 set(test_ci_hash_dist1_SRCS
   test_ci_hash_dist1.cc
