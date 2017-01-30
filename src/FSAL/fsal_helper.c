@@ -1351,6 +1351,7 @@ populate_dirent(const char *name,
 				state->cb_state = CB_PROBLEM;
 				(void) state->cb(&state->cb_parms, NULL, NULL,
 						 0, cookie, state->cb_state);
+
 				/* Protocol layers NEVER do readahead. */
 				retval = DIR_TERMINATE;
 				goto out;
@@ -1362,6 +1363,7 @@ populate_dirent(const char *name,
 			state->cb_state = CB_PROBLEM;
 			(void) state->cb(&state->cb_parms, NULL, NULL, 0,
 					 cookie, state->cb_state);
+
 			/* Protocol layers NEVER do readahead. */
 			retval = DIR_TERMINATE;
 			goto out;
@@ -1445,7 +1447,6 @@ fsal_status_t fsal_readdir(struct fsal_obj_handle *directory,
 		    void *opaque)
 {
 	fsal_status_t fsal_status = {0, 0};
-	fsal_status_t attr_status = {0, 0};
 	fsal_status_t cb_status = {0, 0};
 	struct fsal_populate_cb_state state;
 
@@ -1485,12 +1486,17 @@ fsal_status_t fsal_readdir(struct fsal_obj_handle *directory,
 	}
 	if (attrmask != 0) {
 		/* Check for access permission to get attributes */
-		attr_status = fsal_access(directory, access_mask_attr, NULL,
-					  NULL);
+		fsal_status_t attr_status = fsal_access(directory,
+							access_mask_attr, NULL,
+							NULL);
 		if (FSAL_IS_ERROR(attr_status))
 			LogFullDebug(COMPONENT_NFS_READDIR,
 				     "permission check for attributes status=%s",
-				     fsal_err_txt(fsal_status));
+				     fsal_err_txt(attr_status));
+		state.cb_parms.attr_allowed = !FSAL_IS_ERROR(attr_status);
+	} else {
+		/* No attributes requested. */
+		state.cb_parms.attr_allowed = false;
 	}
 
 	state.directory = directory;
