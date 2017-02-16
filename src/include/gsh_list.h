@@ -230,6 +230,11 @@ static inline size_t glist_length(struct glist_head *head)
 	     node != (head);				\
 	     node = noden, noden = node->next)
 
+/* Return the next entry in the list after node if any. */
+#define glist_next_entry(head, type, member, node) \
+	((node)->next != (head) ? \
+	container_of((node)->next, type, member) : NULL)
+
 static inline void glist_insert_sorted(struct glist_head *head,
 				       struct glist_head *elt,
 				       glist_compare compare)
