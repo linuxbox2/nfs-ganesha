@@ -217,6 +217,10 @@ static inline size_t glist_length(struct glist_head *head)
 	((head)->next != (head) ? \
 	container_of((head)->next, type, member) : NULL)
 
+#define glist_last_entry(head, type, member) \
+	((head)->prev != (head) ? \
+	container_of((head)->prev, type, member) : NULL)
+
 #define glist_entry(node, type, member) \
 	container_of(node, type, member)
 
