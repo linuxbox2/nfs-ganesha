@@ -258,6 +258,8 @@ struct mdcache_fsal_obj_handle {
 	union mdcache_fsobj {
 		struct state_hdl hdl;
 		struct {
+			/** List of chunks in this directory, not ordered */
+			struct glist_head chunks;
 			/** @todo FSF
 			 *
 			 * This is somewhat fragile, however, a reorganization
@@ -278,15 +280,28 @@ struct mdcache_fsal_obj_handle {
 			/** The parent of this directory ('..') */
 			mdcache_key_t parent;
 			struct {
-				/** Children */
+				/** Children by name hash */
 				struct avltree t;
-				/** Persist cookies */
+				/** Persist cookies for deleted entries */
 				struct avltree c;
+				/** Table of dirents by FSAL cookie */
+				struct avltree ck;
 				/** Heuristic. Expect 0. */
 				uint32_t collisions;
 			} avl;
 		} fsdir;		/**< DIRECTORY data */
 	} fsobj;
+};
+
+struct dir_chunk {
+	/** This chunk is part of a directory */
+	struct glist_head chunks;
+	/** List of dirents in this chunk */
+	struct glist_head dirents;
+	/** Directory this chunk belongs to */
+	struct mdcache_fsal_obj_handle *parent;
+	/** Number of entries in chunk */
+	int num_entries;
 };
 
 /**
@@ -298,17 +313,52 @@ struct mdcache_fsal_obj_handle {
 
 #define DIR_ENTRY_FLAG_NONE     0x0000
 #define DIR_ENTRY_FLAG_DELETED  0x0001
+#define DIR_ENTRY_COOKIE_MARKED 0x0002
 
 typedef struct mdcache_dir_entry__ {
-	struct avltree_node node_hk;	/*< AVL node in tree */
+	/** This dirent is part of a chunk */
+	struct glist_head chunk_list;
+	/** The chunk this entry belongs to */
+	struct dir_chunk *chunk;
+	/** node in tree by name */
+	struct avltree_node node_hk;
+	/** AVL node in tree by cookie */
+	struct avltree_node node_ck;
+	/** Cookie value from FSAL
+	 *  This is the coookie that is the "key" to find THIS entry.
+	 *
+	 *  The first entry in the directory (not . or ..) will have
+	 *  0 for this value.
+	 */
+	uint64_t ck;
+	/** Next cookie value from FSAL
+	 *  This is the cookie that is returned to clients for this
+	 *  dirent.
+	 *
+	 *  If this is the last dirent in a chunk, this cookie can be
+	 *  used to find the first dirent in the next chunk assuming
+	 *  that chunk is cached. If it isn't, it's the whence to start
+	 *  a new readdir from to read the next chunk.
+	 *
+	 *  If nk is 0 or 0x7FFFFFFFFFFFFFFF, this is the LAST entry in
+	 *  the directory.
+	 */
+	uint64_t nk;
 	struct {
-		uint64_t k;	/*< Integer cookie */
-		uint32_t p;	/*< Number of probes, an efficiency metric */
+		/** Name Hash */
+		uint64_t k;
+		/** Number of probes, an efficiency metric */
+		uint32_t p;
 	} hk;
-	mdcache_key_t ckey;	/*< Key of cache entry */
-	uint32_t flags;		/*< Flags */
-	char name[];		/*< The NUL-terminated filename */
+	/** Key of cache entry */
+	mdcache_key_t ckey;
+	/** Flags */
+	uint32_t flags;
+	/** The NUL-terminated filename */
+	char name[];
 } mdcache_dir_entry_t;
+
+#define LAST_COOKIE 0x7FFFFFFFFFFFFFFFLL
 
 /* Helpers */
 fsal_status_t mdcache_alloc_and_check_handle(
@@ -364,6 +414,13 @@ fsal_status_t mdcache_readdir_uncached(mdcache_entry_t *directory, fsal_cookie_t
 				       *whence, void *dir_state,
 				       fsal_readdir_cb cb, attrmask_t attrmask,
 				       bool *eod_met);
+fsal_status_t mdcache_readdir_chunked(mdcache_entry_t *directory,
+				      fsal_cookie_t whence,
+				      void *dir_state,
+				      fsal_readdir_cb cb,
+				      attrmask_t attrmask,
+				      bool *eod_met);
+
 void mdc_get_parent(struct mdcache_fsal_export *export,
 		    mdcache_entry_t *entry);
 

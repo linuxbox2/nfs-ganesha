@@ -68,7 +68,7 @@
  * @param[in,out] attrs_out      Optional attributes for newly created object.
  * @param[in]     parent         Parent directory to add dirent to.
  * @param[in]     name           Name of the dirent to add.
- * @param[in]     invalidate     Invalidate parent attr.
+ * @param[in]     invalidate     Invalidate parent attr (and chunk cache)
  * @param[in]     state          Optional state_t representing open file.
  *
  * @note This returns an INITIAL ref'd entry on success
@@ -112,16 +112,25 @@ fsal_status_t mdcache_alloc_and_check_handle(
 					   MDCACHE_TRUST_ATTRS);
 	}
 
-	status = mdcache_dirent_add(parent, name, new_entry);
+	if (parent->mde_flags & MDCACHE_BYPASS_DIRCACHE) {
+		/* Not caching this directory, don't do anything. */
+	} else if (mdcache_param.dir.avl_chunk > 0 && invalidate) {
+		/* If chunking and invalidating parent, invalidate parent. */
+		mdcache_dirent_invalidate_all(parent);
+	} else {
+		/* Add this entry to the directory (also takes an internal ref)
+		 */
+		status = mdcache_dirent_add(parent, name, new_entry);
 
-	if (FSAL_IS_ERROR(status)) {
-		LogDebug(COMPONENT_CACHE_INODE,
-			 "%s%s failed because add dirent failed",
-			 tag, name);
+		if (FSAL_IS_ERROR(status)) {
+			LogDebug(COMPONENT_CACHE_INODE,
+				 "%s%s failed because add dirent failed",
+				 tag, name);
 
-		mdcache_put(new_entry);
-		*new_obj = NULL;
-		return status;
+			mdcache_put(new_entry);
+			*new_obj = NULL;
+			return status;
+		}
 	}
 
 	if (new_entry->obj_handle.type == DIRECTORY) {
@@ -519,6 +528,7 @@ static fsal_status_t mdcache_link(struct fsal_obj_handle *obj_hdl,
 		status = entry->sub_handle->obj_ops.link(
 			entry->sub_handle, dest->sub_handle, name)
 	       );
+
 	if (FSAL_IS_ERROR(status)) {
 		LogFullDebug(COMPONENT_CACHE_INODE,
 			     "link failed %s",
@@ -528,9 +538,16 @@ static fsal_status_t mdcache_link(struct fsal_obj_handle *obj_hdl,
 
 	PTHREAD_RWLOCK_wrlock(&dest->content_lock);
 
-	/* Add this entry to the directory (also takes an internal ref)
-	 */
-	status = mdcache_dirent_add(dest, name, entry);
+	if (dest->mde_flags & MDCACHE_BYPASS_DIRCACHE) {
+		/* Not caching this directory, don't do anything. */
+	} else if (mdcache_param.dir.avl_chunk > 0) {
+		/* If chunking, invalidate directory. */
+		mdcache_dirent_invalidate_all(dest);
+	} else {
+		/* Add this entry to the directory (also takes an internal ref)
+		 */
+		status = mdcache_dirent_add(dest, name, entry);
+	}
 
 	PTHREAD_RWLOCK_unlock(&dest->content_lock);
 
@@ -569,7 +586,7 @@ static fsal_status_t mdcache_readdir(struct fsal_obj_handle *dir_hdl,
 	mdcache_dir_entry_t *dirent = NULL;
 	struct avltree_node *dirent_node = NULL;
 	fsal_status_t status = {0, 0};
-	enum fsal_dir_result cb_result = true;
+	enum fsal_dir_result cb_result;
 
 	if (!(directory->obj_handle.type == DIRECTORY))
 		return fsalstat(ERR_FSAL_NOTDIR, 0);
@@ -578,6 +595,15 @@ static fsal_status_t mdcache_readdir(struct fsal_obj_handle *dir_hdl,
 		/* Not caching dirents; pass through directly to FSAL */
 		return mdcache_readdir_uncached(directory, whence, dir_state,
 						cb, attrmask, eod_met);
+	}
+
+	if (mdcache_param.dir.avl_chunk > 0) {
+		/* Dirent chunking is enabled. */
+		LogDebug(COMPONENT_NFS_READDIR,
+			 "Calling mdcache_readdir_chunked");
+
+		return mdcache_readdir_chunked(directory, *whence, dir_state,
+					       cb, attrmask, eod_met);
 	}
 
 	/* Dirent's are being cached; check to see if it needs updating */
@@ -831,6 +857,14 @@ static fsal_status_t mdcache_rename(struct fsal_obj_handle *obj_hdl,
 	/* Now update cached dirents.  Must take locks in the correct order */
 	mdcache_src_dest_lock(mdc_olddir, mdc_newdir);
 
+	/* NOTE: Below we mostly don't check if the directory is not
+	 *       cached. The cache manipulation functions we call already
+	 *       bail out if we aren't cached. However, for rename into a
+	 *       new directory, we need to bypass if not cached even if
+	 *       chunking is enabled, so we check in that case to make
+	 *       chunk management simpler.
+	 */
+
 	if (mdc_lookup_dst) {
 		/* Remove the entry from parent dir_entries avl */
 		status = mdcache_dirent_remove(mdc_newdir, new_name);
@@ -869,6 +903,27 @@ static fsal_status_t mdcache_rename(struct fsal_obj_handle *obj_hdl,
 			 "Rename (%p,%s)->(%p,%s) : moving entry", mdc_olddir,
 			 old_name, mdc_newdir, new_name);
 
+		/* Remove the old entry */
+		status = mdcache_dirent_remove(mdc_olddir, old_name);
+
+		if (FSAL_IS_ERROR(status)) {
+			LogDebug(COMPONENT_CACHE_INODE,
+				 "Remove old dirent returned %s",
+				 fsal_err_txt(status));
+			/* Protected by mdcache_src_dst_lock() above */
+			mdcache_dirent_invalidate_all(mdc_olddir);
+		}
+
+		/* Don't rename dirents if newdir is not being cached */
+		if (mdc_newdir->mde_flags & MDCACHE_BYPASS_DIRCACHE)
+			goto unlock;
+
+		if (mdcache_param.dir.avl_chunk > 0) {
+			/* If chunking, invalidate mdc_newdir. */
+			mdcache_dirent_invalidate_all(mdc_newdir);
+			goto unlock;
+		}
+
 		/* We may have a cache entry for the destination
 		 * filename.  If we do, we must delete it : it is stale. */
 		status = mdcache_dirent_remove(mdc_newdir, new_name);
@@ -891,17 +946,9 @@ static fsal_status_t mdcache_rename(struct fsal_obj_handle *obj_hdl,
 			/* Protected by mdcache_src_dst_lock() above */
 			mdcache_dirent_invalidate_all(mdc_newdir);
 		}
-
-		/* Remove the old entry */
-		status = mdcache_dirent_remove(mdc_olddir, old_name);
-		if (FSAL_IS_ERROR(status)) {
-			LogDebug(COMPONENT_CACHE_INODE,
-				 "Remove old dirent returned %s",
-				 fsal_err_txt(status));
-			/* Protected by mdcache_src_dst_lock() above */
-			mdcache_dirent_invalidate_all(mdc_olddir);
-		}
 	}
+
+unlock:
 
 	/* unlock entries */
 	mdcache_src_dest_unlock(mdc_olddir, mdc_newdir);
