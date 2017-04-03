@@ -1042,7 +1042,7 @@ static fsal_status_t linkfile(struct fsal_obj_handle *obj_hdl,
 	return fsalstat(fsal_error, retval);
 }
 
-#define BUF_SIZE 1024
+#define BUF_SIZE 65536
 /**
  * read_dirents
  * read the directory and call through the callback function for
@@ -1069,6 +1069,7 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 	int nread;
 	struct vfs_dirent dentry, *dentryp = &dentry;
 	char buf[BUF_SIZE];
+	enum fsal_dir_result cb_rc = DIR_TERMINATE;
 
 	if (whence != NULL)
 		seekloc = (off_t) *whence;
@@ -1110,7 +1111,6 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 		for (bpos = 0; bpos < nread;) {
 			struct fsal_obj_handle *hdl;
 			struct attrlist attrs;
-			enum fsal_dir_result cb_rc;
 
 			if (!to_vfs_dirent(buf, bpos, dentryp, baseloc)
 			    || strcmp(dentryp->vd_name, ".") == 0
@@ -1132,13 +1132,17 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 
 			fsal_release_attrs(&attrs);
 
-			/* Read ahead not supported by this FSAL. */
-			if (cb_rc >= DIR_READAHEAD)
+			/* Read ahead supported by this FSAL. */
+			if (cb_rc >= DIR_TERMINATE)
 				goto done;
 
  skip:
 			bpos += dentryp->vd_reclen;
 		}
+
+		/* Don't readahead more than one readents call. */
+		if (cb_rc >= DIR_READAHEAD)
+			goto done;
 	} while (nread > 0);
 
 	*eof = true;
