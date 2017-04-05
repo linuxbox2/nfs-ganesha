@@ -325,7 +325,7 @@ struct state_t;
  * rules), increment the minor version
  */
 
-#define FSAL_MINOR_VERSION 0
+#define FSAL_MINOR_VERSION 1
 
 /* Forward references for object methods */
 
