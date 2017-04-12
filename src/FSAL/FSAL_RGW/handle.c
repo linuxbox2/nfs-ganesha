@@ -158,7 +158,7 @@ static bool rgw_cb(const char *name, void *arg, uint64_t offset, uint32_t flags)
 
 	fsal_release_attrs(&attrs);
 
-	return cb_rc < DIR_READAHEAD;
+	return cb_rc <= DIR_READAHEAD;
 }
 
 /**
