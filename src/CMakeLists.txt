@@ -335,6 +335,9 @@ option(USE_MAN_PAGE "Build MAN page" OFF)
 # Enable Rados KV store for recovery
 option(USE_RADOS_RECOV "Enable Rados KV Recovery" ON)
 
+# Enable RADOS URL config file sections
+option(RADOS_URLS "Enable config file inclusion from RADOS objects" OFF)
+
 #
 # End build options
 #
