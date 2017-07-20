@@ -110,8 +110,10 @@ COMMENTEXT	 #.*$
 ID_CHARS [a-zA-Z_][a-zA-Z0-9_\-]*
 NETGROUP_CHARS [a-zA-Z_][a-zA-Z0-9_.\-]*
 
+INETURL          rados:\/\/?([a-zA-Z0-9\-\.\_])+(\/[a-zA-Z0-9\-\.\_]+)*
+
 /* INCLUDE state is used for picking the name of the include file */
-%START YY_INIT DEFINITION TERM INCLUDE
+%START YY_INIT DEFINITION TERM INCLUDE INCLUDE_URL
 
 %%
 %{
@@ -152,6 +154,46 @@ NETGROUP_CHARS [a-zA-Z_][a-zA-Z0-9_.\-]*
 }
 
 <<EOF>> { /* end of included file */
+	DEBUG_LEX("<EOF>\n");
+	if (pop_file(stp) == 0)
+		yyterminate();
+}
+
+<YY_INIT>"%include_url" { /* URL include file start */
+	DEBUG_LEX("INCLUDE_URL\n");
+	BEGIN INCLUDE_URL;
+	/* not a token, return nothing */
+}
+
+<INCLUDE_URL>{INETURL} {
+
+	{
+		int c;
+
+		DEBUG_LEX("Calling new_file with unquoted %s\n", yytext);
+/* XXXX fix */
+		c = new_file(yytext, stp);
+		if (c == ENOMEM)
+			yyterminate();
+		BEGIN YY_INIT;
+		DEBUG_LEX("done new file\n");
+	}
+}
+
+<INCLUDE_URL>\"{INETURL}\" {
+	{
+		int c;
+
+		DEBUG_LEX("Calling new_file with quoted %s\n", yytext);
+		c = new_file(yytext, stp);
+		if (c == ENOMEM)
+			yyterminate();
+		BEGIN YY_INIT;
+		DEBUG_LEX("done new file\n");
+	}
+}
+
+<<EOF>> { /* end of included url */
 	DEBUG_LEX("<EOF>\n");
 	if (pop_file(stp) == 0)
 		yyterminate();
