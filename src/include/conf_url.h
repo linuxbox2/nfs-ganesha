@@ -22,4 +22,19 @@
 #ifndef CONF_URL_H
 #define CONF_URL_H
 
+#include <stdio.h>
+#include "gsh_list.h"
+
+struct gsh_url_provider {
+	struct glist_head link;
+	void (*url_init)(void);
+	void (*url_shutdown)(void);
+	int (*url_fetch)(const char *url, FILE **f); /* XXXX */
+};
+
+/** @brief package initializer
+ */
+
+void config_url_init(void);
+
 #endif /* CONF_URL_H */

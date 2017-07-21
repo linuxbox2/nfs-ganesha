@@ -24,6 +24,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
 SET(config_parsing_STAT_SRCS
    analyse.c
    config_parsing.c
+   conf_url.c
    analyse.h
 )
 
