@@ -55,7 +55,7 @@ int register_url_provider(struct gsh_url_provider *nurl_p)
 
 /* simplistic URL syntax */
 #define CONFIG_URL_REGEX \
-	"^(rados):\/\/(.+)"
+	"^(rados)://(.+)"
 
 /** @brief url regex initializer
  */
