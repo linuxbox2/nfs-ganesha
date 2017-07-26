@@ -25,12 +25,12 @@
 
 #ifdef RADOS_URL_PROVIDER
 
-static cu_rados_url_init(void)
+static void cu_rados_url_init(void)
 {
 	/* XXX do it */
 }
 
-static cu_rados_url_shutdown(void)
+static void cu_rados_url_shutdown(void)
 {
 	/* XXX do it */
 }
