@@ -63,6 +63,21 @@ void config_url_init(void)
 #endif
 }
 
+/** @brief package shutdown
+ */
+void config_url_shutdown(void)
+{
+	struct gsh_url_provider *url_p;
+
+	PTHREAD_RWLOCK_wrlock(&url_rwlock);
+	while ((url_p = glist_first_entry(
+			      &url_providers, struct gsh_url_provider, link))) {
+		glist_del(&url_p->link);
+		url_p->url_shutdown();
+	}
+	PTHREAD_RWLOCK_unlock(&url_rwlock);
+}
+
 /** @brief generic url dispatch
  */
 int config_url_fetch(const char *url, FILE **f)
