@@ -20,6 +20,7 @@
  */
 
 #include "config.h"
+#include <regex.h>
 #include "log.h"
 #include "sal_functions.h"
 
@@ -27,6 +28,7 @@
 
 static pthread_rwlock_t url_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 static struct glist_head url_providers;
+static regex_t url_regex;
 
 /** @brief register handler for new url type
  */
@@ -51,6 +53,23 @@ int register_url_provider(struct gsh_url_provider *nurl_p)
 	return code;
 }
 
+/* simplistic URL syntax */
+#define CONFIG_URL_REGEX \
+	"^(rados):\/\/(.+)"
+
+/** @brief url regex initializer
+ */
+static void init_url_regex(void)
+{
+	int r;
+
+	r = regcomp(&url_regex, CONFIG_URL_REGEX, REG_EXTENDED);
+	if (!!r) {
+		LogFatal(COMPONENT_INIT,
+			"Error initializing config url regex");
+	}
+}
+
 /** @brief package initializer
  */
 void config_url_init(void)
@@ -61,6 +80,7 @@ void config_url_init(void)
 #ifdef RADOS_URL_PROVIDER
 	conf_url_rados_pkginit();
 #endif
+	init_url_regex();
 }
 
 /** @brief package shutdown
@@ -76,6 +96,8 @@ void config_url_shutdown(void)
 		url_p->url_shutdown();
 	}
 	PTHREAD_RWLOCK_unlock(&url_rwlock);
+
+	regfree(&url_regex);
 }
 
 /** @brief generic url dispatch
@@ -84,18 +106,43 @@ int config_url_fetch(const char *url, FILE **f)
 {
 	struct gsh_url_provider *url_p;
 	struct glist_head *gl;
+	regmatch_t match[3];
+	char url_type[32];
+	char *m_url = NULL;
 	int code = EINVAL;
 
-	/* XXX need to match URL! */
+	code = regexec(&url_regex, url, 2, match, 0);
+	if (likely(!code)) {
+		/* matched */
+		regmatch_t *m = &(match[0]);
+		/* matched url pattern is NUL-terminated */
+		snprintf(url_type, m->rm_eo, "%s", url);
+		m = &(match[1]);
+		m_url = (char *)(url + m->rm_so);
+	} else if (code == REG_NOMATCH) {
+		LogWarn(COMPONENT_CONFIG,
+			"%s: Failed to match %s as a config URL",
+			__func__, url);
+		goto out;
+	} else {
+		char ebuf[100];
+
+		regerror(code, &url_regex, ebuf, sizeof(ebuf));
+		LogWarn(COMPONENT_CONFIG,
+			"%s: Error in regexec: %s",
+			__func__, ebuf);
+		goto out;
+	}
 
 	PTHREAD_RWLOCK_rdlock(&url_rwlock);
 	glist_for_each(gl, &url_providers) {
 		url_p = glist_entry(gl, struct gsh_url_provider, link);
 		if (!strcasecmp(url_p->name, url_p->name)) {
-			code = url_p->url_fetch(url, f);
+			code = url_p->url_fetch(m_url, f);
 			break;
 		}
 	}
 	PTHREAD_RWLOCK_unlock(&url_rwlock);
+out:
 	return code;
 }
