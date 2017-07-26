@@ -110,7 +110,8 @@ COMMENTEXT	 #.*$
 ID_CHARS [a-zA-Z_][a-zA-Z0-9_\-]*
 NETGROUP_CHARS [a-zA-Z_][a-zA-Z0-9_.\-]*
 
-INETURL          rados:\/\/?([a-zA-Z0-9\-\.\_])+(\/[a-zA-Z0-9\-\.\_]+)*
+URLTYPES     (rados)
+INETURL      URLTYPES:\/\/?\?([a-zA-Z0-9\-\.\_&=])+(\/[a-zA-Z0-9\-\.\_]+)*
 
 /* INCLUDE state is used for picking the name of the include file */
 %START YY_INIT DEFINITION TERM INCLUDE INCLUDE_URL

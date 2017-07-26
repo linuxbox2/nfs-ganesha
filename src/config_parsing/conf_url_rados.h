@@ -19,25 +19,15 @@
  * ---------------------------------------
  */
 
-#ifndef CONF_URL_H
-#define CONF_URL_H
+#ifndef CONF_URL_RADOS_H
+#define CONF_URL_RADOS_H
 
 #include <stdio.h>
 #include "gsh_list.h"
 
-struct gsh_url_provider {
-	struct glist_head link;
-	const char *name;
-	void (*url_init)(void); /* XXX needs config info */
-	void (*url_shutdown)(void);
-	int (*url_fetch)(const char *url, FILE **f); /* XXXX */
-};
+#ifdef RADOS_URL_PROVIDER
 
-/** @brief package initializer
- */
+void conf_url_rados_pkginit(void);
 
-void config_url_init(void);
-int register_url_provider(struct gsh_url_provider *nurl_p);
-int config_url_fetch(const char *url, FILE **f);
-
-#endif /* CONF_URL_H */
+#endif /* RADOS_URL_PROVIDER */
+#endif /* CONF_URL_RADOS_H */

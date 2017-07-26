@@ -19,25 +19,37 @@
  * ---------------------------------------
  */
 
-#ifndef CONF_URL_H
-#define CONF_URL_H
 
-#include <stdio.h>
-#include "gsh_list.h"
+#include "conf_url.h"
+#include "conf_url_rados.h"
 
-struct gsh_url_provider {
-	struct glist_head link;
-	const char *name;
-	void (*url_init)(void); /* XXX needs config info */
-	void (*url_shutdown)(void);
-	int (*url_fetch)(const char *url, FILE **f); /* XXXX */
-};
+#ifdef RADOS_URL_PROVIDER
 
-/** @brief package initializer
- */
+static cu_rados_url_init(void)
+{
+	/* XXX do it */
+}
 
-void config_url_init(void);
-int register_url_provider(struct gsh_url_provider *nurl_p);
-int config_url_fetch(const char *url, FILE **f);
+static cu_rados_url_shutdown(void)
+{
+	/* XXX do it */
+}
 
-#endif /* CONF_URL_H */
+static int cu_rados_url_fetch(const char *url, FILE **f)
+{
+	/* XXX do it */
+}
+
+static struct gsh_url_provider rados_url_provider = {
+	.name = "rados",
+	.url_init = cu_rados_url_init,
+	.url_shutdown = cu_rados_url_shutdown,
+	.url_fetch = cu_rados_url_fetch,
+}
+
+void conf_url_rados_pkginit(void)
+{
+	register_url_provider(&rados_url_provider);
+}
+
+#endif /* RADOS_URL_PROVIDER */
