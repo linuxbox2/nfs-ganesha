@@ -100,25 +100,45 @@ void config_url_shutdown(void)
 	regfree(&url_regex);
 }
 
+static inline char *match_dup(regmatch_t *m, char *in)
+{
+	char *s = NULL;
+
+	if (m->rm_so >= 0) {
+		int size;
+
+		size = m->rm_eo - m->rm_so + 1;
+		s = (char *)gsh_malloc(size);
+		snprintf(s, size, "%s", in + m->rm_so);
+	}
+	return s;
+}
+
 /** @brief generic url dispatch
  */
-int config_url_fetch(const char *url, FILE **f)
+int config_url_fetch(const char *url, FILE **f, char **fbuf)
 {
 	struct gsh_url_provider *url_p;
 	struct glist_head *gl;
 	regmatch_t match[3];
-	char url_type[32];
-	char *m_url = NULL;
+	char *url_type, *m_url;
 	int code = EINVAL;
 
-	code = regexec(&url_regex, url, 2, match, 0);
+	code = regexec(&url_regex, url, 3, match, 0);
 	if (likely(!code)) {
 		/* matched */
-		regmatch_t *m = &(match[0]);
-		/* matched url pattern is NUL-terminated */
-		snprintf(url_type, m->rm_eo, "%s", url);
+		regmatch_t *m;
+
 		m = &(match[1]);
-		m_url = (char *)(url + m->rm_so);
+		url_type = match_dup(m, (char *)url);
+		m = &(match[2]);
+		m_url = match_dup(m, (char *)url);
+		if (!(url_type && m_url)) {
+			LogWarn(COMPONENT_CONFIG,
+				"%s: Failed to match %s as a config URL",
+				__func__, url);
+			goto out;
+		}
 	} else if (code == REG_NOMATCH) {
 		LogWarn(COMPONENT_CONFIG,
 			"%s: Failed to match %s as a config URL",
@@ -137,12 +157,23 @@ int config_url_fetch(const char *url, FILE **f)
 	PTHREAD_RWLOCK_rdlock(&url_rwlock);
 	glist_for_each(gl, &url_providers) {
 		url_p = glist_entry(gl, struct gsh_url_provider, link);
-		if (!strcasecmp(url_p->name, url_p->name)) {
-			code = url_p->url_fetch(m_url, f);
+		if (!strcasecmp(url_type, url_p->name)) {
+			code = url_p->url_fetch(m_url, f, fbuf);
 			break;
 		}
 	}
 	PTHREAD_RWLOCK_unlock(&url_rwlock);
 out:
+	gsh_free(url_type);
+	gsh_free(m_url);
+
 	return code;
+}
+
+/** @brief return resources allocated by url_fetch
+ */
+void config_url_release(FILE *f, char *fbuf)
+{
+	fclose(f);
+	free(fbuf);
 }

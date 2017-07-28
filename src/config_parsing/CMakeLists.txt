@@ -28,13 +28,22 @@ SET(config_parsing_STAT_SRCS
    analyse.h
 )
 
+if(RADOS_URLS)
+  set(config_parsing_STAT_SRCS
+    ${config_parsing_STAT_SRCS}
+    conf_url_rados.c
+    )
+
+  include_directories(${RADOS_INCLUDE_DIR})
+  target_link_libraries(${RADOS_LIBRARIES})
+endif(RADOS_URLS)
+
 add_library(config_parsing STATIC
   ${config_parsing_STAT_SRCS}
   ${BISON_ConfigParser_OUTPUTS}
   ${FLEX_ConfigScanner_OUTPUTS}
 )
 add_sanitizers(config_parsing)
-
 
 ########### next target ###############
 
@@ -47,6 +56,9 @@ add_sanitizers(verif_syntax)
 
 target_link_libraries(verif_syntax config_parsing log ${CMAKE_THREAD_LIBS_INIT})
 
+if(RADOS_URLS)
+  target_link_libraries(config_parsing ${RADOS_LIBRARIES})
+endif(RADOS_URLS)
 
 ########### next target ###############
 
