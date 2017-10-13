@@ -1186,9 +1186,16 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 	int nread;
 	struct vfs_dirent dentry, *dentryp = &dentry;
 	char buf[BUF_SIZE];
+	fsal_cookie_t cookie;
+	const char *name = (const char *) whence;
 
-	if (whence != NULL)
-		seekloc = (off_t) *whence;
+	/* Return a non-zero cookie for the first file. */
+	cookie = FIRST_COOKIE;
+
+	LogFullDebug(COMPONENT_FSAL,
+		     "whence=%s",
+		     name ? name : "NULL");
+
 	myself = container_of(dir_hdl, struct vfs_fsal_obj_handle, obj_handle);
 	if (dir_hdl->fsal != dir_hdl->fs->fsal) {
 		LogDebug(COMPONENT_FSAL,
@@ -1206,12 +1213,6 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 		retval = -dirfd;
 		status = posix2fsal_status(retval);
 		goto out;
-	}
-	seekloc = lseek(dirfd, seekloc, SEEK_SET);
-	if (seekloc < 0) {
-		retval = errno;
-		status = posix2fsal_status(retval);
-		goto done;
 	}
 
 	do {
@@ -1234,6 +1235,21 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 			    || strcmp(dentryp->vd_name, "..") == 0)
 				goto skip;	/* must skip '.' and '..' */
 
+			if (name != NULL) {
+				/* Skip entries until we find the whence
+				 * name, and skip that entry also.
+				 */
+				LogFullDebug(COMPONENT_FSAL,
+					     "Skipping %s seeking %s",
+					     dentryp->vd_name, name);
+
+				if (strcmp(dentryp->vd_name, name) == 0) {
+					/* Found the cookie. */
+					name = NULL;
+				}
+				goto skip;
+			}
+
 			fsal_prepare_attrs(&attrs, attrmask);
 
 			status = lookup_with_fd(myself, dirfd, dentryp->vd_name,
@@ -1245,7 +1261,7 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 
 			/* callback to cache inode */
 			cb_rc = cb(dentryp->vd_name, hdl, &attrs, dir_state,
-				(fsal_cookie_t) dentryp->vd_offset);
+				cookie);
 
 			fsal_release_attrs(&attrs);
 
@@ -1254,6 +1270,10 @@ static fsal_status_t read_dirents(struct fsal_obj_handle *dir_hdl,
 				goto done;
 
  skip:
+
+			/* Save this d_off for the next cookie */
+			cookie = (fsal_cookie_t) dentryp->vd_offset;
+
 			bpos += dentryp->vd_reclen;
 		}
 	} while (nread > 0);

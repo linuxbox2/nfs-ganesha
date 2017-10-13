@@ -81,6 +81,7 @@ static struct fsal_staticfsinfo_t default_posix_info = {
 	.maxread = FSAL_MAXIOSIZE,
 	.maxwrite = FSAL_MAXIOSIZE,
 	.link_supports_permission_checks = false,
+	.whence_is_name = true,
 };
 
 static struct config_item vfs_params[] = {
