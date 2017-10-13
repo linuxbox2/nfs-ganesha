@@ -406,6 +406,20 @@ void SetNameFunction(const char *nom)
 	clientip = NULL;
 }
 
+/* Set the function name in progress. */
+void SetNameFunctionOnce(const char *prefix, uint32_t *counter)
+{
+	uint32_t index;
+
+	if (thread_name[0] != '\0')
+		return;
+
+	index = atomic_inc_uint32_t(counter);
+	snprintf(thread_name, sizeof(thread_name), "%s-%"PRIu32, prefix, index);
+	thread_name[sizeof(thread_name)-1] = '\0';
+	clientip = NULL;
+}
+
 /*
  * Sets the IP of the Client for this thread.
  * Make sure ip_str is valid for the duration of the thread
