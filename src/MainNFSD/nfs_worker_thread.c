@@ -67,6 +67,8 @@
 #define NFS_pcp nfs_param.core_param
 #define NFS_program NFS_pcp.program
 
+static uint32_t wrk_indexer;
+
 pool_t *request_pool;
 
 static struct fridgethr *worker_fridge;
@@ -727,6 +729,8 @@ void nfs_rpc_execute(request_data_t *reqdata)
 #ifdef _USE_NFS3
 	int exportid = -1;
 #endif /* _USE_NFS3 */
+
+	SetNameFunctionOnce("wrk", &wrk_indexer);
 
 #ifdef USE_LTTNG
 	tracepoint(nfs_rpc, start, reqdata);
