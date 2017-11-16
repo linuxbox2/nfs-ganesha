@@ -471,7 +471,8 @@ static void rados_kv_pop_clid_entry(char *key,
 	}
 }
 
-void rados_kv_read_recov_clids_recover(add_clid_entry_hook add_clid_entry,
+static void
+rados_kv_read_recov_clids_recover(add_clid_entry_hook add_clid_entry,
 				       add_rfh_entry_hook add_rfh_entry)
 {
 	int ret;
@@ -511,6 +512,12 @@ void rados_kv_read_recov_clids_takeover(nfs_grace_start_t *gsp,
 		.old = false,
 		.takeover = true,
 	};
+
+	if (!gsp) {
+		rados_kv_read_recov_clids_recover(add_clid_entry,
+						  add_rfh_entry);
+		return;
+	}
 
 	snprintf(object_takeover, NI_MAXHOST, "%s_recov", gsp->ipaddr);
 	ret = rados_kv_traverse(rados_kv_pop_clid_entry, &args,
@@ -568,8 +575,7 @@ out:
 struct nfs4_recovery_backend rados_kv_backend = {
 	.recovery_init = rados_kv_init,
 	.recovery_cleanup = rados_kv_cleanup_old,
-	.recovery_read_clids_recover = rados_kv_read_recov_clids_recover,
-	.recovery_read_clids_takeover = rados_kv_read_recov_clids_takeover,
+	.recovery_read_clids = rados_kv_read_recov_clids_takeover,
 	.add_clid = rados_kv_add_clid,
 	.rm_clid = rados_kv_rm_clid,
 	.add_revoke_fh = rados_kv_add_revoke_fh,
