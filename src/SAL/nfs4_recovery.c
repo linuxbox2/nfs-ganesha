@@ -55,6 +55,7 @@ clid_entry_t *nfs4_add_clid_entry(char *cl_name)
 {
 	clid_entry_t *new_ent = gsh_malloc(sizeof(clid_entry_t));
 
+	glist_init(&new_ent->cl_rfh_list);
 	strcpy(new_ent->cl_name, cl_name);
 	glist_add(&clid_list, &new_ent->cl_list);
 	return new_ent;
