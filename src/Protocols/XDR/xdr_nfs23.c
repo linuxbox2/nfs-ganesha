@@ -2215,7 +2215,7 @@ entry3 *objp;
 	if (!xdr_cookie3(xdrs, &objp->cookie))
 		return (false);
 	if (!xdr_pointer
-	    (xdrs, (char **)&objp->nextentry, sizeof(entry3),
+	    (xdrs, (void **)&objp->nextentry, sizeof(entry3),
 	     (xdrproc_t) xdr_entry3))
 		return (false);
 	return (true);
@@ -2233,7 +2233,7 @@ dirlist3 *objp;
 #endif
 
 	if (!xdr_pointer
-	    (xdrs, (char **)&objp->entries, sizeof(entry3),
+	    (xdrs, (void **)&objp->entries, sizeof(entry3),
 	     (xdrproc_t) xdr_entry3))
 		return (false);
 	if (!xdr_bool(xdrs, &objp->eof))
@@ -2352,7 +2352,7 @@ entryplus3 *objp;
 	if (!xdr_post_op_fh3(xdrs, &objp->name_handle))
 		return (false);
 	if (!xdr_pointer
-	    (xdrs, (char **)&objp->nextentry, sizeof(entryplus3),
+	    (xdrs, (void **)&objp->nextentry, sizeof(entryplus3),
 	     (xdrproc_t) xdr_entryplus3))
 		return (false);
 	return (true);
@@ -2370,7 +2370,7 @@ dirlistplus3 *objp;
 #endif
 
 	if (!xdr_pointer
-	    (xdrs, (char **)&objp->entries, sizeof(entryplus3),
+	    (xdrs, (void **)&objp->entries, sizeof(entryplus3),
 	     (xdrproc_t) xdr_entryplus3))
 		return (false);
 	if (!xdr_bool(xdrs, &objp->eof))

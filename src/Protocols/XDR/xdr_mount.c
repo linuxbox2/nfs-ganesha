@@ -87,7 +87,7 @@ groups *objp;
 #endif
 
 	if (!xdr_pointer
-	    (xdrs, (char **)objp, sizeof(struct groupnode),
+	    (xdrs, (void **)objp, sizeof(struct groupnode),
 	     (xdrproc_t) xdr_groupnode))
 		return (false);
 	return (true);
@@ -123,7 +123,7 @@ exports *objp;
 #endif
 
 	if (!xdr_pointer
-	    (xdrs, (char **)objp, sizeof(struct exportnode),
+	    (xdrs, (void **)objp, sizeof(struct exportnode),
 	     (xdrproc_t) xdr_exportnode))
 		return (false);
 	return (true);
@@ -161,7 +161,7 @@ mountlist *objp;
 #endif
 
 	if (!xdr_pointer
-	    (xdrs, (char **)objp, sizeof(struct mountbody),
+	    (xdrs, (void **)objp, sizeof(struct mountbody),
 	     (xdrproc_t) xdr_mountbody))
 		return (false);
 	return (true);
