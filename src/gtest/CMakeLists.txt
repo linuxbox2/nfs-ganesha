@@ -171,3 +171,17 @@ target_link_libraries(test_rbt
   )
 set_target_properties(test_rbt PROPERTIES COMPILE_FLAGS
   "${UNITTEST_CXX_FLAGS}")
+
+set(test_drc_SRCS
+  test_drc.cc
+  )
+
+add_executable(test_drc
+  ${test_drc_SRCS})
+add_sanitizers(test_drc)
+
+target_link_libraries(test_drc
+  ${GTEST_LIBRARIES}
+  )
+set_target_properties(test_drc PROPERTIES COMPILE_FLAGS
+  "${UNITTEST_CXX_FLAGS}")
