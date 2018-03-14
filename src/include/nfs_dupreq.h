@@ -117,7 +117,7 @@ extern pool_t *nfs_res_pool;
 
 static inline nfs_res_t *alloc_nfs_res(void)
 {
-	return pool_alloc(nfs_res_pool);
+	return (nfs_res_t *) pool_alloc(nfs_res_pool);
 }
 
 static inline void free_nfs_res(nfs_res_t *res)
