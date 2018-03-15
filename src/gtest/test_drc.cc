@@ -74,7 +74,6 @@ namespace {
       memset(&req_data, 0, sizeof(request_data_t));
       req_data.rtype = NFS_REQUEST;
       req.svc.rq_xprt = &xprt;
-      req.funcdesc = &nfs3_func_desc[NFSPROC3_WRITE];
     }
 
     nfs_request_t* get_nfs_req() {
@@ -90,7 +89,9 @@ namespace {
 			    uint32_t len) {
     NFSRequest* req = new NFSRequest();
     req->fh = fh;
-    WRITE3args* arg_write3 = (WRITE3args*) &req->get_nfs_req()->arg_nfs;
+    nfs_request_t* nfs = req->get_nfs_req();
+    nfs->funcdesc = &nfs3_func_desc[NFSPROC3_WRITE];
+    WRITE3args* arg_write3 = (WRITE3args*) &nfs->arg_nfs;
     arg_write3->file.data.data_len = req->fh.length();
     arg_write3->file.data.data_val = const_cast<char*>(req->fh.data());
     arg_write3->offset = off;
