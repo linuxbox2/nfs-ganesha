@@ -108,7 +108,6 @@ struct dupreq_entry {
 	dupreq_state_t state;
 	uint32_t refcnt;
 	nfs_res_t *res;
-	time_t timestamp;
 };
 
 typedef struct dupreq_entry dupreq_entry_t;

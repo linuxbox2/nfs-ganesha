@@ -1041,7 +1041,6 @@ dupreq_status_t nfs_dupreq_start(nfs_request_t *reqnfs,
 
 	dk->hk = req->rq_cksum; /* TI-RPC computed checksum */
 	dk->state = DUPREQ_START;
-	dk->timestamp = time(NULL);
 
 	{
 		struct opr_rbtree_node *nv;
@@ -1080,7 +1079,9 @@ dupreq_status_t nfs_dupreq_start(nfs_request_t *reqnfs,
 		} else {
 			/* new request */
 			req->rq_u1 = dk;
+
 			dk->res = alloc_nfs_res();
+
 			reqnfs->res_nfs = req->rq_u2 = dk->res;
 
 			/* cache--can exceed drc->maxsize */
@@ -1157,7 +1158,6 @@ dupreq_status_t nfs_dupreq_finish(struct svc_req *req, nfs_res_t *res_nfs)
 
 	PTHREAD_MUTEX_lock(&dv->mtx);
 	dv->res = res_nfs;
-	dv->timestamp = time(NULL);
 	dv->state = DUPREQ_COMPLETE;
 	drc = dv->hin.drc;
 	PTHREAD_MUTEX_unlock(&dv->mtx);
