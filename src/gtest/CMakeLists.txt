@@ -5,20 +5,25 @@ set(UNITTEST_LIBS ${GTEST_MAIN} ${GTEST} boost_program_options boost_system ${PT
 set(UNITTEST_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${GTEST_PREFIX}/include -fno-strict-aliasing")
 
 set(GTEST_LIBRARIES
+  rpcal
+  log
+  support
+  config_parsing
   MainServices
   ${PROTOCOLS}
   ${GANESHA_CORE}
+  # the following double mention of fsalpseudo and FsalCore
+  # static libs is NOT a typo
   fsalpseudo
   FsalCore
   fsalpseudo
   FsalCore
-  config_parsing
   ${LIBTIRPC_LIBRARIES}
   ${SYSTEM_LIBRARIES}
   ${UNITTEST_LIBS}
   ${LTTNG_LIBRARIES}
   ${LTTNG_CTL_LIBRARIES}
-  )
+)
 
 # generic test
 set(test_example_SRCS
@@ -181,7 +186,22 @@ add_executable(test_drc
 add_sanitizers(test_drc)
 
 target_link_libraries(test_drc
-  ${GTEST_LIBRARIES}
+  rpcal
+  log
+  support
+  config_parsing
+  MainServices
+  ${PROTOCOLS}
+  ${GANESHA_CORE}
+  fsalpseudo
+  FsalCore
+  fsalpseudo
+  FsalCore
+  ${LIBTIRPC_LIBRARIES}
+  ${SYSTEM_LIBRARIES}
+  ${UNITTEST_LIBS}
+  ${LTTNG_LIBRARIES}
+  ${LTTNG_CTL_LIBRARIES}
   )
 set_target_properties(test_drc PROPERTIES COMPILE_FLAGS
   "${UNITTEST_CXX_FLAGS}")

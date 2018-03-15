@@ -38,23 +38,61 @@ extern "C" {
 
 #include <intrinsic.h>
 #include "nfs_dupreq.h"
+#include "nfs_core.h"
 
 
 } /* extern "C" */
 
 namespace {
 
-  nfs_request_t* req_arr;
+  class NFSRequest
+  {
+  public:
+    std::string fh;
+    nfs_request_t req;
+
+    NFSRequest() {
+      memset(&req, 0, sizeof(nfs_request_t));
+    }
+
+    nfs_request_t* get_req() {
+      return &req;
+    }
+  };
+
+  NFSRequest* forge_v3_write(std::string fh, uint32_t xid, uint32_t off,
+			    uint32_t len) {
+    NFSRequest* req = new NFSRequest();
+    req->fh = fh;
+    WRITE3args* arg_write3 = (WRITE3args*) &req->get_req()->arg_nfs;
+    arg_write3->file.data.data_len = req->fh.length();
+    arg_write3->file.data.data_val = const_cast<char*>(req->fh.data());
+    arg_write3->offset = off;
+    arg_write3->count = len;
+    arg_write3->stable = DATA_SYNC;
+    /* leave data nil for now */
+    return req;
+  }
 
   bool verbose = false;
   static constexpr uint32_t item_wsize = 10000;
   static constexpr uint32_t num_calls = 1000000;
 
+  NFSRequest** req_arr;
   uint32_t xid_ix;
 
   class DRCLatency1 : public ::testing::Test {
 
     virtual void SetUp() {
+
+      /* setup reqs */
+      req_arr = new NFSRequest*[item_wsize];
+      for (uint32_t ix = 0; ix < item_wsize; ++ix) {
+	req_arr[ix] = forge_v3_write("file1", ix, ix, 0);
+      }
+
+      /* setup DRC */
+      dupreq2_pkginit();
 
       if (verbose) {
 	std::cout << "INIT"
@@ -64,6 +102,10 @@ namespace {
     }
 
     virtual void TearDown() {
+      for (uint32_t ix = 0; ix < item_wsize; ++ix) {
+	delete req_arr[ix];
+      }
+      delete[] req_arr; // XXX
     }
 
   };
