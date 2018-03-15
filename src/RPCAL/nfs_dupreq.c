@@ -1046,7 +1046,7 @@ dupreq_status_t nfs_dupreq_start(nfs_request_t *reqnfs,
 		struct opr_rbtree_node *nv;
 		struct rbtree_x_part *t =
 		    rbtx_partition_of_scalar(&drc->xt, dk->hk);
-		PTHREAD_MUTEX_lock(&t->mtx);	/* partition lock */
+		pthread_spin_lock(&t->sp);	/* partition lock */
 		nv = rbtree_x_cached_lookup(&drc->xt, t, &dk->rbt_k, dk->hk);
 		if (nv) {
 			/* cached request */
@@ -1107,7 +1107,7 @@ dupreq_status_t nfs_dupreq_start(nfs_request_t *reqnfs,
 				     dupreq_status_table[status],
 				     dk->refcnt, drc->size);
 		}
-		PTHREAD_MUTEX_unlock(&t->mtx);
+		pthread_spin_unlock(&t->sp);
 	}
 
 	return status;
@@ -1189,7 +1189,7 @@ dq_again:
 			 * Drop drc lock and reacquire it!
 			 */
 			pthread_spin_unlock(&drc->sp);
-			PTHREAD_MUTEX_lock(&t->mtx);	/* partition lock */
+			pthread_spin_lock(&t->sp);	/* partition lock */
 			pthread_spin_lock(&drc->sp);
 
 			/* Since we dropped drc lock and reacquired it,
@@ -1202,7 +1202,7 @@ dq_again:
 			 * expected (imperfect, but harmless).
 			 */
 			if (ov == NULL || ov->hk != ov_hk) {
-				PTHREAD_MUTEX_unlock(&t->mtx);
+				pthread_spin_unlock(&t->sp);
 				goto unlock;
 			}
 
@@ -1215,7 +1215,7 @@ dq_again:
 
 			rbtree_x_cached_remove(&drc->xt, t, &ov->rbt_k, ov->hk);
 
-			PTHREAD_MUTEX_unlock(&t->mtx);
+			pthread_spin_unlock(&t->sp);
 
 			LogDebug(COMPONENT_DUPREQ,
 				 "retiring ov=%p xid=%" PRIu32
@@ -1285,9 +1285,9 @@ dupreq_status_t nfs_dupreq_delete(struct svc_req *req)
 	/* XXX dv holds a ref on drc */
 	t = rbtx_partition_of_scalar(&drc->xt, dv->hk);
 
-	PTHREAD_MUTEX_lock(&t->mtx);
+	pthread_spin_lock(&t->sp);
 	rbtree_x_cached_remove(&drc->xt, t, &dv->rbt_k, dv->hk);
-	PTHREAD_MUTEX_unlock(&t->mtx);
+	pthread_spin_unlock(&t->sp);
 
 	pthread_spin_lock(&drc->sp);
 
