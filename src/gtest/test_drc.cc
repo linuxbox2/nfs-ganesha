@@ -126,7 +126,15 @@ namespace {
 	req_arr[ix] = forge_v3_write("file1", ix, ix, 0);
       }
 
-      /* setup DRC */
+      /* setup TCP DRC */
+      nfs_param.core_param.drc.disabled = false;
+      nfs_param.core_param.drc.tcp.npart = DRC_TCP_NPART;
+      nfs_param.core_param.drc.tcp.size = DRC_TCP_SIZE;
+      nfs_param.core_param.drc.tcp.cachesz = DRC_TCP_CACHESZ;
+      nfs_param.core_param.drc.tcp.hiwat = DRC_TCP_HIWAT;
+      nfs_param.core_param.drc.tcp.recycle_npart = DRC_TCP_RECYCLE_NPART;
+      nfs_param.core_param.drc.tcp.recycle_expire_s = 600;
+
       dupreq2_pkginit();
 
       if (verbose) {
