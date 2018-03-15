@@ -23,7 +23,16 @@
  */
 
 #include <sys/types.h>
+#include <sys/param.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/un.h>
+#include <sys/resource.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #include <iostream>
+#include <string>
 #include <vector>
 #include <map>
 #include <chrono>
@@ -40,23 +49,40 @@ extern "C" {
 #include "nfs_dupreq.h"
 #include "nfs_core.h"
 
+extern const nfs_function_desc_t nfs3_func_desc[];
+
 
 } /* extern "C" */
 
 namespace {
 
+  struct svc_xprt xprt;
+
+  const char* remote_addr = "10.1.1.1";
+  uint16_t remote_port = 45000;
+
   class NFSRequest
   {
   public:
     std::string fh;
-    nfs_request_t req;
+    request_data_t req_data;
+    nfs_request_t& req;
+    struct svc_req& svc;
 
-    NFSRequest() {
-      memset(&req, 0, sizeof(nfs_request_t));
+    NFSRequest()
+      : req(req_data.r_u.req), svc(req.svc) {
+      memset(&req_data, 0, sizeof(request_data_t));
+      req_data.rtype = NFS_REQUEST;
+      req.svc.rq_xprt = &xprt;
+      req.funcdesc = &nfs3_func_desc[NFSPROC3_WRITE];
     }
 
-    nfs_request_t* get_req() {
+    nfs_request_t* get_nfs_req() {
       return &req;
+    }
+
+    struct svc_req* get_svc_req() {
+      return &req.svc;
     }
   };
 
@@ -64,7 +90,7 @@ namespace {
 			    uint32_t len) {
     NFSRequest* req = new NFSRequest();
     req->fh = fh;
-    WRITE3args* arg_write3 = (WRITE3args*) &req->get_req()->arg_nfs;
+    WRITE3args* arg_write3 = (WRITE3args*) &req->get_nfs_req()->arg_nfs;
     arg_write3->file.data.data_len = req->fh.length();
     arg_write3->file.data.data_val = const_cast<char*>(req->fh.data());
     arg_write3->offset = off;
@@ -74,7 +100,7 @@ namespace {
     return req;
   }
 
-  bool verbose = false;
+  bool verbose = true;
   static constexpr uint32_t item_wsize = 10000;
   static constexpr uint32_t num_calls = 1000000;
 
@@ -84,6 +110,14 @@ namespace {
   class DRCLatency1 : public ::testing::Test {
 
     virtual void SetUp() {
+
+      xprt.xp_type = XPRT_TCP;
+
+      struct sockaddr_in* sin = (struct sockaddr_in *) &xprt.xp_remote.ss;
+      sin->sin_family = AF_INET;
+      sin->sin_port = htons(remote_port);
+      inet_pton(AF_INET, remote_addr, &sin->sin_addr);
+      __rpc_address_setup(&xprt.xp_remote);
 
       /* setup reqs */
       req_arr = new NFSRequest*[item_wsize];
@@ -114,12 +148,19 @@ namespace {
 
 TEST_F(DRCLatency1, RUN1)
 {
-  for (uint32_t call_ctr = 0; call_ctr < num_calls; ++call_ctr) {
+  int r = 0;
+  for (uint32_t call_ctr = 0; call_ctr < item_wsize /* XXX */; ++call_ctr) {
     if (verbose) {
       std::cout
 	<< " call: " << call_ctr
 	<< std::endl;
     }
+    NFSRequest& cc_req = *(req_arr[call_ctr]);
+    nfs_request_t* reqnfs = cc_req.get_nfs_req();
+    struct svc_req* req = cc_req.get_svc_req();
+
+    r = nfs_dupreq_start(reqnfs, req);
+
   }
 }
 
