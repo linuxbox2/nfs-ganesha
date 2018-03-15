@@ -89,6 +89,14 @@ namespace {
 			    uint32_t len) {
     NFSRequest* req = new NFSRequest();
     req->fh = fh;
+
+    struct svc_req* svc = req->get_svc_req();
+    svc->rq_msg.rm_xid = xid;
+    svc->rq_msg.cb_prog = 100003;
+    svc->rq_msg.cb_vers = 3;
+    svc->rq_msg.cb_proc = NFSPROC3_WRITE;
+    svc->rq_cksum = xid; /* i.e., not a real cksum */
+
     nfs_request_t* nfs = req->get_nfs_req();
     nfs->funcdesc = &nfs3_func_desc[NFSPROC3_WRITE];
     WRITE3args* arg_write3 = (WRITE3args*) &nfs->arg_nfs;
@@ -130,7 +138,7 @@ namespace {
       nfs_param.core_param.drc.disabled = false;
       nfs_param.core_param.drc.tcp.npart = DRC_TCP_NPART;
       nfs_param.core_param.drc.tcp.size = DRC_TCP_SIZE;
-      nfs_param.core_param.drc.tcp.cachesz = DRC_TCP_CACHESZ;
+      nfs_param.core_param.drc.tcp.cachesz = 1; /* XXXX 0 not good */
       nfs_param.core_param.drc.tcp.hiwat = DRC_TCP_HIWAT;
       nfs_param.core_param.drc.tcp.recycle_npart = DRC_TCP_RECYCLE_NPART;
       nfs_param.core_param.drc.tcp.recycle_expire_s = 600;
