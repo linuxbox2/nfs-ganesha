@@ -101,8 +101,8 @@ namespace {
     return req;
   }
 
-  bool verbose = true;
-  static constexpr uint32_t item_wsize = 10000;
+  bool verbose = false;
+  static constexpr uint32_t item_wsize = 1000000;
   static constexpr uint32_t num_calls = 1000000;
 
   NFSRequest** req_arr;
@@ -158,17 +158,20 @@ namespace {
 TEST_F(DRCLatency1, RUN1)
 {
   int r = 0;
-  for (uint32_t call_ctr = 0; call_ctr < item_wsize /* XXX */; ++call_ctr) {
+  for (uint32_t call_ctr = 0; call_ctr < item_wsize; ++call_ctr) {
     if (verbose) {
       std::cout
 	<< " call: " << call_ctr
 	<< std::endl;
     }
-    NFSRequest& cc_req = *(req_arr[call_ctr]);
-    nfs_request_t* reqnfs = cc_req.get_nfs_req();
-    struct svc_req* req = cc_req.get_svc_req();
 
-    r = nfs_dupreq_start(reqnfs, req);
+      NFSRequest& cc_req = *(req_arr[call_ctr]);
+      nfs_request_t* reqnfs = cc_req.get_nfs_req();
+      struct svc_req* req = cc_req.get_svc_req();
+
+      r = nfs_dupreq_start(reqnfs, req);
+      r = nfs_dupreq_finish(req, NULL);
+      nfs_dupreq_rele(req, NULL);
 
   }
 }
