@@ -8,6 +8,7 @@ set(GTEST_LIBRARIES
   rpcal
   log
   support
+  hash
   config_parsing
   MainServices
   ${PROTOCOLS}

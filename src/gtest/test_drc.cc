@@ -42,10 +42,10 @@
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/exception.hpp>
 #include <boost/program_options.hpp>
-#include "city.h"
 
 extern "C" {
 
+#include "city.h"
 #include <intrinsic.h>
 #include "nfs_dupreq.h"
 #include "nfs_core.h"
@@ -103,8 +103,8 @@ namespace {
     svc->rq_msg.cb_prog = 100003;
     svc->rq_msg.cb_vers = 3;
     svc->rq_msg.cb_proc = NFSPROC3_WRITE;
-    svc->rq_cksum = xid; /* i.e., not a real cksum */
-    //svc->rq_cksum = CityHash64WithSeed((char *)&xid, sizeof(xid), 911);
+    //svc->rq_cksum = xid; /* i.e., not a real cksum */
+    svc->rq_cksum = CityHash64((char *)&xid, sizeof(xid));
 
     nfs_request_t* nfs = /* req->get_nfs_req() */ &req->req;
     nfs->funcdesc = &nfs3_func_desc[NFSPROC3_WRITE];
