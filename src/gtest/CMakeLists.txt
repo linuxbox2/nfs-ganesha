@@ -186,22 +186,10 @@ add_executable(test_drc
 add_sanitizers(test_drc)
 
 target_link_libraries(test_drc
-  rpcal
-  log
-  support
-  config_parsing
-  MainServices
-  ${PROTOCOLS}
-  ${GANESHA_CORE}
-  fsalpseudo
-  FsalCore
-  fsalpseudo
-  FsalCore
-  ${LIBTIRPC_LIBRARIES}
-  ${SYSTEM_LIBRARIES}
-  ${UNITTEST_LIBS}
-  ${LTTNG_LIBRARIES}
-  ${LTTNG_CTL_LIBRARIES}
+  ${GTEST_LIBRARIES}
+  ${GPERFTOOLS_LIBRARIES}
   )
+
 set_target_properties(test_drc PROPERTIES COMPILE_FLAGS
-  "${UNITTEST_CXX_FLAGS}")
+  "${UNITTEST_CXX_FLAGS}"
+  )

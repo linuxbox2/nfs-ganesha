@@ -42,12 +42,19 @@
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/exception.hpp>
 #include <boost/program_options.hpp>
+#include "city.h"
 
 extern "C" {
 
 #include <intrinsic.h>
 #include "nfs_dupreq.h"
 #include "nfs_core.h"
+
+/* LTTng headers */
+#include <lttng/lttng.h>
+
+/* gperf headers */
+#include <gperftools/profiler.h>
 
 extern const nfs_function_desc_t nfs3_func_desc[];
 
@@ -60,6 +67,7 @@ namespace {
 
   const char* remote_addr = "10.1.1.1";
   uint16_t remote_port = 45000;
+  char* profile_out = nullptr; //"/tmp/profile.out";
 
   class NFSRequest
   {
@@ -96,8 +104,9 @@ namespace {
     svc->rq_msg.cb_vers = 3;
     svc->rq_msg.cb_proc = NFSPROC3_WRITE;
     svc->rq_cksum = xid; /* i.e., not a real cksum */
+    //svc->rq_cksum = CityHash64WithSeed((char *)&xid, sizeof(xid), 911);
 
-    nfs_request_t* nfs = req->get_nfs_req();
+    nfs_request_t* nfs = /* req->get_nfs_req() */ &req->req;
     nfs->funcdesc = &nfs3_func_desc[NFSPROC3_WRITE];
     WRITE3args* arg_write3 = (WRITE3args*) &nfs->arg_nfs;
     arg_write3->file.data.data_len = req->fh.length();
@@ -136,10 +145,10 @@ namespace {
 
       /* setup TCP DRC */
       nfs_param.core_param.drc.disabled = false;
-      nfs_param.core_param.drc.tcp.npart = DRC_TCP_NPART;
-      nfs_param.core_param.drc.tcp.size = DRC_TCP_SIZE;
-      nfs_param.core_param.drc.tcp.cachesz = 1; /* XXXX 0 not good */
-      nfs_param.core_param.drc.tcp.hiwat = DRC_TCP_HIWAT;
+      nfs_param.core_param.drc.tcp.npart = DRC_TCP_NPART; // checked
+      nfs_param.core_param.drc.tcp.size = DRC_TCP_SIZE; // checked
+      nfs_param.core_param.drc.tcp.cachesz = 1; /* XXXX 0 crash; 1 harmless */
+      nfs_param.core_param.drc.tcp.hiwat = 5; //DRC_TCP_HIWAT; // checked--even 364 negligible diff
       nfs_param.core_param.drc.tcp.recycle_npart = DRC_TCP_RECYCLE_NPART;
       nfs_param.core_param.drc.tcp.recycle_expire_s = 600;
 
@@ -165,7 +174,14 @@ namespace {
 
 TEST_F(DRCLatency1, RUN1)
 {
+  struct timespec s_time, e_time;
   int r = 0;
+
+  if (profile_out)
+    ProfilerStart(profile_out);
+
+  now(&s_time);
+
   for (uint32_t call_ctr = 0; call_ctr < item_wsize; ++call_ctr) {
     if (verbose) {
       std::cout
@@ -173,15 +189,22 @@ TEST_F(DRCLatency1, RUN1)
 	<< std::endl;
     }
 
-      NFSRequest& cc_req = *(req_arr[call_ctr]);
-      nfs_request_t* reqnfs = cc_req.get_nfs_req();
-      struct svc_req* req = cc_req.get_svc_req();
+    NFSRequest& cc_req = *(req_arr[call_ctr]);
+    nfs_request_t* reqnfs = /* cc_req.get_nfs_req() */  &cc_req.req;
+    struct svc_req* req = cc_req.get_svc_req();
 
-      r = nfs_dupreq_start(reqnfs, req);
-      r = nfs_dupreq_finish(req, NULL);
-      nfs_dupreq_rele(req, NULL);
-
+    r = nfs_dupreq_start(reqnfs, req);
+    r = nfs_dupreq_finish(req, NULL);
+    nfs_dupreq_rele(req, NULL);
   }
+
+  now(&e_time);
+
+  if (profile_out)
+    ProfilerStop();
+
+  fprintf(stderr, "total run time: %" PRIu64 " ns\n",
+	  timespec_diff(&s_time, &e_time));
 }
 
 int main(int argc, char *argv[])
