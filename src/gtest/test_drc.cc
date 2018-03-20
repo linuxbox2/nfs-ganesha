@@ -68,6 +68,7 @@ namespace {
   const char* remote_addr = "10.1.1.1";
   uint16_t remote_port = 45000;
   char* profile_out = nullptr; //"/tmp/profile.out";
+  uint32_t nthreads = 1;
 
   class NFSRequest
   {
@@ -125,6 +126,55 @@ namespace {
   NFSRequest** req_arr;
   uint32_t xid_ix;
 
+  class Worker
+  {
+  public:
+    uint32_t thr_ix;
+    NFSRequest** req_arr;
+    struct timespec s_time;
+    struct timespec e_time;
+
+  Worker(uint32_t thr_ix)
+    : thr_ix(thr_ix) {
+      for (uint32_t ix = 0; ix < item_wsize; ++ix) {
+	req_arr[ix] = forge_v3_write("file1", ix, ix, 0);
+      }
+    }
+
+    void operator()() {
+      int r = 0;
+
+      now(&s_time);
+
+      for (uint32_t call_ctr = 0; call_ctr < item_wsize; ++call_ctr) {
+	if (verbose) {
+	  std::cout
+	    << " thread: " << thr_ix
+	    << " call: " << call_ctr
+	    << std::endl;
+	}
+
+	NFSRequest& cc_req = *(req_arr[call_ctr]);
+	nfs_request_t* reqnfs = /* cc_req.get_nfs_req() */  &cc_req.req;
+	struct svc_req* req = cc_req.get_svc_req();
+
+	r = nfs_dupreq_start(reqnfs, req);
+	r = nfs_dupreq_finish(req, NULL);
+	nfs_dupreq_rele(req, NULL);
+      }
+
+      now(&e_time);
+    }
+
+    ~Worker() {
+      for (uint32_t ix = 0; ix < item_wsize; ++ix) {
+	delete req_arr[ix];
+      }
+      delete[] req_arr;
+    }
+
+  };
+
   class DRCLatency1 : public ::testing::Test {
 
     virtual void SetUp() {
@@ -170,8 +220,47 @@ namespace {
 
   };
 
+  class DRCLatency2 : public ::testing::Test {
+  public:
+    std::vector<Worker*> workers;
+
+    virtual void SetUp() {
+
+      xprt.xp_type = XPRT_TCP;
+
+      struct sockaddr_in* sin = (struct sockaddr_in *) &xprt.xp_remote.ss;
+      sin->sin_family = AF_INET;
+      sin->sin_port = htons(remote_port);
+      inet_pton(AF_INET, remote_addr, &sin->sin_addr);
+      __rpc_address_setup(&xprt.xp_remote);
+
+      for (uint32_t ix = 0; ix < nthreads; ++ix) {
+	workers.push_back(new Worker(ix));
+      }
+
+      /* setup TCP DRC */
+      nfs_param.core_param.drc.disabled = false;
+      nfs_param.core_param.drc.tcp.npart = DRC_TCP_NPART; // checked
+      nfs_param.core_param.drc.tcp.size = DRC_TCP_SIZE; // checked
+      nfs_param.core_param.drc.tcp.cachesz = 1; /* XXXX 0 crash; 1 harmless */
+      nfs_param.core_param.drc.tcp.hiwat = 5; //DRC_TCP_HIWAT; // checked--even 364 negligible diff
+      nfs_param.core_param.drc.tcp.recycle_npart = DRC_TCP_RECYCLE_NPART;
+      nfs_param.core_param.drc.tcp.recycle_expire_s = 600;
+
+      dupreq2_pkginit();
+    }
+
+    virtual void TearDown() {
+      for (auto& worker : workers) {
+	delete worker;
+      }
+    }
+
+  };
+
 } /* namespace */
 
+#if 0
 TEST_F(DRCLatency1, RUN1)
 {
   struct timespec s_time, e_time;
@@ -205,7 +294,34 @@ TEST_F(DRCLatency1, RUN1)
 
   fprintf(stderr, "total run time: %" PRIu64 " ns\n",
 	  timespec_diff(&s_time, &e_time));
-}
+} /* TEST_F(DRCLatency1, RUN1) */
+#endif
+
+TEST_F(DRCLatency2, RUN1) {
+
+  if (profile_out)
+    ProfilerStart(profile_out);
+
+  std::vector<std::thread> threads;
+  for (auto& worker : workers) {
+    threads.emplace_back(*worker);
+  }
+
+  for (auto &t : threads)
+    t.join();
+
+  if (profile_out)
+    ProfilerStop();
+
+  /* total time, all threads */
+  uint64_t total_time = 0;
+  for (const auto& worker : workers) {
+    total_time += timespec_diff(&worker->s_time, &worker->e_time);
+  }
+
+  fprintf(stderr, "total run time: %" PRIu64 " ns\n", total_time);
+
+} /* TEST_F(DRCLatency2, RUN1) */
 
 int main(int argc, char *argv[])
 {
