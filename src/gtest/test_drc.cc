@@ -37,6 +37,8 @@
 #include <map>
 #include <chrono>
 #include <thread>
+#include <mutex>
+#include <condition_variable>
 #include <random>
 #include "gtest/gtest.h"
 #include <boost/filesystem.hpp>
@@ -68,7 +70,7 @@ namespace {
   const char* remote_addr = "10.1.1.1";
   uint16_t remote_port = 45000;
   char* profile_out = nullptr; //"/tmp/profile.out";
-  uint32_t nthreads = 1;
+  uint32_t nthreads = 2;
 
   class NFSRequest
   {
@@ -119,12 +121,14 @@ namespace {
     return req;
   }
 
-  bool verbose = false;
-  static constexpr uint32_t item_wsize = 1000000;
-  static constexpr uint32_t num_calls = 1000000;
+  bool verbose = true;
+  static constexpr uint32_t item_wsize = 100;
+  static constexpr uint32_t num_calls = 100;
 
-  NFSRequest** req_arr;
+//  NFSRequest** req_arr;
   uint32_t xid_ix;
+  std::mutex mtx;
+  std::condition_variable start_cond;
 
   class Worker
   {
@@ -134,29 +138,45 @@ namespace {
     struct timespec s_time;
     struct timespec e_time;
 
+  Worker() = delete;
+
   Worker(uint32_t thr_ix)
     : thr_ix(thr_ix) {
-      for (uint32_t ix = 0; ix < item_wsize; ++ix) {
-	req_arr[ix] = forge_v3_write("file1", ix, ix, 0);
+      this->req_arr = new NFSRequest*[item_wsize];
+      uint32_t xid_off = item_wsize * thr_ix;
+      uint32_t xid_max = xid_ix + item_wsize;
+      for (uint32_t ix = xid_off; ix < xid_max; ++ix) {
+	this->req_arr[ix] = forge_v3_write("file1", ix, ix, 0);
+	if (verbose) {
+	  std::cout
+	    << " thread: " << thr_ix
+	    << " elt: " << ix
+	    << " NFSRequest: " << this->req_arr[ix]
+	    << std::endl;
+	}
       }
     }
 
     void operator()() {
       int r = 0;
 
+      std::unique_lock<std::mutex> guard(mtx, std::defer_lock);
+      start_cond.wait(guard);
+
       now(&s_time);
 
       for (uint32_t call_ctr = 0; call_ctr < item_wsize; ++call_ctr) {
+	NFSRequest* cc_req = req_arr[call_ctr];
 	if (verbose) {
 	  std::cout
 	    << " thread: " << thr_ix
 	    << " call: " << call_ctr
+	    << " NFSRequest: " << cc_req
 	    << std::endl;
 	}
 
-	NFSRequest& cc_req = *(req_arr[call_ctr]);
-	nfs_request_t* reqnfs = /* cc_req.get_nfs_req() */  &cc_req.req;
-	struct svc_req* req = cc_req.get_svc_req();
+	nfs_request_t* reqnfs = /* cc_req.get_nfs_req() */  &cc_req->req;
+	struct svc_req* req = cc_req->get_svc_req();
 
 	r = nfs_dupreq_start(reqnfs, req);
 	r = nfs_dupreq_finish(req, NULL);
@@ -164,17 +184,18 @@ namespace {
       }
 
       now(&e_time);
-    }
+    } /* () */
 
     ~Worker() {
       for (uint32_t ix = 0; ix < item_wsize; ++ix) {
-	delete req_arr[ix];
+	delete this->req_arr[ix];
       }
-      delete[] req_arr;
+      delete[] this->req_arr;
     }
 
   };
 
+#if 0
   class DRCLatency1 : public ::testing::Test {
 
     virtual void SetUp() {
@@ -219,6 +240,7 @@ namespace {
     }
 
   };
+#endif
 
   class DRCLatency2 : public ::testing::Test {
   public:
@@ -235,7 +257,8 @@ namespace {
       __rpc_address_setup(&xprt.xp_remote);
 
       for (uint32_t ix = 0; ix < nthreads; ++ix) {
-	workers.push_back(new Worker(ix));
+	auto worker = new Worker(ix);
+	workers.push_back(worker);
       }
 
       /* setup TCP DRC */
@@ -303,9 +326,13 @@ TEST_F(DRCLatency2, RUN1) {
     ProfilerStart(profile_out);
 
   std::vector<std::thread> threads;
+  threads.reserve(nthreads);
   for (auto& worker : workers) {
-    threads.emplace_back(*worker);
+    threads.emplace_back(std::ref(*worker));
   }
+
+  sleep(1);
+  start_cond.notify_all();
 
   for (auto &t : threads)
     t.join();
