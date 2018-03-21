@@ -58,7 +58,7 @@ extern "C" {
 /* gperf headers */
 #include <gperftools/profiler.h>
 
-extern const nfs_function_desc_t nfs3_func_desc[];
+  extern const nfs_function_desc_t nfs3_func_desc[];
 
 
 } /* extern "C" */
@@ -80,8 +80,8 @@ namespace {
     nfs_request_t& req;
     struct svc_req& svc;
 
-    NFSRequest()
-      : req(req_data.r_u.req), svc(req.svc) {
+  NFSRequest()
+    : req(req_data.r_u.req), svc(req.svc) {
       memset(&req_data, 0, sizeof(request_data_t));
       req_data.rtype = NFS_REQUEST;
       req.svc.rq_xprt = &xprt;
@@ -122,8 +122,8 @@ namespace {
   }
 
   bool verbose = true;
-  static constexpr uint32_t item_wsize = 100;
-  static constexpr uint32_t num_calls = 100;
+  static constexpr uint32_t item_wsize = 10;
+  static constexpr uint32_t num_calls = 10;
 
 //  NFSRequest** req_arr;
   uint32_t xid_ix;
@@ -138,15 +138,18 @@ namespace {
     struct timespec s_time;
     struct timespec e_time;
 
-  Worker() = delete;
+    Worker() = delete;
 
   Worker(uint32_t thr_ix)
     : thr_ix(thr_ix) {
       this->req_arr = new NFSRequest*[item_wsize];
       uint32_t xid_off = item_wsize * thr_ix;
-      uint32_t xid_max = xid_ix + item_wsize;
-      for (uint32_t ix = xid_off; ix < xid_max; ++ix) {
-	this->req_arr[ix] = forge_v3_write("file1", ix, ix, 0);
+      uint32_t xid_max = xid_off + item_wsize;
+      for (uint32_t ix = 0, xid = xid_off; ix < item_wsize; ++ix, ++xid) {
+	NFSRequest* cc_req = forge_v3_write("file1", xid, ix, 0);
+	if (! cc_req)
+	  abort();
+	this->req_arr[ix] = cc_req;
 	if (verbose) {
 	  std::cout
 	    << " thread: " << thr_ix
@@ -160,8 +163,9 @@ namespace {
     void operator()() {
       int r = 0;
 
-      std::unique_lock<std::mutex> guard(mtx, std::defer_lock);
+      std::unique_lock<std::mutex> guard(mtx);
       start_cond.wait(guard);
+      guard.unlock();
 
       now(&s_time);
 
@@ -331,7 +335,6 @@ TEST_F(DRCLatency2, RUN1) {
     threads.emplace_back(std::ref(*worker));
   }
 
-  sleep(1);
   start_cond.notify_all();
 
   for (auto &t : threads)
