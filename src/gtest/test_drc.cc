@@ -121,12 +121,13 @@ namespace {
     return req;
   }
 
-  bool verbose = true;
-  static constexpr uint32_t item_wsize = 10;
-  static constexpr uint32_t num_calls = 10;
+  bool verbose = false;
+  static constexpr uint32_t item_wsize = 10000;
+  static constexpr uint32_t num_calls = 10000;
 
 //  NFSRequest** req_arr;
   uint32_t xid_ix;
+  std::atomic<uint32_t> threads_started{0};
   std::mutex mtx;
   std::condition_variable start_cond;
 
@@ -144,7 +145,6 @@ namespace {
     : thr_ix(thr_ix) {
       this->req_arr = new NFSRequest*[item_wsize];
       uint32_t xid_off = item_wsize * thr_ix;
-      uint32_t xid_max = xid_off + item_wsize;
       for (uint32_t ix = 0, xid = xid_off; ix < item_wsize; ++ix, ++xid) {
 	NFSRequest* cc_req = forge_v3_write("file1", xid, ix, 0);
 	if (! cc_req)
@@ -163,6 +163,7 @@ namespace {
     void operator()() {
       int r = 0;
 
+      ++threads_started;
       std::unique_lock<std::mutex> guard(mtx);
       start_cond.wait(guard);
       guard.unlock();
@@ -335,6 +336,10 @@ TEST_F(DRCLatency2, RUN1) {
     threads.emplace_back(std::ref(*worker));
   }
 
+  struct timespec ts = {0, 50000000 };
+  while (threads_started < nthreads) {
+    nanosleep(&ts, nullptr);
+  }
   start_cond.notify_all();
 
   for (auto &t : threads)
