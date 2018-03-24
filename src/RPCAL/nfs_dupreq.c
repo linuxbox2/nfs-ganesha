@@ -1078,7 +1078,7 @@ dupreq_status_t nfs_dupreq_start(nfs_request_t *reqnfs, struct svc_req *req)
 	drc = nfs_dupreq_get_drc(req, DRC_FLAG_NONE); /* drc LOCKED */
 	dk = drc_get_dupreq(drc, DRC_FLAG_LOCKED); /* drc LOCKED */
 	assert(!(dk->flags & DV_FLAG_INUSE));
-	dv->flags = DV_FLAG_INUSE;
+	dk->flags = DV_FLAG_INUSE;
 	dk->hin.drc = drc;
 
 	switch (drc->type) {
