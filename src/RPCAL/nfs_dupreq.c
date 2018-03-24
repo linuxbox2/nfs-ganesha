@@ -528,12 +528,12 @@ static inline void free_tcp_drc(drc_t *drc)
 			gsh_free(drc->xt.tree[ix].cache);
 	}
 	/* dispose free list */
-	do {
+	while (drc->nfree > 0) {
 		dv = TAILQ_FIRST(&drc->dupreq_free_q);
 		TAILQ_REMOVE(&drc->dupreq_free_q, dv, fifo_q);
 		nfs_dupreq_free_dupreq(dv);
 		--(drc->nfree);
-	} while (drc->nfree > 0);
+	}
 	PTHREAD_MUTEX_destroy(&drc->mtx);
 	LogFullDebug(COMPONENT_DUPREQ, "free TCP drc %p", drc);
 	pool_free(tcp_drc_pool, drc);
