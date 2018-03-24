@@ -122,8 +122,9 @@ namespace {
   }
 
   bool verbose = false;
-  static constexpr uint32_t item_wsize = 10000;
-  static constexpr uint32_t num_calls = 10000;
+  static constexpr uint32_t x = 20000;
+  static constexpr uint32_t item_wsize = x;
+  static constexpr uint32_t num_calls = x;
 
 //  NFSRequest** req_arr;
   uint32_t xid_ix;
@@ -184,8 +185,17 @@ namespace {
 	struct svc_req* req = cc_req->get_svc_req();
 
 	r = nfs_dupreq_start(reqnfs, req);
+	if (! req->rq_u1) {
+	  abort();
+	}
 	r = nfs_dupreq_finish(req, NULL);
+	if (! req->rq_u1) {
+	  abort();
+	}
 	nfs_dupreq_rele(req, NULL);
+	if (! req->rq_u1) {
+	  abort();
+	}
       }
 
       now(&e_time);

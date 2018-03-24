@@ -1199,7 +1199,8 @@ no_cache:
  */
 dupreq_status_t nfs_dupreq_finish(struct svc_req *req, nfs_res_t *res_nfs)
 {
-	dupreq_entry_t *ov = NULL, *dv = (dupreq_entry_t *)req->rq_u1;
+	dupreq_entry_t *ov = NULL, *ov2 = NULL,
+		*dv = (dupreq_entry_t *)req->rq_u1;
 	dupreq_status_t status = DUPREQ_SUCCESS;
 	struct rbtree_x_part *t;
 	drc_t *drc = NULL;
@@ -1235,7 +1236,6 @@ dq_again:
 		if (likely(ov)) {
 			/* remove dict entry */
 			t = rbtx_partition_of_scalar(&drc->xt, ov->hk);
-			uint64_t ov_hk = ov->hk;
 
 			/* Need to acquire partition lock, but the lock
 			 * order is partition lock followed by drc lock.
@@ -1249,12 +1249,12 @@ dq_again:
 			 * the drc dupreq list may have changed. Get the
 			 * dupreq entry from the list again.
 			 */
-			ov = TAILQ_FIRST(&drc->dupreq_q);
+			ov2 = TAILQ_FIRST(&drc->dupreq_q);
 
 			/* Make sure that we are removing the entry we
 			 * expected (imperfect, but harmless).
 			 */
-			if (ov == NULL || ov->hk != ov_hk) {
+			if (ov == NULL || ov != ov2) {
 				PTHREAD_MUTEX_unlock(&t->mtx);
 				goto unlock;
 			}
