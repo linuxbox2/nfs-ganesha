@@ -70,7 +70,7 @@ namespace {
   const char* remote_addr = "10.1.1.1";
   uint16_t remote_port = 45000;
   char* profile_out = nullptr; //"/tmp/profile.out";
-  uint32_t nthreads = 1;
+  uint32_t nthreads = 2;
 
   class NFSRequest
   {

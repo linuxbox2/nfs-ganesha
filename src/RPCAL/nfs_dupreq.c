@@ -1257,7 +1257,7 @@ dq_again:
 			if (ov == NULL || ov != ov2) {
 				printf("YIKES: that was unexpected\n");
 				PTHREAD_MUTEX_unlock(&t->mtx);
-				goto unlock;
+				goto dq_again;
 			}
 
 			/* remove q entry */
