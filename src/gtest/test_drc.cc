@@ -70,7 +70,7 @@ namespace {
   const char* remote_addr = "10.1.1.1";
   uint16_t remote_port = 45000;
   char* profile_out = nullptr; //"/tmp/profile.out";
-  uint32_t nthreads = 2;
+  uint32_t nthreads = 1;
 
   class NFSRequest
   {
@@ -106,8 +106,8 @@ namespace {
     svc->rq_msg.cb_prog = 100003;
     svc->rq_msg.cb_vers = 3;
     svc->rq_msg.cb_proc = NFSPROC3_WRITE;
-    //svc->rq_cksum = xid; /* i.e., not a real cksum */
-    svc->rq_cksum = CityHash64((char *)&xid, sizeof(xid));
+    svc->rq_cksum = xid; /* i.e., not a real cksum */
+    //svc->rq_cksum = CityHash64((char *)&xid, sizeof(xid));
 
     nfs_request_t* nfs = /* req->get_nfs_req() */ &req->req;
     nfs->funcdesc = &nfs3_func_desc[NFSPROC3_WRITE];
@@ -347,6 +347,7 @@ TEST_F(DRCLatency2, RUN1) {
   }
 
   struct timespec ts = {0, 50000000 };
+  nanosleep(&ts, nullptr);
   while (threads_started < nthreads) {
     nanosleep(&ts, nullptr);
   }
