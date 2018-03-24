@@ -1255,6 +1255,7 @@ dq_again:
 			 * expected (imperfect, but harmless).
 			 */
 			if (ov == NULL || ov != ov2) {
+				printf("YIKES: that was unexpected\n");
 				PTHREAD_MUTEX_unlock(&t->mtx);
 				goto unlock;
 			}
