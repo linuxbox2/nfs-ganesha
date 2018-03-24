@@ -86,10 +86,16 @@ typedef struct drc {
 } drc_t;
 
 typedef enum dupreq_state {
-	DUPREQ_START = 0,
+	DUPREQ_INIT = 0,
+	DUPREQ_START,
 	DUPREQ_COMPLETE,
 	DUPREQ_DELETED
 } dupreq_state_t;
+
+#define DV_FLAG_NONE      0x0000
+#define DV_FLAG_INUSE     0x0001
+#define DV_FLAG_FREELIST  0x0002
+#define DV_FLAG_DESTROYED 0x0004
 
 struct dupreq_entry {
 	struct opr_rbtree_node rbt_k;
@@ -109,6 +115,7 @@ struct dupreq_entry {
 	} hin;
 	uint64_t hk;		/* hash key */
 	dupreq_state_t state;
+	uint32_t flags;
 	uint32_t refcnt;
 	nfs_res_t *res;
 };

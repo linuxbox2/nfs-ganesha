@@ -507,6 +507,7 @@ static inline void nfs_dupreq_free_dupreq(dupreq_entry_t *dv)
 		func->free_function(dv->res);
 		free_nfs_res(dv->res);
 	}
+	dv->flags = DV_FLAG_DESTROYED;
 	PTHREAD_MUTEX_destroy(&dv->mtx);
 	pool_free(dupreq_pool, dv);
 }
@@ -865,6 +866,8 @@ static inline dupreq_entry_t *alloc_dupreq(void)
 	dv = pool_alloc(dupreq_pool);
 	dv->res = alloc_nfs_res();
 	gsh_mutex_init(&dv->mtx, NULL);
+	dv->state = DUPREQ_INIT;
+	dv->flags = DV_FLAG_NONE;
 	TAILQ_INIT_ENTRY(dv, fifo_q);
 
 	return dv;
@@ -927,6 +930,7 @@ static inline void dupreq_entry_put(dupreq_entry_t *dv, uint32_t flags)
 			PTHREAD_MUTEX_lock(&drc->mtx);
 		}
 		if (drc->nfree < drc->hiwat) {
+			dv->flags = DV_FLAG_FREELIST;
 			TAILQ_INSERT_TAIL(&drc->dupreq_free_q, dv, fifo_q);
 			++(drc->nfree);
 			if (flags & DRC_FLAG_UNLOCK)
@@ -1073,6 +1077,8 @@ dupreq_status_t nfs_dupreq_start(nfs_request_t *reqnfs, struct svc_req *req)
 
 	drc = nfs_dupreq_get_drc(req, DRC_FLAG_NONE); /* drc LOCKED */
 	dk = drc_get_dupreq(drc, DRC_FLAG_LOCKED); /* drc LOCKED */
+	assert(!(dk->flags & DV_FLAG_INUSE));
+	dv->flags = DV_FLAG_INUSE;
 	dk->hin.drc = drc;
 
 	switch (drc->type) {
@@ -1249,6 +1255,11 @@ dq_again:
 			 * the drc dupreq list may have changed. Get the
 			 * dupreq entry from the list again.
 			 */
+
+			/* TODO: FiX!
+			 * this logic is wrong; ov may no longer be
+			 * retirable, but we don't care whether it
+			 * is in first position */
 			ov2 = TAILQ_FIRST(&drc->dupreq_q);
 
 			/* Make sure that we are removing the entry we
