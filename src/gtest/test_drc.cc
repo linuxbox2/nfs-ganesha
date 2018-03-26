@@ -231,7 +231,7 @@ namespace {
 
       /* setup TCP DRC */
       nfs_param.core_param.drc.disabled = false;
-      nfs_param.core_param.drc.tcp.npart = DRC_TCP_NPART; // checked
+      nfs_param.core_param.drc.tcp.npart = 1 /* DRC_TCP_NPART */; // checked
       nfs_param.core_param.drc.tcp.size = DRC_TCP_SIZE; // checked
       nfs_param.core_param.drc.tcp.cachesz = 0; /* XXXX 0 crash; 1 harmless */
       nfs_param.core_param.drc.tcp.hiwat = 5; //DRC_TCP_HIWAT; // checked--even 364 negligible diff
