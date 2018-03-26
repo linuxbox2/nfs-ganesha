@@ -70,7 +70,7 @@ namespace {
   const char* remote_addr = "10.1.1.1";
   uint16_t remote_port = 45000;
   char* profile_out = nullptr; //"/tmp/profile.out";
-  uint32_t nthreads = 2;
+  uint32_t nthreads = 1;
 
   class NFSRequest
   {
@@ -122,7 +122,7 @@ namespace {
   }
 
   bool verbose = false;
-  static constexpr uint32_t x = 20000;
+  static constexpr uint32_t x = 900000;
   static constexpr uint32_t item_wsize = x;
   static constexpr uint32_t num_calls = x;
 
@@ -360,12 +360,15 @@ TEST_F(DRCLatency2, RUN1) {
     ProfilerStop();
 
   /* total time, all threads */
-  uint64_t total_time = 0;
+  uint64_t dt = 0;
   for (const auto& worker : workers) {
-    total_time += timespec_diff(&worker->s_time, &worker->e_time);
+    dt += timespec_diff(&worker->s_time, &worker->e_time);
   }
 
-  fprintf(stderr, "total run time: %" PRIu64 " ns\n", total_time);
+  uint64_t reqs_s = (nthreads * num_calls) / (double(dt) / 1000000000);
+
+  fprintf(stderr, "total run time: %" PRIu64 " (" PRIu64 " reqs %" PRIu64
+	  " reqs/s) \n", dt, reqs_s);
 
 } /* TEST_F(DRCLatency2, RUN1) */
 
