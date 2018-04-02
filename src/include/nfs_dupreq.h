@@ -57,27 +57,34 @@ enum drc_type {
 #define DRC_FLAG_RECYCLE 0x0040
 #define DRC_FLAG_RELEASE 0x0080
 
+typedef struct drc_lane {
+	CACHE_PAD(0);
+	pthread_mutex_t mtx;
+	struct opr_rbtree t;
+	TAILQ_HEAD(drc_tailq, dupreq_entry) dupreq_q;
+	TAILQ_HEAD(drc_freeq, dupreq_entry) dupreq_free_q;
+	uint32_t size;
+	uint32_t maxsize;
+	uint32_t hiwat;
+	uint32_t flags;
+	uint32_t retwnd;
+	uint32_t nfree;
+	CACHE_PAD(1);
+} drc_lane_t;
+
+#define DRC_NLANES 5
+
 typedef struct drc {
 	enum drc_type type;
-	struct rbtree_x xt;
-	/* Define the tail queue */
-	TAILQ_HEAD(drc_tailq, dupreq_entry) dupreq_q;
-	pthread_mutex_t mtx;
-	TAILQ_HEAD(drc_freeq, dupreq_entry) dupreq_free_q;
-	uint32_t npart;
-	uint32_t cachesz;
-	uint32_t size;
 	uint32_t maxsize;
 	uint32_t hiwat;
 	uint32_t flags;
 	uint32_t refcnt; /* call path refs */
 	uint32_t retwnd;
-	uint32_t nfree;
 	union {
 		struct {
 			sockaddr_t addr;
 			struct opr_rbtree_node recycle_k;
-
 			TAILQ_ENTRY(drc) recycle_q; /* XXX drc */
 			time_t recycle_time;
 			uint64_t hk; /* hash key */
