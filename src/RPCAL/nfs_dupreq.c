@@ -819,13 +819,14 @@ out:
 void nfs_dupreq_put_drc(drc_t *drc)
 {
 	uint32_t refcnt;
-
+#if 0
 	refcnt = atomic_fetch_uint32_t(&drc->refcnt);
 	if (refcnt == 0) { /* XXX needed? */
 		LogCrit(COMPONENT_DUPREQ,
 			"drc %p refcnt may underrun refcnt=%u", drc,
 			drc->refcnt);
 	}
+#endif
 
 	refcnt = nfs_dupreq_unref_drc(drc);
 	LogFullDebug(COMPONENT_DUPREQ, "drc %p refcnt==%u", drc, refcnt);
@@ -894,8 +895,10 @@ static inline dupreq_entry_t *drc_get_dupreq(drc_t *drc, drc_lane_t *lane,
 		dv = TAILQ_FIRST(&lane->dupreq_free_q);
 		TAILQ_REMOVE(&lane->dupreq_free_q, dv, fifo_q);
 		--(lane->nfree);
+		++(lane->recycles);
 	} else {
 		dv = alloc_dupreq();
+		++(lane->allocs);
 	}
 
 	TAILQ_INSERT_TAIL(&lane->dupreq_q, dv, fifo_q);
@@ -1236,12 +1239,14 @@ dupreq_status_t nfs_dupreq_finish(struct svc_req *req, nfs_res_t *res_nfs)
 	lane = dv->hin.lane;
 	pthread_spin_unlock(&dv->sp);
 
+#if 0
 	LogFullDebug(COMPONENT_DUPREQ,
 		     "completing dv=%p xid=%" PRIu32
 		     " on DRC=%p state=%s, status=%s, refcnt=%d, drc->size=%d",
 		dv, dv->hin.tcp.rq_xid, drc,
 		dupreq_state_table[dv->state], dupreq_status_table[status],
 		dv->refcnt, lane->size);
+#endif
 
 	/* (all) finished requests count against retwnd */
 	drc_dec_retwnd(drc);
@@ -1264,12 +1269,14 @@ dq_again:
 			/* release dv's ref */
 			nfs_dupreq_put_drc(drc);
 
+#if 0
 			LogDebug(COMPONENT_DUPREQ,
 				 "retiring ov=%p xid=%" PRIu32
 				 " on DRC=%p state=%s, status=%s, refcnt=%d",
 				 ov, ov->hin.tcp.rq_xid,
 				 ov->hin.drc, dupreq_state_table[dv->state],
 				 dupreq_status_table[status], ov->refcnt);
+#endif
 
 			/* release hashtable ref count */
 			dupreq_entry_put(ov, DRC_FLAG_LOCKED);

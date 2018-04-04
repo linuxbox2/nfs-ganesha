@@ -65,6 +65,8 @@ typedef struct drc_lane {
 	TAILQ_HEAD(drc_freeq, dupreq_entry) dupreq_free_q;
 	uint32_t size;
 	uint32_t nfree;
+	uint32_t allocs;
+	uint32_t recycles;
 } drc_lane_t;
 
 typedef struct drc {
