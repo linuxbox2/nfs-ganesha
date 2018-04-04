@@ -122,7 +122,7 @@ namespace {
   }
 
   bool verbose = false;
-  static constexpr uint32_t x = 900000;
+  static constexpr uint32_t x = 1000000;
   static constexpr uint32_t item_wsize = x;
   static constexpr uint32_t num_calls = x;
 
@@ -229,9 +229,13 @@ namespace {
 	req_arr[ix] = forge_v3_write("file1", ix, ix, 0);
       }
 
+      /* avoid crash in shared drc */
+      nfs_param.core_param.drc.udp.nlane = 1;
+
       /* setup TCP DRC */
       nfs_param.core_param.drc.disabled = false;
-      nfs_param.core_param.drc.tcp.npart = 5 /* DRC_TCP_NPART */; // checked
+      nfs_param.core_param.drc.tcp.npart = 1; /* DRC_TCP_NPART */; // checked
+      nfs_param.core_param.drc.tcp.nlane = 5;
       nfs_param.core_param.drc.tcp.size = DRC_TCP_SIZE; // checked
       nfs_param.core_param.drc.tcp.cachesz = 0; /* XXXX 0 crash; 1 harmless */
       nfs_param.core_param.drc.tcp.hiwat = 5; //DRC_TCP_HIWAT; // checked--even 364 negligible diff
@@ -276,9 +280,13 @@ namespace {
 	workers.push_back(worker);
       }
 
+      /* avoid crash in shared drc */
+      nfs_param.core_param.drc.udp.nlane = 1;
+
       /* setup TCP DRC */
       nfs_param.core_param.drc.disabled = false;
       nfs_param.core_param.drc.tcp.npart = DRC_TCP_NPART; // checked
+      nfs_param.core_param.drc.tcp.nlane = DRC_TCP_NLANE;
       nfs_param.core_param.drc.tcp.size = DRC_TCP_SIZE; // checked
       nfs_param.core_param.drc.tcp.cachesz = 1; /* XXXX 0 crash; 1 harmless */
       nfs_param.core_param.drc.tcp.hiwat = 5; //DRC_TCP_HIWAT; // checked--even 364 negligible diff
@@ -330,8 +338,8 @@ TEST_F(DRCLatency1, RUN1)
   if (profile_out)
     ProfilerStop();
 
-  fprintf(stderr, "total run time: %" PRIu64 " ns\n",
-	  timespec_diff(&s_time, &e_time));
+  fprintf(stderr, "total run time: %" PRIu64 " ns (%d threads)\n",
+	  timespec_diff(&s_time, &e_time), nthreads);
 } /* TEST_F(DRCLatency1, RUN1) */
 #endif
 
@@ -368,7 +376,7 @@ TEST_F(DRCLatency2, RUN1) {
   uint64_t reqs_s = (nthreads * num_calls) / (double(dt) / 1000000000);
 
   fprintf(stderr, "total run time: %" PRIu64 " (" PRIu64 " reqs %" PRIu64
-	  " reqs/s) \n", dt, reqs_s);
+	  " reqs/s, %d threads) \n", dt, reqs_s, nthreads);
 
 } /* TEST_F(DRCLatency2, RUN1) */
 

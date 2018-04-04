@@ -388,12 +388,14 @@ static inline enum drc_type get_drc_type(struct svc_req *req)
  */
 static inline drc_t *alloc_tcp_drc(enum drc_type dtype)
 {
+	int lane_ix, part_ix;
 	drc_t *drc;
 	drc_lane_t *lane;
-	int ix, code __attribute__ ((unused)) = 0;
+	int code __attribute__ ((unused)) = 0;
 	int drcsz = sizeof(struct drc) +
 		(nfs_param.core_param.drc.tcp.nlane *
 			sizeof(struct drc_lane));
+
 	drc = gsh_malloc(drcsz);
 	memset(drc, 0, drcsz);
 
@@ -409,8 +411,8 @@ static inline drc_t *alloc_tcp_drc(enum drc_type dtype)
 	drc->lane_hiwat = nfs_param.core_param.drc.tcp.hiwat / drc->nlane;
 
 	/* init lanes */
-	for (ix = 0; ix < drc->nlane; ++ix) {
-		lane = &(drc->lanes[ix]);
+	for (lane_ix = 0; lane_ix < drc->nlane; ++lane_ix) {
+		lane = &(drc->lanes[lane_ix]);
 		lane->nfree = 0;
 
 		gsh_mutex_init(&lane->mtx, NULL);
@@ -418,7 +420,7 @@ static inline drc_t *alloc_tcp_drc(enum drc_type dtype)
 		/* init dict */
 		code =
 			rbtx_init(&lane->xt, dupreq_tcp_cmpf, drc->npart,
-				RBT_X_FLAG_ALLOC | RBT_X_FLAG_CACHE_WT);
+				RBT_X_FLAG_ALLOC|RBT_X_FLAG_CACHE_WT);
 		assert(!code);
 
 		/* completed requests */
@@ -428,8 +430,8 @@ static inline drc_t *alloc_tcp_drc(enum drc_type dtype)
 		TAILQ_INIT(&lane->dupreq_free_q);
 
 		/* init "cache" partition */
-		for (ix = 0; ix < drc->npart; ++ix) {
-			struct rbtree_x_part *xp = &(lane->xt.tree[ix]);
+		for (part_ix = 0; part_ix < drc->npart; ++part_ix) {
+			struct rbtree_x_part *xp = &(lane->xt.tree[part_ix]);
 
 			lane->xt.cachesz = drc->cachesz;
 			xp->cache = (lane->xt.cachesz) ?
