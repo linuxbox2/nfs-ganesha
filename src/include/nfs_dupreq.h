@@ -59,7 +59,7 @@ enum drc_type {
 
 typedef struct drc_lane {
 	CACHE_PAD(0);
-	pthread_mutex_t mtx;
+	pthread_spinlock_t sp;
 	struct rbtree_x xt;
 	TAILQ_HEAD(drc_tailq, dupreq_entry) dupreq_q;
 	TAILQ_HEAD(drc_freeq, dupreq_entry) dupreq_free_q;
@@ -111,7 +111,7 @@ struct dupreq_entry {
 	struct opr_rbtree_node rbt_k;
 	/* Define the tail queue */
 	TAILQ_ENTRY(dupreq_entry) fifo_q;
-	pthread_mutex_t mtx;
+	pthread_spinlock_t sp;
 	struct {
 		drc_t *drc;
 		drc_lane_t *lane;
