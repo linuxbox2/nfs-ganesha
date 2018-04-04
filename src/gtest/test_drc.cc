@@ -70,7 +70,12 @@ namespace {
   const char* remote_addr = "10.1.1.1";
   uint16_t remote_port = 45000;
   char* profile_out = nullptr; //"/tmp/profile.out";
-  uint32_t nthreads = 1;
+  uint32_t nthreads = 3;
+  bool cityhash = false;
+  bool verbose = false;
+  static constexpr uint32_t x = 1000000;
+  static constexpr uint32_t item_wsize = x;
+  static constexpr uint32_t num_calls = x;
 
   class NFSRequest
   {
@@ -107,7 +112,7 @@ namespace {
     svc->rq_msg.cb_vers = 3;
     svc->rq_msg.cb_proc = NFSPROC3_WRITE;
     svc->rq_cksum = xid; /* i.e., not a real cksum */
-    //svc->rq_cksum = CityHash64((char *)&xid, sizeof(xid));
+    svc->rq_cksum = CityHash64((char *)&xid, sizeof(xid));
 
     nfs_request_t* nfs = /* req->get_nfs_req() */ &req->req;
     nfs->funcdesc = &nfs3_func_desc[NFSPROC3_WRITE];
@@ -121,12 +126,6 @@ namespace {
     return req;
   }
 
-  bool verbose = false;
-  static constexpr uint32_t x = 1000000;
-  static constexpr uint32_t item_wsize = x;
-  static constexpr uint32_t num_calls = x;
-
-//  NFSRequest** req_arr;
   uint32_t xid_ix;
   std::atomic<uint32_t> threads_started{0};
   std::mutex mtx;
@@ -209,57 +208,6 @@ namespace {
     }
 
   };
-
-#if 0
-  class DRCLatency1 : public ::testing::Test {
-
-    virtual void SetUp() {
-
-      xprt.xp_type = XPRT_TCP;
-
-      struct sockaddr_in* sin = (struct sockaddr_in *) &xprt.xp_remote.ss;
-      sin->sin_family = AF_INET;
-      sin->sin_port = htons(remote_port);
-      inet_pton(AF_INET, remote_addr, &sin->sin_addr);
-      __rpc_address_setup(&xprt.xp_remote);
-
-      /* setup reqs */
-      req_arr = new NFSRequest*[item_wsize];
-      for (uint32_t ix = 0; ix < item_wsize; ++ix) {
-	req_arr[ix] = forge_v3_write("file1", ix, ix, 0);
-      }
-
-      /* avoid crash in shared drc */
-      nfs_param.core_param.drc.udp.nlane = 1;
-
-      /* setup TCP DRC */
-      nfs_param.core_param.drc.disabled = false;
-      nfs_param.core_param.drc.tcp.npart = 1; /* DRC_TCP_NPART */; // checked
-      nfs_param.core_param.drc.tcp.nlane = 5;
-      nfs_param.core_param.drc.tcp.size = DRC_TCP_SIZE; // checked
-      nfs_param.core_param.drc.tcp.cachesz = 0; /* XXXX 0 crash; 1 harmless */
-      nfs_param.core_param.drc.tcp.hiwat = 5; //DRC_TCP_HIWAT; // checked--even 364 negligible diff
-      nfs_param.core_param.drc.tcp.recycle_npart = DRC_TCP_RECYCLE_NPART;
-      nfs_param.core_param.drc.tcp.recycle_expire_s = 600;
-
-      dupreq2_pkginit();
-
-      if (verbose) {
-	std::cout << "INIT"
-		  << " insert next_xid: " << xid_ix
-		  << std::endl;
-      }
-    }
-
-    virtual void TearDown() {
-      for (uint32_t ix = 0; ix < item_wsize; ++ix) {
-	delete req_arr[ix];
-      }
-      delete[] req_arr; // XXX
-    }
-
-  };
-#endif
 
   class DRCLatency2 : public ::testing::Test {
   public:
