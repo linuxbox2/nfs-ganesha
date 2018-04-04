@@ -90,6 +90,11 @@ typedef enum protos {
 #define DRC_TCP_NPART 1
 
 /**
+ * @brief Default value for core_param.drc.tcp.nlane
+ */
+#define DRC_TCP_NLANE 3
+
+/**
  * @brief Default value for core_param.drc.tcp.size
  */
 #define DRC_TCP_SIZE 1024
@@ -97,7 +102,7 @@ typedef enum protos {
 /**
  * @brief Default value for core_param.drc.tcp.cachesz
  */
-#define DRC_TCP_CACHESZ 127	/* make prime */
+#define DRC_TCP_CACHESZ 0	/* make prime or 0 */
 
 /**
  * @brief Default value for core_param.drc.tcp.hiwat
@@ -123,6 +128,11 @@ typedef enum protos {
  * @brief Default value for core_param.drc.udp.npart
  */
 #define DRC_UDP_NPART 7
+
+/**
+ * @brief Default value for core_param.drc.udp.nlane
+ */
+#define DRC_UDP_NLANE 1
 
 /**
  * @brief Default value for core_param.drc.udp.size
@@ -238,6 +248,10 @@ typedef struct nfs_core_param {
 			    TCP DRC.  Defaults to DRC_TCP_NPART,
 			    settable by DRC_TCP_Npart. */
 			uint32_t npart;
+			/** Number of lanes in the
+			    TCP DRC.  Defaults to DRC_TCP_NLANE,
+			    settable by DRC_TCP_Nlane. */
+			uint32_t nlane;
 			/** Maximum number of requests in a transport's
 			    DRC.  Defaults to DRC_TCP_SIZE and
 			    settable by DRC_TCP_Size. */
@@ -277,6 +291,10 @@ typedef struct nfs_core_param {
 			    UDP DRC.  Defaults to DRC_UDP_NPART,
 			    settable by DRC_UDP_Npart. */
 			uint32_t npart;
+			/** Number of lanes in the
+			    UDP DRC.  Defaults to DRC_UDP_NLANE,
+			    settable by DRC_UDP_Nlane. */
+			uint32_t nlane;
 			/** Maximum number of requests in the UDP DRC.
 			    Defaults to DRC_UDP_SIZE and settable by
 			    DRC_UDP_Size. */

@@ -60,27 +60,24 @@ enum drc_type {
 typedef struct drc_lane {
 	CACHE_PAD(0);
 	pthread_mutex_t mtx;
-	struct opr_rbtree t;
+	struct rbtree_x xt;
 	TAILQ_HEAD(drc_tailq, dupreq_entry) dupreq_q;
 	TAILQ_HEAD(drc_freeq, dupreq_entry) dupreq_free_q;
 	uint32_t size;
-	uint32_t maxsize;
-	uint32_t hiwat;
-	uint32_t flags;
-	uint32_t retwnd;
 	uint32_t nfree;
-	CACHE_PAD(1);
 } drc_lane_t;
-
-#define DRC_NLANES 5
 
 typedef struct drc {
 	enum drc_type type;
+	uint32_t npart;
+	uint32_t nlane;
+	uint32_t cachesz;
 	uint32_t maxsize;
-	uint32_t hiwat;
+	uint32_t lane_max;
+	uint32_t lane_hiwat;
 	uint32_t flags;
 	uint32_t refcnt; /* call path refs */
-	uint32_t retwnd;
+	int32_t retwnd;
 	union {
 		struct {
 			sockaddr_t addr;
@@ -90,7 +87,13 @@ typedef struct drc {
 			uint64_t hk; /* hash key */
 		} tcp;
 	} d_u;
+	drc_lane_t lanes[];
 } drc_t;
+
+#define drc_idx_of_scalar(drc, k) ((k)%((drc)->nlane))
+#define drc_lane_of_ix(drc, ix) ((drc)->lanes+(ix))
+#define drc_lane_of_scalar(drc, k) \
+	(drc_lane_of_ix((drc), drc_idx_of_scalar((drc), (k))))
 
 typedef enum dupreq_state {
 	DUPREQ_INIT = 0,
@@ -111,6 +114,7 @@ struct dupreq_entry {
 	pthread_mutex_t mtx;
 	struct {
 		drc_t *drc;
+		drc_lane_t *lane;
 		sockaddr_t addr;
 		struct {
 			uint32_t rq_xid;
@@ -154,7 +158,7 @@ void dupreq2_pkgshutdown(void);
 
 drc_t *drc_get_tcp_drc(struct svc_req *);
 void drc_release_tcp_drc(drc_t *);
-void nfs_dupreq_put_drc(drc_t *drc, uint32_t flags);
+void nfs_dupreq_put_drc(drc_t *drc);
 
 dupreq_status_t nfs_dupreq_start(nfs_request_t *,
 				 struct svc_req *);
