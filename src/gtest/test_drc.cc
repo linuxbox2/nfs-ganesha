@@ -70,12 +70,16 @@ namespace {
   const char* remote_addr = "10.1.1.1";
   uint16_t remote_port = 45000;
   char* profile_out = nullptr; //"/tmp/profile.out";
-  uint32_t nthreads = 3;
+  uint32_t nthreads = 2;
   bool cityhash = false;
   bool verbose = false;
-  static constexpr uint32_t x = 1000000;
-  static constexpr uint32_t item_wsize = x;
-  static constexpr uint32_t num_calls = x;
+  uint32_t item_wsize = 1000000;
+  uint32_t num_calls = 1000000;
+  uint32_t drc_parts = 1;
+  uint32_t drc_lanes = 3;
+  uint32_t drc_size = 1024;
+  uint32_t drc_hiwat = 128;
+  uint32_t drc_cache = 1; /* XXXX 0 can crash */
 
   class NFSRequest
   {
@@ -111,8 +115,7 @@ namespace {
     svc->rq_msg.cb_prog = 100003;
     svc->rq_msg.cb_vers = 3;
     svc->rq_msg.cb_proc = NFSPROC3_WRITE;
-    svc->rq_cksum = xid; /* i.e., not a real cksum */
-    svc->rq_cksum = CityHash64((char *)&xid, sizeof(xid));
+    svc->rq_cksum = (cityhash) ? CityHash64((char *)&xid, sizeof(xid)) : xid;
 
     nfs_request_t* nfs = /* req->get_nfs_req() */ &req->req;
     nfs->funcdesc = &nfs3_func_desc[NFSPROC3_WRITE];
@@ -233,11 +236,11 @@ namespace {
 
       /* setup TCP DRC */
       nfs_param.core_param.drc.disabled = false;
-      nfs_param.core_param.drc.tcp.npart = DRC_TCP_NPART; // checked
-      nfs_param.core_param.drc.tcp.nlane = DRC_TCP_NLANE;
-      nfs_param.core_param.drc.tcp.size = DRC_TCP_SIZE; // checked
-      nfs_param.core_param.drc.tcp.cachesz = 1; /* XXXX 0 crash; 1 harmless */
-      nfs_param.core_param.drc.tcp.hiwat = 5; //DRC_TCP_HIWAT; // checked--even 364 negligible diff
+      nfs_param.core_param.drc.tcp.npart = drc_parts;
+      nfs_param.core_param.drc.tcp.nlane = drc_lanes;
+      nfs_param.core_param.drc.tcp.size = drc_size;
+      nfs_param.core_param.drc.tcp.cachesz = drc_cache;
+      nfs_param.core_param.drc.tcp.hiwat = drc_hiwat;
       nfs_param.core_param.drc.tcp.recycle_npart = DRC_TCP_RECYCLE_NPART;
       nfs_param.core_param.drc.tcp.recycle_expire_s = 600;
 
@@ -330,6 +333,117 @@ TEST_F(DRCLatency2, RUN1) {
 
 int main(int argc, char *argv[])
 {
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+  using namespace std;
+  using namespace std::literals;
+  namespace po = boost::program_options;
+
+  int code = 0;
+
+  po::options_description opts("program options");
+  po::variables_map vm;
+
+  try {
+
+    opts.add_options()
+      ("profile", po::value<string>(),
+        "path to google perf output file")
+
+      ("nthreads", po::value<uint16_t>(),
+        "number of threads")
+
+      ("verbose", po::bool_switch(&verbose),
+        "verbose output (default off)")
+
+      ("hash_xids", po::bool_switch(&cityhash),
+        "hash xid as value of checksum (defaults to xid)")
+
+      ("wsize", po::value<uint32_t>(),
+        "number of requests in per-thread work array (default 1M)")
+
+      ("ncalls", po::value<uint32_t>(),
+        "number of calls per-thread (default 1M)")
+
+      ("nparts", po::value<uint16_t>(),
+        "number of tree partitions per TCP DRC lane")
+
+      ("nlanes", po::value<uint16_t>(),
+        "number of TCP DRC lanes per DRC")
+
+      ("dsize", po::value<uint16_t>(),
+        "max unretired entries in TCP DRC (default 1024)")
+
+      ("dhiwat", po::value<uint16_t>(),
+        "TCP DRC high water mark (default 1028)")
+
+      ("dcache", po::value<uint16_t>(),
+        "size of tree cache in TCP DRC (default 1)")
+
+      ;
+
+    po::variables_map::iterator vm_iter;
+    po::command_line_parser parser{argc, argv};
+    parser.options(opts).allow_unregistered();
+    po::store(parser.run(), vm);
+    po::notify(vm);
+
+    // use config vars--leaves them on the stack
+    vm_iter = vm.find("profile");
+    if (vm_iter != vm.end()) {
+      profile_out = (char*) vm_iter->second.as<std::string>().c_str();
+    }
+
+    vm_iter = vm.find("nthreads");
+    if (vm_iter != vm.end()) {
+      nthreads = vm_iter->second.as<std::uint16_t>();
+    }
+
+    vm_iter = vm.find("wsize");
+    if (vm_iter != vm.end()) {
+      item_wsize = vm_iter->second.as<std::uint32_t>();
+    }
+
+    vm_iter = vm.find("ncalls");
+    if (vm_iter != vm.end()) {
+      num_calls = vm_iter->second.as<std::uint32_t>();
+    }
+
+    vm_iter = vm.find("nparts");
+    if (vm_iter != vm.end()) {
+      drc_parts = vm_iter->second.as<std::uint16_t>();
+    }
+
+    vm_iter = vm.find("nlanes");
+    if (vm_iter != vm.end()) {
+      drc_lanes = vm_iter->second.as<std::uint16_t>();
+    }
+
+    vm_iter = vm.find("dsize");
+    if (vm_iter != vm.end()) {
+      drc_size = vm_iter->second.as<std::uint16_t>();
+    }
+
+    vm_iter = vm.find("dhiwat");
+    if (vm_iter != vm.end()) {
+      drc_hiwat = vm_iter->second.as<std::uint16_t>();
+    }
+
+    vm_iter = vm.find("dcache");
+    if (vm_iter != vm.end()) {
+      drc_cache = vm_iter->second.as<std::uint16_t>();
+    }
+
+    ::testing::InitGoogleTest(&argc, argv);
+
+    code  = RUN_ALL_TESTS();
+  } /* try */
+
+  catch(po::error& e) {
+    cout << "Error parsing opts " << e.what() << endl;
+  }
+
+  catch(...) {
+    cout << "Unhandled exception in main()" << endl;
+  }
+
+  return code;
 }
