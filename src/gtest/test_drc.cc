@@ -167,9 +167,11 @@ namespace {
       int r = 0;
 
       ++threads_started;
-      std::unique_lock<std::mutex> guard(mtx);
-      start_cond.wait(guard);
-      guard.unlock();
+      if (nthreads > 0) {
+	std::unique_lock<std::mutex> guard(mtx);
+	start_cond.wait(guard);
+	guard.unlock();
+      }
 
       now(&s_time);
 
@@ -248,8 +250,10 @@ namespace {
     }
 
     virtual void TearDown() {
-      for (auto& worker : workers) {
-	delete worker;
+      if (nthreads > 0) {
+	for (auto& worker : workers) {
+	  delete worker;
+	}
       }
     }
 
@@ -257,63 +261,37 @@ namespace {
 
 } /* namespace */
 
-#if 0
-TEST_F(DRCLatency1, RUN1)
-{
-  struct timespec s_time, e_time;
-  int r = 0;
-
-  if (profile_out)
-    ProfilerStart(profile_out);
-
-  now(&s_time);
-
-  for (uint32_t call_ctr = 0; call_ctr < item_wsize; ++call_ctr) {
-    if (verbose) {
-      std::cout
-	<< " call: " << call_ctr
-	<< std::endl;
-    }
-
-    NFSRequest& cc_req = *(req_arr[call_ctr]);
-    nfs_request_t* reqnfs = /* cc_req.get_nfs_req() */  &cc_req.req;
-    struct svc_req* req = cc_req.get_svc_req();
-
-    r = nfs_dupreq_start(reqnfs, req);
-    r = nfs_dupreq_finish(req, NULL);
-    nfs_dupreq_rele(req, NULL);
-  }
-
-  now(&e_time);
-
-  if (profile_out)
-    ProfilerStop();
-
-  fprintf(stderr, "total run time: %" PRIu64 " ns (%d threads)\n",
-	  timespec_diff(&s_time, &e_time), nthreads);
-} /* TEST_F(DRCLatency1, RUN1) */
-#endif
-
 TEST_F(DRCLatency2, RUN1) {
 
+  uint16_t eff_threads = 1;
+
   if (profile_out)
     ProfilerStart(profile_out);
 
-  std::vector<std::thread> threads;
-  threads.reserve(nthreads);
-  for (auto& worker : workers) {
-    threads.emplace_back(std::ref(*worker));
-  }
+  if (nthreads > 0) {
+    std::vector<std::thread> threads;
+    threads.reserve(nthreads);
+    for (auto& worker : workers) {
+      threads.emplace_back(std::ref(*worker));
+    }
 
-  struct timespec ts = {0, 50000000 };
-  nanosleep(&ts, nullptr);
-  while (threads_started < nthreads) {
+    eff_threads = nthreads;
+
+    struct timespec ts = {0, 50000000 };
     nanosleep(&ts, nullptr);
-  }
-  start_cond.notify_all();
+    while (threads_started < nthreads) {
+      nanosleep(&ts, nullptr);
+    }
+    start_cond.notify_all();
 
-  for (auto &t : threads)
-    t.join();
+    for (auto &t : threads)
+      t.join();
+  } else {
+    /* run in main() thread only */
+    Worker worker(0);
+    worker.operator()();
+    workers.push_back(&worker);
+  }
 
   if (profile_out)
     ProfilerStop();
@@ -324,7 +302,7 @@ TEST_F(DRCLatency2, RUN1) {
     dt += timespec_diff(&worker->s_time, &worker->e_time);
   }
 
-  uint64_t reqs_s = (nthreads * num_calls) / (double(dt) / 1000000000);
+  uint64_t reqs_s = (eff_threads * num_calls) / (double(dt) / 1000000000);
 
   fprintf(stderr, "total run time: %" PRIu64 " (" PRIu64 " reqs %" PRIu64
 	  " reqs/s, %d threads) \n", dt, reqs_s, nthreads);
