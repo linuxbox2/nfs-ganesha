@@ -347,6 +347,9 @@ static inline unsigned int get_ipproto_by_xprt(const SVCXPRT *xprt)
 	switch (xprt->xp_type) {
 	case XPRT_TCP:
 	case XPRT_TCP_RENDEZVOUS:
+		/* for ONC RPC VSOCK is equivalent to TCP */
+	case XPRT_VSOCK:
+	case XPRT_VSOCK_RENDEZVOUS:
 		return IPPROTO_TCP;
 	case XPRT_UDP:
 	case XPRT_UDP_RENDEZVOUS:
