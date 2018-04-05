@@ -69,12 +69,12 @@ namespace {
 
   const char* remote_addr = "10.1.1.1";
   uint16_t remote_port = 45000;
-  char* profile_out = nullptr; //"/tmp/profile.out";
+  char* profile_out = nullptr;
   uint32_t nthreads = 2;
   bool cityhash = false;
   bool per_thread_xprt = false;
   bool verbose = false;
-  uint32_t item_wsize = 1000000;
+  uint32_t item_wsize = 1000; // must be larger than drc_size!
   uint32_t num_calls = 1000000;
   uint32_t drc_parts = 1;
   uint32_t drc_lanes = 3;
@@ -89,9 +89,10 @@ namespace {
     request_data_t req_data;
     nfs_request_t& req;
     struct svc_req& svc;
+    uint32_t xid_off;
 
-  NFSRequest(struct svc_xprt *_xprt)
-    : req(req_data.r_u.req), svc(req.svc) {
+  NFSRequest(struct svc_xprt *_xprt, uint32_t _xid_off)
+    : req(req_data.r_u.req), svc(req.svc), xid_off(_xid_off) {
       memset(&req_data, 0, sizeof(request_data_t));
       req_data.rtype = NFS_REQUEST;
       req.svc.rq_xprt = _xprt;
@@ -104,22 +105,30 @@ namespace {
     struct svc_req* get_svc_req() {
       return &req.svc;
     }
+
+    void update_v3_write(uint32_t xid_ix) {
+      struct svc_req* svc = get_svc_req();
+      svc->rq_msg.rm_xid = xid_off + xid_ix;
+      svc->rq_cksum = (cityhash) ?
+	CityHash64((char *)&svc->rq_msg.rm_xid, sizeof(svc->rq_msg.rm_xid))
+	: svc->rq_msg.rm_xid;
+    }
+
   };
 
   NFSRequest* forge_v3_write(struct svc_xprt *_xprt, std::string fh,
-			    uint32_t xid, uint32_t off, uint32_t len) {
-    NFSRequest* req = new NFSRequest(_xprt);
+			    uint32_t xid_off, uint32_t off, uint32_t len) {
+    NFSRequest* req = new NFSRequest(_xprt, xid_off);
     req->fh = fh;
 
     struct svc_req* svc = req->get_svc_req();
-    svc->rq_msg.rm_xid = xid + off;
     svc->rq_msg.cb_prog = 100003;
     svc->rq_msg.cb_vers = 3;
     svc->rq_msg.cb_proc = NFSPROC3_WRITE;
-    svc->rq_cksum = (cityhash) ? CityHash64((char *)&xid, sizeof(xid)) : xid;
 
     nfs_request_t* nfs = /* req->get_nfs_req() */ &req->req;
     nfs->funcdesc = &nfs3_func_desc[NFSPROC3_WRITE];
+
     WRITE3args* arg_write3 = (WRITE3args*) &nfs->arg_nfs;
     arg_write3->file.data.data_len = req->fh.length();
     arg_write3->file.data.data_val = const_cast<char*>(req->fh.data());
@@ -127,6 +136,7 @@ namespace {
     arg_write3->count = len;
     arg_write3->stable = DATA_SYNC;
     /* leave data nil for now */
+
     return req;
   }
 
@@ -149,26 +159,31 @@ namespace {
   Worker(uint32_t thr_ix)
     : thr_ix(thr_ix) {
 
+      /* ips counting from "33.249.130.128" */
       xprt.xp_type = XPRT_TCP;
       struct sockaddr_in* sin = (struct sockaddr_in *) &xprt.xp_remote.ss;
       sin->sin_family = AF_INET;
       sin->sin_port = htons(remote_port);
 
-      /* XXX 254 threads max */
-      std::string remote_addr("10.2.2.");
-      remote_addr += std::to_string(thr_ix);
+      uint32_t ipv = htonl(570000000 + thr_ix);
+      unsigned char *ip = reinterpret_cast<unsigned char*>(&ipv);
+      std::string remote_addr =
+	std::to_string(ip[0]) + "." + std::to_string(ip[1]) + "."
+	+ std::to_string(ip[2]) + "." + std::to_string(ip[3]);
 
       inet_pton(AF_INET, remote_addr.c_str(), &sin->sin_addr);
       __rpc_address_setup(&xprt.xp_remote);
 
       this->req_arr = new NFSRequest*[item_wsize];
-      uint32_t xid_off = item_wsize * thr_ix;
-      for (uint32_t ix = 0, xid = xid_off; ix < item_wsize; ++ix, ++xid) {
+      uint32_t xid_off = num_calls * thr_ix;
+      for (uint32_t ix = 0; ix < item_wsize; ++ix) {
 	struct svc_xprt *special_xprt =
 	  (per_thread_xprt)
 	  ? &xprt
 	  : &global_xprt;
-	NFSRequest* cc_req = forge_v3_write(special_xprt, "file1", xid, ix, 0);
+	NFSRequest* cc_req =
+	  forge_v3_write(special_xprt, "file1", xid_off, 96 /* offset */,
+			65535 /* len */);
 	if (! cc_req)
 	  abort();
 	this->req_arr[ix] = cc_req;
@@ -194,17 +209,20 @@ namespace {
 
       now(&s_time);
 
-      for (uint32_t call_ctr = 0; call_ctr < item_wsize; ++call_ctr) {
-	NFSRequest* cc_req = req_arr[call_ctr];
+      uint32_t req_ix = 0;
+      for (uint32_t call_ix = 0; call_ix < num_calls; ++call_ix) {
+	NFSRequest* cc_req = req_arr[req_ix];
+	cc_req->update_v3_write(call_ix /* new xid basis */);
+
 	if (verbose) {
 	  std::cout
 	    << " thread: " << thr_ix
-	    << " call: " << call_ctr
+	    << " call: " << call_ix
 	    << " NFSRequest: " << cc_req
 	    << std::endl;
 	}
 
-	nfs_request_t* reqnfs = /* cc_req.get_nfs_req() */  &cc_req->req;
+	nfs_request_t* reqnfs = &cc_req->req;
 	struct svc_req* req = cc_req->get_svc_req();
 
 	r = nfs_dupreq_start(reqnfs, req);
@@ -219,7 +237,13 @@ namespace {
 	if (! req->rq_u1) {
 	  abort();
 	}
-      }
+
+	/* wrap req */
+	++req_ix;
+	if (req_ix == item_wsize) {
+	  req_ix = 0;
+	}
+      } /* call_ix */
 
       now(&e_time);
     } /* () */
