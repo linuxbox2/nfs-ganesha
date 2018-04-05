@@ -65,13 +65,14 @@ extern "C" {
 
 namespace {
 
-  struct svc_xprt xprt;
+  struct svc_xprt global_xprt;
 
   const char* remote_addr = "10.1.1.1";
   uint16_t remote_port = 45000;
   char* profile_out = nullptr; //"/tmp/profile.out";
   uint32_t nthreads = 2;
   bool cityhash = false;
+  bool per_thread_xprt = false;
   bool verbose = false;
   uint32_t item_wsize = 1000000;
   uint32_t num_calls = 1000000;
@@ -89,11 +90,11 @@ namespace {
     nfs_request_t& req;
     struct svc_req& svc;
 
-  NFSRequest()
+  NFSRequest(struct svc_xprt *_xprt)
     : req(req_data.r_u.req), svc(req.svc) {
       memset(&req_data, 0, sizeof(request_data_t));
       req_data.rtype = NFS_REQUEST;
-      req.svc.rq_xprt = &xprt;
+      req.svc.rq_xprt = _xprt;
     }
 
     nfs_request_t* get_nfs_req() {
@@ -105,13 +106,13 @@ namespace {
     }
   };
 
-  NFSRequest* forge_v3_write(std::string fh, uint32_t xid, uint32_t off,
-			    uint32_t len) {
-    NFSRequest* req = new NFSRequest();
+  NFSRequest* forge_v3_write(struct svc_xprt *_xprt, std::string fh,
+			    uint32_t xid, uint32_t off, uint32_t len) {
+    NFSRequest* req = new NFSRequest(_xprt);
     req->fh = fh;
 
     struct svc_req* svc = req->get_svc_req();
-    svc->rq_msg.rm_xid = xid;
+    svc->rq_msg.rm_xid = xid + off;
     svc->rq_msg.cb_prog = 100003;
     svc->rq_msg.cb_vers = 3;
     svc->rq_msg.cb_proc = NFSPROC3_WRITE;
@@ -141,15 +142,33 @@ namespace {
     NFSRequest** req_arr;
     struct timespec s_time;
     struct timespec e_time;
+    struct svc_xprt xprt;
 
     Worker() = delete;
 
   Worker(uint32_t thr_ix)
     : thr_ix(thr_ix) {
+
+      xprt.xp_type = XPRT_TCP;
+      struct sockaddr_in* sin = (struct sockaddr_in *) &xprt.xp_remote.ss;
+      sin->sin_family = AF_INET;
+      sin->sin_port = htons(remote_port);
+
+      /* XXX 254 threads max */
+      std::string remote_addr("10.2.2.");
+      remote_addr += std::to_string(thr_ix);
+
+      inet_pton(AF_INET, remote_addr.c_str(), &sin->sin_addr);
+      __rpc_address_setup(&xprt.xp_remote);
+
       this->req_arr = new NFSRequest*[item_wsize];
       uint32_t xid_off = item_wsize * thr_ix;
       for (uint32_t ix = 0, xid = xid_off; ix < item_wsize; ++ix, ++xid) {
-	NFSRequest* cc_req = forge_v3_write("file1", xid, ix, 0);
+	struct svc_xprt *special_xprt =
+	  (per_thread_xprt)
+	  ? &xprt
+	  : &global_xprt;
+	NFSRequest* cc_req = forge_v3_write(special_xprt, "file1", xid, ix, 0);
 	if (! cc_req)
 	  abort();
 	this->req_arr[ix] = cc_req;
@@ -220,13 +239,13 @@ namespace {
 
     virtual void SetUp() {
 
-      xprt.xp_type = XPRT_TCP;
-
-      struct sockaddr_in* sin = (struct sockaddr_in *) &xprt.xp_remote.ss;
+      global_xprt.xp_type = XPRT_TCP;
+      struct sockaddr_in* sin =
+	(struct sockaddr_in *) &global_xprt.xp_remote.ss;
       sin->sin_family = AF_INET;
       sin->sin_port = htons(remote_port);
       inet_pton(AF_INET, remote_addr, &sin->sin_addr);
-      __rpc_address_setup(&xprt.xp_remote);
+      __rpc_address_setup(&global_xprt.xp_remote);
 
       for (uint32_t ix = 0; ix < nthreads; ++ix) {
 	auto worker = new Worker(ix);
@@ -334,6 +353,9 @@ int main(int argc, char *argv[])
 
       ("hash_xids", po::bool_switch(&cityhash),
         "hash xid as value of checksum (defaults to xid)")
+
+      ("per_thread_xprt", po::bool_switch(&per_thread_xprt),
+        "create an RPC xprt handle per thread (default global)")
 
       ("wsize", po::value<uint32_t>(),
         "number of requests in per-thread work array (default 1M)")
