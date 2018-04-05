@@ -257,7 +257,7 @@ namespace {
 
   };
 
-  class DRCLatency2 : public ::testing::Test {
+  class DRCLatency1 : public ::testing::Test {
   public:
     std::vector<Worker*> workers;
 
@@ -304,7 +304,7 @@ namespace {
 
 } /* namespace */
 
-TEST_F(DRCLatency2, RUN1) {
+TEST_F(DRCLatency1, RUN1) {
 
   uint16_t eff_threads = 1;
 
@@ -350,7 +350,7 @@ TEST_F(DRCLatency2, RUN1) {
   fprintf(stderr, "total run time: %" PRIu64 " (" PRIu64 " reqs %" PRIu64
 	  " reqs/s, %d threads) \n", dt, reqs_s, nthreads);
 
-} /* TEST_F(DRCLatency2, RUN1) */
+} /* TEST_F(DRCLatency1, RUN1) */
 
 int main(int argc, char *argv[])
 {
