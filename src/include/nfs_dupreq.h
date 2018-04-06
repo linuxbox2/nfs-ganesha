@@ -63,6 +63,7 @@ typedef struct drc_lane {
 	struct rbtree_x xt;
 	TAILQ_HEAD(drc_tailq, dupreq_entry) dupreq_q;
 	TAILQ_HEAD(drc_freeq, dupreq_entry) dupreq_free_q;
+	uint32_t refcnt; /* call path refs */
 	uint32_t size;
 	uint32_t nfree;
 	uint32_t allocs;
@@ -78,7 +79,6 @@ typedef struct drc {
 	uint32_t lane_max;
 	uint32_t lane_hiwat;
 	uint32_t flags;
-	uint32_t refcnt; /* call path refs */
 	int32_t retwnd;
 	union {
 		struct {
@@ -157,11 +157,7 @@ typedef enum dupreq_status {
 
 void dupreq2_pkginit(void);
 void dupreq2_pkgshutdown(void);
-
-drc_t *drc_get_tcp_drc(struct svc_req *);
-void drc_release_tcp_drc(drc_t *);
-void nfs_dupreq_put_drc(drc_t *drc);
-
+void nfs_dupreq_dispose_drc(drc_t *);
 dupreq_status_t nfs_dupreq_start(nfs_request_t *,
 				 struct svc_req *);
 dupreq_status_t nfs_dupreq_finish(struct svc_req *, nfs_res_t *);
