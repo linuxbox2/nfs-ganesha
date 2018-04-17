@@ -75,9 +75,6 @@ typedef enum exportlist_client_type__ {
 struct global_export_perms {
 	struct export_perms def;
 	struct export_perms conf;
-	/** Expiration time interval in seconds for attributes.  Settable with
-	    Attr_Expiration_Time. */
-	int32_t  expire_time_attr;
 };
 
 #define GSS_DEFINE_LEN_TEMP 255
@@ -110,7 +107,6 @@ typedef struct exportlist_client_entry__ {
 /* Constants for export options masks */
 #define EXPORT_OPTION_FSID_SET 0x00000001 /* Set if Filesystem_id is set */
 #define EXPORT_OPTION_USE_COOKIE_VERIFIER 0x00000002 /* Use cookie verifier */
-#define EXPORT_OPTION_EXPIRE_SET 0x00000004	/*< Inode expire was set */
 /** Controls whether a directory's dirent cache is trusted for
     negative results. */
 #define EXPORT_OPTION_TRUST_READIR_NEGATIVE_CACHE 0x00000008
@@ -188,6 +184,8 @@ typedef struct exportlist_client_entry__ {
 #define EXPORT_OPTION_AUTH_DEFAULTS   (EXPORT_OPTION_AUTH_NONE	     | \
 				       EXPORT_OPTION_AUTH_UNIX)
 
+#define EXPORT_OPTION_EXPIRE_SET 0x00080000	/*< Inode expire was set */
+
 /* Protocol flags */
 #define EXPORT_OPTION_NFSV3 0x00100000	/*< NFSv3 operations are supported */
 #define EXPORT_OPTION_NFSV4 0x00200000	/*< NFSv4 operations are supported */
@@ -215,6 +213,8 @@ typedef struct exportlist_client_entry__ {
 #define EXPORT_OPTION_MANAGE_GIDS 0x40000000 /*< Do not trust
 						    altgrp in AUTH_SYS creds */
 #define EXPORT_OPTION_NO_READDIR_PLUS 0x80000000 /*< Disallow readdir plus */
+
+#define EXPORT_OPTION_PERM_UNUSED 0x08860000
 
 /* Export list related functions */
 uid_t get_anonymous_uid(void);
